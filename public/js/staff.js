@@ -1,0 +1,51 @@
+// Shared helpers for staff screens (login check, top bar, live connection).
+import { api, esc, stream, unlockAudio } from './util.js';
+
+const HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
+
+export async function requireLogin(allowed) {
+  try {
+    const me = await api('/api/staff/me');
+    if (me.role !== 'admin' && !allowed.includes(me.role)) { location.href = HOME[me.role]; return null; }
+    return me;
+  } catch {
+    location.href = `/staff?next=${encodeURIComponent(location.pathname)}`;
+    return null;
+  }
+}
+
+export function topBar(me, current, title) {
+  const links = me.role === 'admin'
+    ? [['waiter', '🧑‍🍳 Σερβιτόρος'], ['kitchen', '🔥 Κουζίνα'], ['admin', '⚙️ Διαχείριση']]
+    : [];
+  const bar = document.createElement('header');
+  bar.className = 'bar';
+  bar.innerHTML = `<div class="bar-inner">
+    <div class="title"><span class="conn" id="conn"></span>${esc(title)} <span class="muted small" style="color:#9ca3af">· ${esc(me.restaurant || '')}</span></div>
+    ${links.map(([k, l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${l}</a>`).join('')}
+    <button id="soundBtn" title="Ήχος ειδοποιήσεων">🔇 Ήχος</button>
+    <button id="logout">Έξοδος</button>
+  </div>`;
+  document.body.prepend(bar);
+  let soundOn = false;
+  const sb = bar.querySelector('#soundBtn');
+  const setSound = (on) => { soundOn = on; sb.textContent = on ? '🔔 Ήχος' : '🔇 Ήχος'; if (on) unlockAudio(); };
+  sb.onclick = () => setSound(!soundOn);
+  // Browsers only allow sound after a user gesture: enable on first tap anywhere.
+  document.addEventListener('pointerdown', () => { if (!soundOn) setSound(true); }, { once: true });
+  bar.querySelector('#logout').onclick = async () => { await api('/api/staff/logout', { method: 'POST' }); location.href = '/staff'; };
+  return { soundEnabled: () => soundOn };
+}
+
+export function liveStaff(onChange) {
+  let timer;
+  const trigger = (evt) => (data) => { clearTimeout(timer); timer = setTimeout(() => onChange(evt, data), 120); };
+  const events = ['order:new', 'order:update', 'call:new', 'call:update', 'call:done', 'table:paid', 'table:closed', 'menu:update'];
+  return stream('/api/staff/stream', Object.fromEntries(events.map((e) => [e, trigger(e)])), (ok) => {
+    document.getElementById('conn')?.classList.toggle('off', !ok);
+    if (ok) onChange('reconnect', {});
+  });
+}
+
+export const LANG_FLAGS = { el: '🇬🇷', en: '🇬🇧', de: '🇩🇪', fr: '🇫🇷', it: '🇮🇹', es: '🇪🇸', nl: '🇳🇱', pl: '🇵🇱' };
+export const itemName = (name) => name?.el || name?.en || Object.values(name || {})[0] || '';

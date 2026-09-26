@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Σύνδεση προσωπικού</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/staff.css">
+</head>
+<body>
+  <div id="toasts"></div>
+  <div class="login">
+    <div class="box">
+      <div style="font-size:2.4rem">🍽️</div>
+      <h1 style="margin:.3rem 0 0;font-size:1.3rem">Σύνδεση προσωπικού</h1>
+      <p class="muted small" style="margin:.3rem 0 0">Πληκτρολογήστε το PIN σας</p>
+      <div class="pin-dots" id="dots"></div>
+      <div class="pad" id="pad"></div>
+      <p class="muted small" id="demo" style="margin-top:1rem"></p>
+    </div>
+  </div>
+  <script type="module">
+    import { api, toast } from '/js/util.js';
+    const HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
+    const next = new URLSearchParams(location.search).get('next');
+    let pin = '';
+    const dots = document.getElementById('dots');
+    const render = () => { dots.innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join(''); };
+    const pad = document.getElementById('pad');
+    pad.innerHTML = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'].map((k) => `<button data-k="${k}">${k}</button>`).join('');
+    async function submit() {
+      if (pin.length < 4) return;
+      try {
+        const { role } = await api('/api/staff/login', { method: 'POST', body: { pin } });
+        location.href = next && next.startsWith('/staff/') ? next : HOME[role];
+      } catch (e) {
+        toast(e.message === 'error' ? 'Σφάλμα σύνδεσης' : e.message, 'err');
+        pin = ''; render();
+      }
+    }
+    const press = (k) => {
+      if (k === '⌫') pin = pin.slice(0, -1);
+      else if (k === 'OK') return submit();
+      else if (pin.length < 8) pin += k;
+      render();
+    };
+    pad.addEventListener('click', (e) => { const k = e.target.dataset.k; if (k) press(k); });
+    document.addEventListener('keydown', (e) => {
+      if (/^\d$/.test(e.key)) press(e.key);
+      else if (e.key === 'Backspace') press('⌫');
+      else if (e.key === 'Enter') press('OK');
+    });
+    render();
+    api('/api/staff/me').then((me) => { location.href = next && next.startsWith('/staff/') ? next : HOME[me.role]; }).catch(() => {});
+    api('/api/demo').then((d) => {
+      if (d.pins) document.getElementById('demo').textContent = `Demo PIN → Admin ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;
+    }).catch(() => {});
+  </script>
+</body>
+</html>

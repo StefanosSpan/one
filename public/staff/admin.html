@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Διαχείριση</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/staff.css">
+</head>
+<body>
+  <div id="toasts"></div>
+  <main class="wrap">
+    <nav class="tabsbar" id="tabs">
+      <button data-tab="dash" class="active">📊 Επισκόπηση</button>
+      <button data-tab="menu">📖 Μενού</button>
+      <button data-tab="tables">🪑 Τραπέζια & QR</button>
+      <button data-tab="store">🏠 Κατάστημα</button>
+      <button data-tab="settings">⚙️ Ρυθμίσεις</button>
+    </nav>
+    <div id="app"><div class="spinner"></div></div>
+  </main>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>

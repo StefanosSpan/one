@@ -1,0 +1,20 @@
+{
+  "name": "taverna-qr",
+  "version": "0.1.0",
+  "description": "Ψηφιακό μενού & παραγγελία από το τραπέζι με QR για ταβέρνες και εστιατόρια",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --no-warnings server/index.js",
+    "dev": "node --no-warnings --watch server/index.js",
+    "reset-db": "node --no-warnings server/reset.js",
+    "test": "node --no-warnings --test"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "qrcode": "^1.5.4"
+  }
+}

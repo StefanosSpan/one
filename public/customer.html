@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f2e9">
+  <title>Μενού</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/customer.css">
+</head>
+<body>
+  <div id="toasts"></div>
+  <div id="offline" class="offline" hidden></div>
+
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">
+        <div class="logo" id="logo">✦</div>
+        <div style="min-width:0">
+          <div class="name" id="rname"></div>
+          <div class="table-badge" id="tableBadge"></div>
+        </div>
+      </div>
+      <button class="icon-btn" id="langBtn" aria-label="Language"></button>
+    </div>
+  </header>
+
+  <main id="app"><div class="spinner"></div></main>
+
+  <div class="bottom" id="bottom" hidden>
+    <div class="actions">
+      <button class="action" id="callBtn"><span>🛎️</span><b data-t="callWaiter"></b></button>
+      <button class="action" id="billBtn"><span>🧾</span><b data-t="requestBill"></b></button>
+    </div>
+    <button class="cartbar" id="cartBar" hidden>
+      <span class="count" id="cartCount">0</span>
+      <span data-t="viewCart"></span>
+      <b id="cartTotal"></b>
+    </button>
+    <nav class="tabs">
+      <button data-tab="menu" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
+        <b data-t="menu"></b></button>
+      <button data-tab="order">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+        <b data-t="myOrder"></b><i class="dot" id="orderDot" hidden></i></button>
+      <button data-tab="info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <b data-t="info"></b></button>
+    </nav>
+  </div>
+
+  <script type="module" src="/js/customer.js"></script>
+</body>
+</html>
