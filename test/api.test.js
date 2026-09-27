@@ -161,3 +161,41 @@ test('QR codes can be downloaded as PNG', async () => {
   const bytes = new Uint8Array(await res.arrayBuffer());
   assert.deepEqual([...bytes.slice(1, 4)], [0x50, 0x4e, 0x47]); // "PNG"
 });
+
+test('closing a spot stores a numbered receipt that can be reprinted and shared with the guest', async () => {
+  const spot = (await call('/api/demo')).data.tables[2].url.split('/').pop();
+  const url = `/api/public/table/${spot}/orders`;
+  await call(url, { method: 'POST', body: { items: [{ id: 3, qty: 1 }, { id: 17, qty: 1, options: [[0, 1]] }] } });
+  await call(url, { method: 'POST', body: { items: [{ id: 3, qty: 2 }] } });
+  const tableId = (await call(`/api/public/table/${spot}/state`)).data.orders[0].tableId;
+
+  const closed = await call(`/api/staff/tables/${tableId}/close`, { method: 'POST', as: 'waiter', body: { paymentMethod: 'card', fiscalRef: 'ΜΑΡΚ 123' } });
+  assert.equal(closed.status, 200);
+  const r = closed.data.receipt;
+  assert.match(r.number, /^\d{4}-\d{5}$/);
+  assert.equal(r.payment, 'card');
+  assert.equal(r.fiscalRef, 'ΜΑΡΚ 123');
+  const tzatziki = r.lines.find((l) => l.name.el === 'Τζατζίκι');
+  assert.equal(tzatziki.qty, 3); // same dish from two orders merged into one line
+  assert.equal(r.total, 3 * 450 + 700);
+
+  // Stored: staff can reprint it, the guest copy hides internal fields.
+  assert.equal((await call(`/api/staff/receipts/${r.id}`, { as: 'waiter' })).data.receipt.number, r.number);
+  assert.equal((await call(`/api/staff/receipts/${r.id}`, { as: 'kitchen' })).status, 403);
+  const pub = await call(`/api/public/receipt/${r.token}`);
+  assert.equal(pub.status, 200);
+  assert.equal(pub.data.receipt.token, undefined);
+  assert.equal(pub.data.receipt.orderIds, undefined);
+  assert.equal((await call('/api/public/receipt/nope')).status, 404);
+
+  // Fiscal reference can be completed later; appears in the admin list and CSV.
+  await call(`/api/staff/receipts/${r.id}`, { method: 'PUT', as: 'waiter', body: { fiscalRef: 'ΑΠΥ 55' } });
+  const list = await call('/api/admin/receipts', { as: 'admin' });
+  assert.equal(list.data.receipts.find((x) => x.id === r.id).fiscalRef, 'ΑΠΥ 55');
+  assert.ok(list.data.summary.byPayment.card >= r.total);
+  const csv = await (await fetch(`${base}/api/admin/receipts.csv`, { headers: { Cookie: cookies.admin } })).text();
+  assert.match(csv, new RegExp(r.number));
+
+  // Closing an empty spot issues no receipt.
+  assert.equal((await call(`/api/staff/tables/${tableId}/close`, { method: 'POST', as: 'waiter' })).data.receipt, null);
+});

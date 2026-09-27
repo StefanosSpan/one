@@ -14,7 +14,7 @@ const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: '
 
 function start() {
   topBar(me, 'admin', 'Διαχείριση');
-  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις']];
+  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
   $$('#tabs button').forEach((b) => b.onclick = () => {
     tab = b.dataset.tab;
@@ -27,7 +27,7 @@ function start() {
 
 async function render() {
   settings = await api('/api/admin/settings');
-  const views = { dash: renderDash, history: renderHistory, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings };
+  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings };
   await views[tab]();
 }
 
@@ -192,6 +192,55 @@ async function renderHistory() {
     <p class="muted small">Όλες οι παραγγελίες αποθηκεύονται μόνιμα στη βάση δεδομένων. Εμφανίζονται έως 2.000 ανά αναζήτηση.</p>`;
   const apply = () => { hist.from = $('#hFrom').value; hist.to = $('#hTo').value; hist.status = $('#hStatus').value; renderHistory(); };
   ['#hFrom', '#hTo', '#hStatus'].forEach((sel) => $(sel).addEventListener('change', apply));
+}
+
+// ---------------------------------------------------------------------------
+// Receipts (stored bills) – reprint, guest copy, link to the legal receipt number
+// ---------------------------------------------------------------------------
+const PAY_LABEL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online' };
+const rec = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(new Date()) };
+
+async function renderReceipts() {
+  const qs = new URLSearchParams(rec);
+  const { receipts, summary } = await api(`/api/admin/receipts?${qs}`);
+  const when = (iso) => new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  $('#app').innerHTML = `
+    <div class="filters">
+      <label>Από<input class="input" type="date" id="rFrom" value="${rec.from}"></label>
+      <label>Έως<input class="input" type="date" id="rTo" value="${rec.to}"></label>
+      <a class="btn secondary sm" href="/api/admin/receipts.csv?${qs}">Εξαγωγή σε Excel (CSV)</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="l">Αποδείξεις</div><div class="v">${summary.count}</div></div>
+      <div class="stat"><div class="l">Σύνολο</div><div class="v">${euro(summary.total)}</div></div>
+      <div class="stat"><div class="l">Μετρητά</div><div class="v">${euro(summary.byPayment.cash)}</div></div>
+      <div class="stat"><div class="l">Κάρτα / Online</div><div class="v">${euro(summary.byPayment.card + summary.byPayment.online)}</div></div>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Αριθμός</th><th>Ημερομηνία</th><th>Θέση</th><th>Πληρωμή</th><th>Αρ. απόδειξης ταμειακής / ΜΑΡΚ</th><th class="num">Σύνολο</th><th></th></tr></thead>
+        <tbody>
+          ${receipts.length ? receipts.map((r) => `<tr>
+            <td><b>${esc(r.number)}</b></td>
+            <td style="white-space:nowrap">${when(r.createdAt)}</td>
+            <td style="white-space:nowrap">${esc((KIND[r.tableKind] || KIND.table).one)} ${esc(r.tableLabel)}</td>
+            <td>${PAY_LABEL[r.payment] || esc(r.payment)}</td>
+            <td><input class="input fiscal" data-rid="${r.id}" value="${esc(r.fiscalRef)}" placeholder="—" maxlength="80"></td>
+            <td class="num">${euro(r.total)}</td>
+            <td style="white-space:nowrap"><a class="btn secondary sm" href="/staff/print/receipt/${r.id}" target="_blank">Εκτύπωση</a>
+              <a class="btn ghost sm" href="/r/${esc(r.token)}" target="_blank">Αντίγραφο πελάτη</a></td>
+          </tr>`).join('') : '<tr><td colspan="7" class="muted" style="text-align:center;padding:2rem">Δεν υπάρχουν αποδείξεις σε αυτό το διάστημα.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">Οι αποδείξεις δημιουργούνται όταν ο σερβιτόρος κάνει «Εξόφληση και κλείσιμο» και αποθηκεύονται μόνιμα.
+      Δεν αποτελούν φορολογικά στοιχεία· συμπληρώστε τον αριθμό ή το ΜΑΡΚ της νόμιμης απόδειξης από το ταμείο σας για αντιστοίχιση.</p>`;
+  const apply = () => { rec.from = $('#rFrom').value; rec.to = $('#rTo').value; renderReceipts(); };
+  ['#rFrom', '#rTo'].forEach((sel) => $(sel).addEventListener('change', apply));
+  $$('.fiscal').forEach((inp) => inp.addEventListener('change', async () => {
+    try { await api(`/api/staff/receipts/${inp.dataset.rid}`, { method: 'PUT', body: { fiscalRef: inp.value } }); toast('Αποθηκεύτηκε', 'ok'); }
+    catch (e) { toast(e.message, 'err'); }
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -493,6 +542,14 @@ function renderStore() {
       <label class="field"><span>Instagram (URL)</span><input class="input" id="instagram" value="${esc(r.instagram)}"></label>
       <label class="field"><span>Σύνδεσμος κριτικών (Google / TripAdvisor)</span><input class="input" id="reviewUrl" value="${esc(r.reviewUrl)}"></label>
     </div>
+    <h3>Στοιχεία απόδειξης</h3>
+    <p class="muted small" style="margin-top:0">Τυπώνονται στην κεφαλίδα της απόδειξης λογαριασμού.</p>
+    <div class="two">
+      <label class="field"><span>Επωνυμία επιχείρησης</span><input class="input" id="legalName" value="${esc(r.legalName || '')}" placeholder="π.χ. Νικολάου Ν. & ΣΙΑ Ο.Ε."></label>
+      <label class="field"><span>ΑΦΜ</span><input class="input" id="vatNumber" value="${esc(r.vatNumber || '')}" inputmode="numeric"></label>
+      <label class="field"><span>ΔΟΥ</span><input class="input" id="taxOffice" value="${esc(r.taxOffice || '')}"></label>
+      <label class="field"><span>Κείμενο στο τέλος της απόδειξης</span><input class="input" id="receiptFooter" value="${esc(r.receiptFooter || '')}" placeholder="π.χ. Σας περιμένουμε ξανά!"></label>
+    </div>
     <button class="btn" id="save">Αποθήκευση</button>
   </div>`;
   const read = bindI18n($('#app'));
@@ -510,7 +567,8 @@ function renderStore() {
   $('#name').addEventListener('input', preview);
   preview();
   $('#save').onclick = async () => {
-    const fields = ['name', 'address', 'mapsUrl', 'phone', 'email', 'wifiName', 'wifiPassword', 'instagram', 'reviewUrl'];
+    const fields = ['name', 'address', 'mapsUrl', 'phone', 'email', 'wifiName', 'wifiPassword', 'instagram', 'reviewUrl',
+      'legalName', 'vatNumber', 'taxOffice', 'receiptFooter'];
     const restaurant = { ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read(), logoUrl: logo(), coverUrl: cover() };
     try { await api('/api/admin/settings', { method: 'PUT', body: { restaurant } }); toast('Αποθηκεύτηκε', 'ok'); }
     catch (err) { toast(err.message, 'err'); }

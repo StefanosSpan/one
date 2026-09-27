@@ -200,3 +200,12 @@ table.data td.items { color: var(--muted); min-width: 220px; }
 .pv b { display: block; font-size: 1.05rem; }
 .pv span { font-size: .8rem; color: var(--muted); }
 .list-item .btn.sm { min-height: 30px; padding: .25rem .6rem; }
+
+/* Printing & closing a spot */
+.foot-right { display: inline-flex; gap: .8rem; align-items: center; }
+.print-link { font-size: .8rem; color: var(--muted); }
+.ticket .print-link { color: var(--muted); }
+.close-box { border-top: 1px solid var(--line); padding-top: .8rem; margin-top: .4rem; }
+.close-box .seg { display: flex; margin-bottom: 0; }
+.close-box .seg button { flex: 1; padding: .6rem; }
+table.data .input.fiscal { padding: .3rem .5rem; min-width: 160px; font-size: .85rem; }

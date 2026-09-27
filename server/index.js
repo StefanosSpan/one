@@ -171,6 +171,7 @@ function publicRestaurant(s = getSettings()) {
     wifiName: r.wifiName, wifiPassword: r.wifiPassword, instagram: r.instagram,
     reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
     brandColor: s.brandColor || '#1f3a5f',
+    legalName: r.legalName || '', vatNumber: r.vatNumber || '', taxOffice: r.taxOffice || '', receiptFooter: r.receiptFooter || '',
   };
 }
 
@@ -407,17 +408,91 @@ app.post('/api/staff/calls/:id/done', requireStaff('waiter'), wrap(async (req, r
   res.json({ ok: true });
 }));
 
+// ---------------------------------------------------------------------------
+// Receipts (bills). Stored permanently; NOT fiscal documents – the legal receipt comes from the cash register.
+// ---------------------------------------------------------------------------
+const PAYMENTS = ['cash', 'card', 'online'];
+
+const mapReceipt = (r) => r && {
+  id: r.id, number: r.number, token: r.token, tableId: r.table_id, tableLabel: r.table_label, tableKind: r.table_kind,
+  orderIds: JSON.parse(r.order_ids || '[]'), lines: JSON.parse(r.lines || '[]'), total: r.total_cents,
+  payment: r.payment, fiscalRef: r.fiscal_ref || '', lang: r.lang, createdAt: r.created_at,
+};
+
+// Merges identical dishes (same dish, options and price) from all of a spot's orders into bill lines.
+function billLines(orders) {
+  const lines = new Map();
+  for (const o of orders) {
+    for (const i of o.items) {
+      const key = JSON.stringify([i.itemId, i.price, i.options, i.name.el]);
+      const line = lines.get(key) || { name: i.name, options: i.options, qty: 0, unit_cents: i.price, total_cents: 0 };
+      line.qty += i.qty;
+      line.total_cents += i.qty * i.price;
+      lines.set(key, line);
+    }
+  }
+  return [...lines.values()];
+}
+
+async function issueReceipt(t, table, orders, { payment, fiscalRef }) {
+  const year = new Date().getFullYear();
+  const lang = orders.at(-1)?.lang || 'el';
+  const lines = billLines(orders);
+  const total = lines.reduce((sum, l) => sum + l.total_cents, 0);
+  const { n } = await t.get('SELECT COUNT(*) AS n FROM receipts WHERE number LIKE ?', [`${year}-%`]);
+  const number = `${year}-${String(Number(n) + 1).padStart(5, '0')}`;
+  const id = await t.insert(`INSERT INTO receipts (number, token, table_id, table_label, table_kind, order_ids, lines, total_cents, payment, fiscal_ref, lang, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [number, newToken(), table.id, table.label, table.kind,
+    JSON.stringify(orders.map((o) => o.id)), JSON.stringify(lines), total, payment, fiscalRef, lang, now()]);
+  return mapReceipt(await t.get('SELECT * FROM receipts WHERE id = ?', [id]));
+}
+
 app.post('/api/staff/tables/:id/close', requireStaff('waiter'), wrap(async (req, res) => {
   const id = Number(req.params.id);
   const table = mapTable(await db.get('SELECT * FROM tables WHERE id = ?', [id]));
   if (!table) fail(404, 'Το τραπέζι δεν βρέθηκε');
-  await db.tx(async (t) => {
+  const orders = (await loadOrders('o.table_id = ? AND o.closed = 0', [id])).filter((o) => o.status !== 'rejected');
+  const allPaidOnline = orders.length && orders.every((o) => o.paid);
+  const payment = PAYMENTS.includes(req.body?.paymentMethod) ? req.body.paymentMethod : allPaidOnline ? 'online' : 'cash';
+  const fiscalRef = cleanText(req.body?.fiscalRef, 80);
+  const receipt = await db.tx(async (t) => {
+    const r = orders.length ? await issueReceipt(t, table, orders, { payment, fiscalRef }) : null;
     await t.run('UPDATE orders SET closed = 1, paid = 1, updated_at = ? WHERE table_id = ? AND closed = 0', [now(), id]);
     await t.run("UPDATE calls SET status = 'done' WHERE table_id = ? AND status = 'open'", [id]);
+    return r;
   });
   emit('staff', 'table:closed', { tableId: id });
+  // The guest gets a link to a digital copy of the bill.
+  if (receipt) emit(`table:${id}`, 'receipt', { number: receipt.number, url: `/r/${receipt.token}` });
   await notifyTable(id);
-  res.json({ ok: true });
+  res.json({ ok: true, receipt });
+}));
+
+app.get('/api/staff/orders/:id', requireStaff(), wrap(async (req, res) => {
+  const order = await loadOrder(Number(req.params.id));
+  if (!order) fail(404, 'Η παραγγελία δεν βρέθηκε');
+  res.json({ order, restaurant: publicRestaurant() });
+}));
+
+app.get('/api/staff/receipts/:id', requireStaff('waiter'), wrap(async (req, res) => {
+  const receipt = mapReceipt(await db.get('SELECT * FROM receipts WHERE id = ?', [Number(req.params.id)]));
+  if (!receipt) fail(404, 'Η απόδειξη δεν βρέθηκε');
+  res.json({ receipt, restaurant: publicRestaurant() });
+}));
+
+app.put('/api/staff/receipts/:id', requireStaff('waiter'), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const r = await db.run('UPDATE receipts SET fiscal_ref = ? WHERE id = ?', [cleanText(req.body?.fiscalRef, 80), id]);
+  if (!r.changes) fail(404, 'Η απόδειξη δεν βρέθηκε');
+  res.json(mapReceipt(await db.get('SELECT * FROM receipts WHERE id = ?', [id])));
+}));
+
+// Guest's digital copy (link sent to their phone when the spot is closed).
+app.get('/api/public/receipt/:token', wrap(async (req, res) => {
+  const receipt = mapReceipt(await db.get('SELECT * FROM receipts WHERE token = ?', [String(req.params.token)]));
+  if (!receipt) fail(404, 'not_found');
+  const { token, orderIds, tableId, ...pub } = receipt;
+  res.json({ receipt: pub, restaurant: publicRestaurant() });
 }));
 
 // Any staff member may mark an item as sold out / available again.
@@ -465,6 +540,8 @@ admin.put('/settings', wrap(async (req, res) => {
       address: cleanText(r.address, 200), phone: cleanText(r.phone, 40), email: cleanText(r.email, 120),
       mapsUrl: cleanText(r.mapsUrl, 500), wifiName: cleanText(r.wifiName, 60), wifiPassword: cleanText(r.wifiPassword, 60),
       instagram: cleanText(r.instagram, 200), reviewUrl: cleanText(r.reviewUrl, 500), logoUrl: cleanText(r.logoUrl, 500), coverUrl: cleanText(r.coverUrl, 500),
+      legalName: cleanText(r.legalName, 120), vatNumber: cleanText(r.vatNumber, 20), taxOffice: cleanText(r.taxOffice, 60),
+      receiptFooter: cleanText(r.receiptFooter, 300),
     });
   }
   if (Array.isArray(b.languages)) {
@@ -727,6 +804,29 @@ admin.get('/orders.csv', wrap(async (req, res) => {
   res.type('text/csv; charset=utf-8').send(csv);
 }));
 
+admin.get('/receipts', wrap(async (req, res) => {
+  const { from, to } = dateRange(req.query);
+  const receipts = (await db.all('SELECT * FROM receipts WHERE created_at >= ? AND created_at < ? ORDER BY id DESC LIMIT 2000', [from, to]))
+    .map(mapReceipt);
+  const byPayment = Object.fromEntries(PAYMENTS.map((p) => [p, receipts.filter((r) => r.payment === p).reduce((s, r) => s + r.total, 0)]));
+  res.json({ receipts, summary: { count: receipts.length, total: receipts.reduce((s, r) => s + r.total, 0), byPayment } });
+}));
+
+admin.get('/receipts.csv', wrap(async (req, res) => {
+  const { from, to } = dateRange(req.query);
+  const receipts = (await db.all('SELECT * FROM receipts WHERE created_at >= ? AND created_at < ? ORDER BY id', [from, to])).map(mapReceipt);
+  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const PAY_EL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online' };
+  const rows = [['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Τρόπος πληρωμής', 'Αρ. απόδειξης ταμειακής / ΜΑΡΚ', 'Σύνολο (€)']];
+  for (const r of receipts) {
+    const d = new Date(r.createdAt);
+    rows.push([r.number, d.toLocaleDateString('el-GR'), d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }),
+      `${KIND_EL[r.tableKind] || ''} ${r.tableLabel}`, PAY_EL[r.payment] || r.payment, r.fiscalRef, (r.total / 100).toFixed(2).replace('.', ',')]);
+  }
+  res.setHeader('Content-Disposition', `attachment; filename="apodeixeis_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
+  res.type('text/csv; charset=utf-8').send(`\uFEFF${rows.map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`);
+}));
+
 app.use('/api/admin', admin);
 
 // ---------------------------------------------------------------------------
@@ -739,6 +839,9 @@ app.get('/staff/waiter', page('staff/waiter.html'));
 app.get('/staff/kitchen', page('staff/kitchen.html'));
 app.get('/staff/admin', page('staff/admin.html'));
 app.get('/staff/qr', page('staff/qr.html'));
+app.get('/staff/print/order/:id', page('staff/print.html'));
+app.get('/staff/print/receipt/:id', page('staff/print.html'));
+app.get('/r/:token', page('receipt.html'));
 
 // Demo landing page needs a real table link.
 app.get('/api/demo', wrap(async (req, res) => {

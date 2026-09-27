@@ -45,7 +45,8 @@ function start() {
       ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
         <span class="muted">${euro(i.qty * i.price)}</span></div>`).join('')}
       ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
-      <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span><b>${euro(o.total)}</b></div>
+      <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span>
+        <span class="foot-right"><a class="print-link" href="/staff/print/order/${o.id}" target="_blank">Εκτύπωση δελτίου</a><b>${euro(o.total)}</b></span></div>
       ${buttons ? `<div class="row">${buttons}</div>` : ''}
     </div>`;
   }
@@ -110,19 +111,42 @@ function start() {
     const t = data.tables.find((x) => x.id === id);
     const orders = data.orders.filter((o) => o.tableId === id);
     const billable = orders.filter((o) => o.status !== 'rejected');
+    const billCall = data.calls.find((c) => c.tableId === id && c.type === 'bill');
     const { el, close } = sheet(`
       <div class="sheet-head"><h2>${esc(spotName(t.kind, t.label))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
       ${orders.length ? orders.map((o) => orderPanel(o)).join('') : '<p class="muted">Δεν υπάρχουν ανοιχτές παραγγελίες.</p>'}
       ${billable.length ? `
         <div class="sum-row"><span>Σύνολο</span><span>${euro(t.total)}</span></div>
         ${t.paid ? `<p class="badge green">Εξοφλήθηκε online: ${euro(t.paid)}</p>` : ''}
-        <button class="btn block success" id="closeT">Εξόφληση και κλείσιμο</button>
-        <p class="muted small">Η θέση αδειάζει για τους επόμενους πελάτες. Βεβαιωθείτε ότι έχει εκδοθεί απόδειξη από το ταμείο.</p>` : ''}
+        <div class="close-box">
+          <div class="field"><span class="lbl">Τρόπος πληρωμής</span>
+            <div class="seg" id="pay">
+              ${[['cash', 'Μετρητά'], ['card', 'Κάρτα'], ['online', 'Online']].map(([k, l]) => `<button type="button" data-pay="${k}"
+                class="${(t.paid >= t.total ? 'online' : billCall?.paymentMethod || 'cash') === k ? 'active' : ''}">${l}</button>`).join('')}
+            </div>
+          </div>
+          <label class="field"><span>Αρ. απόδειξης ταμειακής / ΜΑΡΚ (προαιρετικό)</span>
+            <input class="input" id="fiscal" maxlength="80" placeholder="Από την ταμειακή ή τον πάροχο"></label>
+          <label class="switch"><input type="checkbox" id="printR" checked> Εκτύπωση απόδειξης λογαριασμού</label>
+          <button class="btn block success" id="closeT">Εξόφληση και κλείσιμο</button>
+          <p class="muted small">Η απόδειξη αποθηκεύεται και ο πελάτης λαμβάνει ψηφιακό αντίγραφο στο κινητό του.
+            Η νόμιμη απόδειξη εκδίδεται από το ταμείο σας.</p>
+        </div>` : ''}
     `);
-    $('#closeT', el)?.addEventListener('click', () => {
-      if (!confirm(`Κλείσιμο: ${spotName(t.kind, t.label)};`)) return;
-      close();
-      act(() => api(`/api/staff/tables/${id}/close`, { method: 'POST' }), `${spotName(t.kind, t.label)}: έκλεισε`);
+    $$('[data-pay]', el).forEach((b) => b.onclick = () => $$('[data-pay]', el).forEach((x) => x.classList.toggle('active', x === b)));
+    $('#closeT', el)?.addEventListener('click', async () => {
+      const paymentMethod = $('[data-pay].active', el)?.dataset.pay || 'cash';
+      const fiscalRef = $('#fiscal', el).value.trim();
+      // Open the print window now (inside the click) so the browser does not block it.
+      const win = $('#printR', el).checked ? window.open('about:blank', '_blank') : null;
+      try {
+        const { receipt } = await api(`/api/staff/tables/${id}/close`, { method: 'POST', body: { paymentMethod, fiscalRef } });
+        close();
+        toast(receipt ? `${spotName(t.kind, t.label)}: έκλεισε · Απόδειξη ${receipt.number}` : `${spotName(t.kind, t.label)}: έκλεισε`, 'ok');
+        if (win && receipt) win.location = `/staff/print/receipt/${receipt.id}?auto=1`;
+        else win?.close();
+        await load();
+      } catch (e) { win?.close(); toast(e.message, 'err'); }
     });
   }
 

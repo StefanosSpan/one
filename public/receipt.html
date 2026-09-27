@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Receipt</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/print.css">
+  <style>
+    body { background: #f5f5f5; }
+    .guest-bar { max-width: 80mm; margin: 1rem auto 0; display: flex; gap: .5rem; }
+    .guest-bar .btn { flex: 1; }
+    .slip { width: min(92vw, 360px); }
+    @media print { .guest-bar { display: none; } .slip { width: 72mm; } @page { size: 80mm auto; margin: 3mm; } }
+  </style>
+</head>
+<body>
+  <div id="out"><div class="spinner"></div></div>
+  <div class="guest-bar" id="bar" hidden><button class="btn" id="save"></button></div>
+  <script type="module">
+    import { api } from '/js/util.js';
+    import { STRINGS } from '/js/i18n.js';
+    import { receiptSlip } from '/js/slips.js';
+    const token = location.pathname.split('/').pop();
+    const params = new URLSearchParams(location.search);
+    try {
+      const { receipt, restaurant } = await api(`/api/public/receipt/${token}`);
+      const lang = STRINGS[params.get('lang')] ? params.get('lang') : STRINGS[receipt.lang] ? receipt.lang : 'el';
+      const t = (k, fallback) => STRINGS[lang]?.[k] ?? STRINGS.en[k] ?? fallback ?? k;
+      document.documentElement.lang = lang;
+      document.title = `${t('receipt')} ${receipt.number}`;
+      document.getElementById('out').innerHTML = receiptSlip(receipt, restaurant, { lang, t });
+      const btn = document.getElementById('save');
+      btn.textContent = t('saveReceipt');
+      btn.onclick = () => print();
+      if (restaurant.brandColor) document.documentElement.style.setProperty('--brand', restaurant.brandColor);
+      document.getElementById('bar').hidden = false;
+    } catch {
+      document.getElementById('out').innerHTML = '<p class="empty">Not found</p>';
+    }
+  </script>
+</body>
+</html>

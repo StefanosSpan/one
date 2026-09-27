@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const schema = (dialect) => readFileSync(join(HERE, `schema.${dialect}.sql`), 'utf8');
 
-export const TABLES = ['calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings'];
+export const TABLES = ['receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings'];
 
 // ---------------------------------------------------------------------------
 // SQLite

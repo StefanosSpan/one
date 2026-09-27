@@ -15,6 +15,7 @@ const S = {
   cart: load(CART_KEY, []),
   state: { orders: [], calls: [], bill: { total: 0, paid: 0, due: 0 } },
   seenOrders: 0,
+  receipt: load(`receipt:${token}`, null),
 };
 
 function load(key, fallback) {
@@ -98,7 +99,7 @@ async function boot() {
   syncTop();
   renderAll();
 
-  stream(`/api/public/table/${token}/stream`, { state: onState, menu: refreshMenu }, (online) => {
+  stream(`/api/public/table/${token}/stream`, { state: onState, menu: refreshMenu, receipt: onReceipt }, (online) => {
     const el = $('#offline');
     el.hidden = online;
     el.textContent = t('offline');
@@ -130,6 +131,18 @@ async function refreshMenu() {
     renderAll(true);
   } catch { /* keep current menu */ }
 }
+
+function onReceipt(r) {
+  S.receipt = r;
+  try { sessionStorage.setItem(`receipt:${token}`, JSON.stringify(r)); } catch { /* ignore */ }
+  toast(t('receiptReady'), 'ok');
+  switchTab('order');
+}
+
+const receiptCard = () => (S.receipt ? `<div class="receipt-card">
+    <div><b>${esc(t('receipt'))}</b><span class="muted small">Νο ${esc(S.receipt.number)}</span></div>
+    <a class="btn secondary sm" href="${esc(S.receipt.url)}?lang=${S.lang}" target="_blank">${esc(t('viewReceipt'))}</a>
+  </div>` : '');
 
 function onState(state) {
   const prev = new Map(S.state.orders.map((o) => [o.id, o.status]));
@@ -500,7 +513,7 @@ function renderOrder() {
   const { orders, bill } = S.state;
   const head = `<h1 class="page-title">${esc(t('myOrder'))}</h1><p class="muted small" style="margin:0">${esc(S.data.restaurant.name)} · ${esc(spot())}</p>${serviceRow()}`;
   if (!orders.length) {
-    $('#app').innerHTML = `${head}<div class="empty"><p>${esc(t('noOrders'))}</p>
+    $('#app').innerHTML = `${head}${receiptCard()}<div class="empty"><p>${esc(t('noOrders'))}</p>
       <button class="btn" id="goMenu">${esc(t('menu'))}</button></div>`;
     $('#goMenu').onclick = () => switchTab('menu');
     return;

@@ -159,3 +159,6 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .btn.dim { opacity: .55; }
 .top .logo { opacity: 0; transition: opacity .15s; }
 .top.scrolled .logo { opacity: 1; }
+.receipt-card { display: flex; justify-content: space-between; align-items: center; gap: .8rem; border: 1px solid #a9d4b9; background: var(--green-bg);
+  border-radius: var(--radius); padding: .8rem 1rem; margin: .8rem 0; }
+.receipt-card b { display: block; }

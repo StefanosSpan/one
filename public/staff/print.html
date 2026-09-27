@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Εκτύπωση</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/print.css">
+</head>
+<body class="paper-80">
+  <div class="print-bar">
+    <b id="what"></b>
+    <span class="grow"></span>
+    <label class="small muted">Χαρτί
+      <select class="input" id="paper">
+        <option value="80">Θερμικός εκτυπωτής 80 mm</option>
+        <option value="a4">A4</option>
+      </select>
+    </label>
+    <button class="btn" id="printBtn">Εκτύπωση</button>
+  </div>
+  <div id="out"><div class="spinner"></div></div>
+  <script type="module">
+    import { api } from '/js/util.js';
+    import { orderSlip, receiptSlip } from '/js/slips.js';
+
+    const [, , , kind, id] = location.pathname.split('/'); // /staff/print/{order|receipt}/{id}
+    const params = new URLSearchParams(location.search);
+    const embed = params.has('embed'); // loaded in a hidden frame for automatic printing
+    const $ = (s) => document.querySelector(s);
+
+    let paper = params.get('paper');
+    try { paper ||= localStorage.getItem('printPaper'); } catch { /* ignore */ }
+    const setPaper = (p) => {
+      paper = p === 'a4' ? 'a4' : '80';
+      document.body.className = `paper-${paper}`;
+      $('#paper').value = paper;
+      let style = document.getElementById('page-size');
+      if (!style) { style = document.createElement('style'); style.id = 'page-size'; document.head.append(style); }
+      style.textContent = paper === 'a4' ? '@page { size: A4; margin: 15mm; }' : '@page { size: 80mm auto; margin: 3mm; }';
+    };
+    setPaper(paper);
+    $('#paper').onchange = (e) => { setPaper(e.target.value); try { localStorage.setItem('printPaper', paper); } catch { /* ignore */ } };
+    $('#printBtn').onclick = () => print();
+
+    try {
+      if (kind === 'order') {
+        const { order, restaurant } = await api(`/api/staff/orders/${id}`);
+        document.title = `Δελτίο παραγγελίας #${order.id}`;
+        $('#what').textContent = document.title;
+        $('#out').innerHTML = orderSlip(order, restaurant);
+      } else {
+        const { receipt, restaurant } = await api(`/api/staff/receipts/${id}`);
+        document.title = `Απόδειξη ${receipt.number}`;
+        $('#what').textContent = document.title;
+        $('#out').innerHTML = receiptSlip(receipt, restaurant);
+      }
+      // Wait for the logo before printing.
+      await Promise.all([...document.images].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
+      if (embed || params.has('auto')) setTimeout(() => print(), 150);
+    } catch (e) {
+      if (e.status === 401) location.href = `/staff?next=${encodeURIComponent(location.pathname)}`;
+      else $('#out').innerHTML = `<p class="empty">${e.status === 404 ? 'Δεν βρέθηκε.' : 'Σφάλμα φόρτωσης.'}</p>`;
+    }
+  </script>
+</body>
+</html>

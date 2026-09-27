@@ -72,6 +72,25 @@ CREATE TABLE IF NOT EXISTS calls (
   created_at     TEXT NOT NULL
 );
 
+-- Bills issued when a spot is settled. Kept permanently so they can be reprinted and audited.
+-- NOTE: these are not fiscal documents; the legal receipt comes from the certified cash register / provider (fiscal_ref).
+CREATE TABLE IF NOT EXISTS receipts (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  number       TEXT NOT NULL UNIQUE,     -- e.g. 2026-00042
+  token        TEXT NOT NULL UNIQUE,     -- secret part of the guest's digital copy link
+  table_id     INTEGER,
+  table_label  TEXT NOT NULL,
+  table_kind   TEXT NOT NULL DEFAULT 'table',
+  order_ids    TEXT NOT NULL DEFAULT '[]',
+  lines        TEXT NOT NULL DEFAULT '[]',   -- JSON [{name, options, qty, unit_cents, total_cents}]
+  total_cents  INTEGER NOT NULL,
+  payment      TEXT NOT NULL DEFAULT 'cash', -- cash | card | online
+  fiscal_ref   TEXT DEFAULT '',          -- number / ΜΑΡΚ of the legal receipt from the cash register
+  lang         TEXT DEFAULT 'el',
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_created ON receipts(created_at);
+
 CREATE INDEX IF NOT EXISTS idx_orders_table   ON orders(table_id, closed);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items    ON order_items(order_id);

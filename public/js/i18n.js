@@ -12,6 +12,7 @@ export const LANGUAGES = {
 
 export const STRINGS = {
   el: {
+    receipt: 'Απόδειξη λογαριασμού', viewReceipt: 'Δείτε την απόδειξη', receiptReady: 'Ο λογαριασμός έκλεισε. Ευχαριστούμε!', date: 'Ημερομηνία', payment: 'Πληρωμή', pay_cash: 'Μετρητά', pay_card: 'Κάρτα', pay_online: 'Online', notFiscal: 'Δεν αποτελεί φορολογικό στοιχείο. Η νόμιμη απόδειξη εκδίδεται από το ταμείο.', fiscalRef: 'Αρ. νόμιμης απόδειξης', saveReceipt: 'Αποθήκευση ή εκτύπωση', thankYou: 'Ευχαριστούμε για την επίσκεψη!',
     required: 'Υποχρεωτικό', optional: 'Προαιρετικό', chooseRequired: 'Κάντε τις υποχρεωτικές επιλογές',
     room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα', callService: 'Εξυπηρέτηση', chefsChoice: 'Πρόταση του σεφ', dietaryKey: 'V Χορτοφαγικό · VG Vegan · GF Χωρίς γλουτένη',
     menu: 'Μενού', myOrder: 'Παραγγελία', info: 'Πληροφορίες', table: 'Τραπέζι', search: 'Αναζήτηση πιάτου…',
@@ -45,6 +46,7 @@ export const STRINGS = {
     allergen_lupin: 'Λούπινο', allergen_molluscs: 'Μαλάκια',
   },
   en: {
+    receipt: 'Bill receipt', viewReceipt: 'View your receipt', receiptReady: 'Your bill is settled. Thank you!', date: 'Date', payment: 'Payment', pay_cash: 'Cash', pay_card: 'Card', pay_online: 'Online', notFiscal: 'Not a tax document. The official receipt is issued by the cash register.', fiscalRef: 'Official receipt no.', saveReceipt: 'Save or print', thankYou: 'Thank you for your visit!',
     required: 'Required', optional: 'Optional', chooseRequired: 'Please make the required choices',
     room: 'Room', sunbed: 'Sunbed', callService: 'Service', chefsChoice: 'Chef’s choice', dietaryKey: 'V Vegetarian · VG Vegan · GF Gluten-free',
     menu: 'Menu', myOrder: 'My order', info: 'Info', table: 'Table', search: 'Search dishes…',
@@ -78,6 +80,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupin', allergen_molluscs: 'Molluscs',
   },
   de: {
+    receipt: 'Rechnungsbeleg', viewReceipt: 'Beleg ansehen', receiptReady: 'Ihre Rechnung ist beglichen. Vielen Dank!', date: 'Datum', payment: 'Zahlung', pay_cash: 'Bar', pay_card: 'Karte', pay_online: 'Online', notFiscal: 'Kein Steuerbeleg. Der offizielle Beleg wird von der Kasse ausgestellt.', fiscalRef: 'Offizielle Belegnr.', saveReceipt: 'Speichern oder drucken', thankYou: 'Danke für Ihren Besuch!',
     required: 'Erforderlich', optional: 'Optional', chooseRequired: 'Bitte treffen Sie die erforderliche Auswahl',
     room: 'Zimmer', sunbed: 'Liege', callService: 'Service', chefsChoice: 'Empfehlung des Küchenchefs', dietaryKey: 'V Vegetarisch · VG Vegan · GF Glutenfrei',
     menu: 'Speisekarte', myOrder: 'Bestellung', info: 'Info', table: 'Tisch', search: 'Gerichte suchen…',
@@ -111,6 +114,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupinen', allergen_molluscs: 'Weichtiere',
   },
   fr: {
+    receipt: "Reçu d'addition", viewReceipt: 'Voir le reçu', receiptReady: 'Votre addition est réglée. Merci !', date: 'Date', payment: 'Paiement', pay_cash: 'Espèces', pay_card: 'Carte', pay_online: 'En ligne', notFiscal: "Ceci n'est pas un justificatif fiscal. Le reçu officiel est émis par la caisse.", fiscalRef: 'N° du reçu officiel', saveReceipt: 'Enregistrer ou imprimer', thankYou: 'Merci de votre visite !',
     required: 'Obligatoire', optional: 'Facultatif', chooseRequired: 'Veuillez faire les choix obligatoires',
     room: 'Chambre', sunbed: 'Transat', callService: 'Service', chefsChoice: 'Suggestion du chef', dietaryKey: 'V Végétarien · VG Végan · GF Sans gluten',
     menu: 'Menu', myOrder: 'Commande', info: 'Infos', table: 'Table', search: 'Rechercher un plat…',
@@ -144,6 +148,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupin', allergen_molluscs: 'Mollusques',
   },
   it: {
+    receipt: 'Ricevuta del conto', viewReceipt: 'Vedi la ricevuta', receiptReady: 'Il conto è stato saldato. Grazie!', date: 'Data', payment: 'Pagamento', pay_cash: 'Contanti', pay_card: 'Carta', pay_online: 'Online', notFiscal: 'Non costituisce documento fiscale. La ricevuta ufficiale è emessa dalla cassa.', fiscalRef: 'N. ricevuta ufficiale', saveReceipt: 'Salva o stampa', thankYou: 'Grazie per la visita!',
     required: 'Obbligatorio', optional: 'Facoltativo', chooseRequired: 'Effettua le scelte obbligatorie',
     room: 'Camera', sunbed: 'Lettino', callService: 'Servizio', chefsChoice: 'Consigliato dallo chef', dietaryKey: 'V Vegetariano · VG Vegano · GF Senza glutine',
     menu: 'Menù', myOrder: 'Ordine', info: 'Info', table: 'Tavolo', search: 'Cerca un piatto…',
@@ -177,6 +182,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupini', allergen_molluscs: 'Molluschi',
   },
   es: {
+    receipt: 'Recibo de la cuenta', viewReceipt: 'Ver el recibo', receiptReady: 'Tu cuenta está pagada. ¡Gracias!', date: 'Fecha', payment: 'Pago', pay_cash: 'Efectivo', pay_card: 'Tarjeta', pay_online: 'Online', notFiscal: 'No es un documento fiscal. El recibo oficial lo emite la caja.', fiscalRef: 'N.º de recibo oficial', saveReceipt: 'Guardar o imprimir', thankYou: '¡Gracias por su visita!',
     required: 'Obligatorio', optional: 'Opcional', chooseRequired: 'Haz las selecciones obligatorias',
     room: 'Habitación', sunbed: 'Tumbona', callService: 'Servicio', chefsChoice: 'Recomendación del chef', dietaryKey: 'V Vegetariano · VG Vegano · GF Sin gluten',
     menu: 'Carta', myOrder: 'Pedido', info: 'Info', table: 'Mesa', search: 'Buscar plato…',
@@ -210,6 +216,7 @@ export const STRINGS = {
     allergen_lupin: 'Altramuces', allergen_molluscs: 'Moluscos',
   },
   nl: {
+    receipt: 'Rekeningbewijs', viewReceipt: 'Bekijk het bewijs', receiptReady: 'Uw rekening is betaald. Dank u wel!', date: 'Datum', payment: 'Betaling', pay_cash: 'Contant', pay_card: 'Pinpas', pay_online: 'Online', notFiscal: 'Geen fiscaal document. Het officiële bewijs komt van de kassa.', fiscalRef: 'Nr. officieel bewijs', saveReceipt: 'Opslaan of afdrukken', thankYou: 'Bedankt voor uw bezoek!',
     required: 'Verplicht', optional: 'Optioneel', chooseRequired: 'Maak de verplichte keuzes',
     room: 'Kamer', sunbed: 'Ligbed', callService: 'Service', chefsChoice: 'Aanrader van de chef', dietaryKey: 'V Vegetarisch · VG Veganistisch · GF Glutenvrij',
     menu: 'Menu', myOrder: 'Bestelling', info: 'Info', table: 'Tafel', search: 'Zoek een gerecht…',
@@ -243,6 +250,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupine', allergen_molluscs: 'Weekdieren',
   },
   pl: {
+    receipt: 'Potwierdzenie rachunku', viewReceipt: 'Zobacz potwierdzenie', receiptReady: 'Rachunek został opłacony. Dziękujemy!', date: 'Data', payment: 'Płatność', pay_cash: 'Gotówka', pay_card: 'Karta', pay_online: 'Online', notFiscal: 'Nie jest dokumentem fiskalnym. Oficjalny paragon wydaje kasa.', fiscalRef: 'Nr paragonu fiskalnego', saveReceipt: 'Zapisz lub drukuj', thankYou: 'Dziękujemy za wizytę!',
     required: 'Wymagane', optional: 'Opcjonalne', chooseRequired: 'Dokonaj wymaganych wyborów',
     room: 'Pokój', sunbed: 'Leżak', callService: 'Obsługa', chefsChoice: 'Polecane przez szefa kuchni', dietaryKey: 'V Wegetariańskie · VG Wegańskie · GF Bez glutenu',
     menu: 'Menu', myOrder: 'Zamówienie', info: 'Informacje', table: 'Stolik', search: 'Szukaj dania…',
