@@ -91,13 +91,13 @@
     .float small { color: var(--muted); }
     .float .row { display: flex; align-items: center; gap: .7rem; }
     .float .dot { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
-    .float.f1 { top: 540px; left: -150px; }
+    .float.f1 { top: 430px; left: -150px; }
     .float.f1 .dot { background: var(--terra-soft); color: var(--terra); }
     .float.f2 { top: 150px; right: -140px; }
     .float.f2 .dot { background: #e2f2e8; color: #2f8a57; }
-    .float.f3 { bottom: 40px; left: -120px; min-width: 0; }
+    .float.f3 { bottom: 70px; right: -110px; min-width: 0; }
     .float.f3 .dot { background: #e6edf6; color: var(--navy); }
-    @media (max-width: 1100px) { .float.f1 { left: -90px; } .float.f2 { right: -70px; } .float.f3 { left: -60px; } }
+    @media (max-width: 1100px) { .float.f1 { left: -90px; } .float.f2 { right: -70px; } .float.f3 { right: -50px; } }
     @media (max-width: 900px) {
       .hero { grid-template-columns: 1fr; padding: 40px 20px 64px; gap: 40px; }
       .phone { width: 260px; }
@@ -136,10 +136,15 @@
     .spot-media { position: relative; min-width: 0; isolation: isolate; }
     .spot-media.phone-media { display: flex; justify-content: center; }
     .spot-media.phone-media .phone { width: 280px; }
-    .browser { background: #fff; border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; border: 1px solid var(--line); }
-    .browser .bar { display: flex; gap: 6px; padding: 10px 12px; background: #f1ede6; border-bottom: 1px solid var(--line); }
-    .browser .bar i { width: 10px; height: 10px; border-radius: 50%; background: #d9d2c6; }
-    .browser img { display: block; width: 100%; height: auto; }
+    .tablet { background: #0f1720; padding: 14px; border-radius: 26px; box-shadow: 0 30px 60px rgba(22,32,43,.22); }
+    .tablet img { display: block; width: 100%; height: auto; border-radius: 12px; }
+    .phone img { height: auto; }
+    .trio { display: flex; justify-content: center; align-items: flex-start; padding: 10px 0 40px; }
+    .trio .phone { width: clamp(128px, 30vw, 230px); flex: none; padding: 7px; border-radius: clamp(24px, 5vw, 36px); }
+    .trio .phone img { border-radius: clamp(18px, 4vw, 29px); }
+    .trio .phone:nth-child(1) { transform: translateY(36px) rotate(-5deg); margin-right: -34px; }
+    .trio .phone:nth-child(2) { z-index: 2; }
+    .trio .phone:nth-child(3) { transform: translateY(36px) rotate(5deg); margin-left: -34px; }
     .blob { position: absolute; inset: 8% -4% -6% 6%; background: var(--sand); border-radius: 32px; z-index: -1; }
     .spot-media > *:not(.blob) { position: relative; }
     @media (max-width: 900px) {
@@ -320,7 +325,7 @@
             </ul>
           </div>
           <div class="spot-media"><div class="blob"></div>
-            <div class="browser"><div class="bar"><i></i><i></i><i></i></div><img src="/img/shot-kitchen.jpg" alt="Οθόνη κουζίνας με παραγγελίες" width="1100" height="430" loading="lazy"></div></div>
+            <div class="tablet"><img src="/img/shot-kitchen.jpg" alt="Οθόνη κουζίνας με παραγγελίες σε tablet" width="1600" height="685" loading="lazy"></div></div>
         </div>
 
         <div class="spot reveal" id="design">
@@ -335,7 +340,11 @@
             </ul>
           </div>
           <div class="spot-media"><div class="blob"></div>
-            <div class="browser"><div class="bar"><i></i><i></i><i></i></div><img src="/img/shot-look.jpg" alt="Επεξεργασία εμφάνισης με ζωντανή προεπισκόπηση" width="1100" height="592" loading="lazy"></div></div>
+            <div class="trio">
+              <div class="phone"><img src="/img/shot-menu-aegean.jpg" alt="Μενού με το θέμα Αιγαίο" width="390" height="844" loading="lazy"></div>
+              <div class="phone"><img src="/img/shot-menu-cream.jpg" alt="Μενού με το θέμα Κρεμ ταβέρνα" width="390" height="844" loading="lazy"></div>
+              <div class="phone"><img src="/img/shot-menu-lounge.jpg" alt="Μενού με το θέμα Σκούρο lounge" width="390" height="844" loading="lazy"></div>
+            </div></div>
         </div>
 
         <div class="spot rev reveal">
@@ -349,8 +358,8 @@
               <li data-i="check"><span>Δουλεύει με την ταμειακή σας όπως σήμερα (myDATA)</span></li>
             </ul>
           </div>
-          <div class="spot-media"><div class="blob"></div>
-            <div class="browser"><div class="bar"><i></i><i></i><i></i></div><img src="/img/app-waiter.jpg" alt="Οθόνη σερβιτόρου" loading="lazy"></div></div>
+          <div class="spot-media phone-media"><div class="blob"></div>
+            <div class="phone"><img src="/img/shot-waiter.jpg" alt="Οθόνη σερβιτόρου στο κινητό: κλήσεις και παραγγελίες" width="390" height="844" loading="lazy"></div></div>
         </div>
       </div>
     </section>
