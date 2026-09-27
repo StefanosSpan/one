@@ -870,7 +870,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   app.listen(PORT, '0.0.0.0', () => {
     const lan = Object.values(networkInterfaces()).flat()
       .find((i) => i && i.family === 'IPv4' && !i.internal)?.address;
-    console.log(`\n  Taverna QR τρέχει\n`);
+    console.log(`\n  Kalimenu τρέχει\n`);
     console.log(`  Στον υπολογιστή:  http://localhost:${PORT}`);
     if (lan) console.log(`  Από κινητό (ίδιο Wi-Fi): http://${lan}:${PORT}`);
     console.log(`  Βάση δεδομένων: ${db.dialect === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : 'SQLite (data/taverna.db)'}`);

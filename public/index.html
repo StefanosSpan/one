@@ -3,43 +3,247 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Taverna QR · Demo</title>
+  <title>Kalimenu · Ψηφιακό μενού και παραγγελία με QR</title>
+  <meta name="description" content="Ψηφιακό μενού σε 8 γλώσσες, παραγγελία από το τραπέζι, κλήση σερβιτόρου και λογαριασμός με QR. Για εστιατόρια, ταβέρνες, beach bars και ξενοδοχεία. Από €7,90 τον μήνα.">
   <link rel="stylesheet" href="/css/app.css">
   <style>
-    body { background: #f5f5f5; }
-    .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1rem; }
-    h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
-    .lead { color: var(--muted); margin: 0 0 1.5rem; }
-    .list { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
-    .list a { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
-      color: var(--text); text-decoration: none; }
-    .list a:last-child { border-bottom: 0; }
-    .list a:hover { background: #fafafa; }
-    .list b { display: block; }
-    .list span { color: var(--muted); font-size: .9rem; }
-    .list .go { color: var(--faint); }
-    .pins { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+    :root { --brand: #1f3a5f; }
+    body { background: #fff; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
+    header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 10; }
+    header.site .wrap { display: flex; align-items: center; gap: 1.5rem; min-height: 60px; }
+    .wordmark { font-weight: 800; font-size: 1.25rem; letter-spacing: -.02em; color: var(--text); text-decoration: none; }
+    .wordmark span { color: var(--brand); }
+    header.site nav { display: flex; gap: 1.2rem; margin-left: auto; align-items: center; }
+    header.site nav a { color: var(--muted); text-decoration: none; font-size: .92rem; }
+    header.site nav a.btn { color: var(--brand-ink); }
+    @media (max-width: 700px) { header.site nav a:not(.btn) { display: none; } }
+
+    .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 3rem; align-items: center; padding: 3.5rem 0 3rem; }
+    .hero h1 { font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1; margin: 0 0 1rem; letter-spacing: -.03em; }
+    .hero p.lead { font-size: 1.12rem; color: var(--muted); margin: 0 0 1.5rem; max-width: 520px; }
+    .hero .ctas { display: flex; gap: .6rem; flex-wrap: wrap; }
+    .hero .note { color: var(--muted); font-size: .88rem; margin-top: 1rem; }
+    .phone { justify-self: center; width: 280px; border: 10px solid #1a1a1a; border-radius: 34px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,.12); }
+    .phone img { width: 100%; display: block; }
+    @media (max-width: 820px) { .hero { grid-template-columns: 1fr; padding-top: 2rem; } }
+
+    section { padding: 3.5rem 0; }
+    section.alt { background: #f6f6f4; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    h2 { font-size: 1.75rem; margin: 0 0 .5rem; letter-spacing: -.02em; }
+    .sub { color: var(--muted); margin: 0 0 2rem; max-width: 640px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .steps div b { display: block; font-size: 1.05rem; margin: .4rem 0 .3rem; }
+    .steps div p { margin: 0; color: var(--muted); }
+    .steps .n { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: .9rem; }
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem 2rem; }
+    .features b { display: block; margin-bottom: .25rem; }
+    .features p { margin: 0; color: var(--muted); font-size: .95rem; }
+    @media (max-width: 820px) { .steps, .features { grid-template-columns: 1fr; } }
+    .shots { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start; margin-top: 2rem; }
+    .shots figure { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; }
+    .shots img { width: 100%; display: block; }
+    .shots figcaption { font-size: .85rem; color: var(--muted); padding: .6rem .8rem; border-top: 1px solid var(--line); }
+    @media (max-width: 820px) { .shots { grid-template-columns: 1fr; } }
+
+    .billing { display: inline-flex; border: 1px solid #d6d6d6; border-radius: var(--radius); overflow: hidden; margin-bottom: 1.5rem; }
+    .billing button { border: 0; background: #fff; padding: .5rem 1rem; font-size: .9rem; color: var(--muted); }
+    .billing button.active { background: var(--text); color: #fff; }
+    .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; align-items: stretch; }
+    @media (max-width: 980px) { .plans { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .plans { grid-template-columns: 1fr; } }
+    .plan { border: 1px solid var(--line); border-radius: 10px; padding: 1.3rem 1.2rem; display: flex; flex-direction: column; background: #fff; }
+    .plan.best { border: 2px solid var(--brand); position: relative; }
+    .plan.best::before { content: 'Δημοφιλέστερο'; position: absolute; top: -11px; left: 1.2rem; background: var(--brand); color: #fff; font-size: .72rem;
+      font-weight: 700; padding: .1rem .5rem; border-radius: 4px; }
+    .plan h3 { margin: 0; font-size: 1.1rem; }
+    .plan .for { color: var(--muted); font-size: .85rem; margin: .2rem 0 .9rem; min-height: 2.4em; }
+    .plan .price { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .plan .price small { font-size: .9rem; font-weight: 500; color: var(--muted); }
+    .plan .per { color: var(--muted); font-size: .82rem; min-height: 1.3em; margin-bottom: 1rem; }
+    .plan ul { list-style: none; padding: 0; margin: 0 0 1.2rem; font-size: .92rem; flex: 1; }
+    .plan li { padding: .3rem 0 .3rem 1.4rem; position: relative; }
+    .plan li::before { content: ''; position: absolute; left: .2rem; top: .75rem; width: 8px; height: 4px; border-left: 2px solid var(--green); border-bottom: 2px solid var(--green); transform: rotate(-45deg); }
+    .plan li.plus { font-weight: 600; }
+    .plan li.plus::before { border-color: var(--brand); }
+    .extras { margin-top: 1.5rem; font-size: .92rem; color: var(--muted); }
+    .extras b { color: var(--text); }
+
+    table.cmp { width: 100%; border-collapse: collapse; font-size: .92rem; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    table.cmp th, table.cmp td { text-align: left; padding: .65rem .8rem; border-bottom: 1px solid var(--line); }
+    table.cmp th { font-size: .8rem; color: var(--muted); font-weight: 600; background: #fafafa; }
+    table.cmp tr.us td { font-weight: 700; background: #f3f7fc; }
+    .table-scroll { overflow-x: auto; }
+
+    details { border-bottom: 1px solid var(--line); padding: .9rem 0; }
+    details summary { font-weight: 600; cursor: pointer; list-style: none; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::after { content: '+'; float: right; color: var(--muted); font-weight: 400; }
+    details[open] summary::after { content: '−'; }
+    details p { color: var(--muted); margin: .5rem 0 0; }
+    .contact { text-align: center; }
+    .contact .ctas { justify-content: center; display: flex; gap: .6rem; flex-wrap: wrap; }
+    footer { border-top: 1px solid var(--line); padding: 1.5rem 0; color: var(--muted); font-size: .85rem; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Taverna QR · Demo</h1>
-    <p class="lead">Ψηφιακό μενού και παραγγελία με QR για εστιατόρια και ξενοδοχεία.</p>
-    <div class="list" id="links"></div>
-    <p class="pins" id="pins"></p>
-  </div>
+  <header class="site">
+    <div class="wrap">
+      <a class="wordmark" href="/">Kali<span>menu</span></a>
+      <nav>
+        <a href="#how">Πώς δουλεύει</a>
+        <a href="#features">Δυνατότητες</a>
+        <a href="#pricing">Τιμές</a>
+        <a href="#faq">Ερωτήσεις</a>
+        <a class="btn sm" href="/demo">Δείτε το demo</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div>
+        <h1>Το μενού σας σε 8 γλώσσες. Η παραγγελία κατευθείαν στο πάσο.</h1>
+        <p class="lead">Ο πελάτης σκανάρει το QR του τραπεζιού, διαβάζει το μενού στη γλώσσα του, παραγγέλνει, καλεί τον σερβιτόρο
+          ή ζητά τον λογαριασμό. Για ταβέρνες, εστιατόρια, beach bars και ξενοδοχεία.</p>
+        <div class="ctas">
+          <a class="btn" href="/demo">Δοκιμάστε το demo</a>
+          <a class="btn secondary" href="#pricing">Τιμές από €7,90/μήνα</a>
+        </div>
+        <p class="note">Χωρίς συμβόλαιο. Παγώνετε τη συνδρομή τους μήνες που είστε κλειστοί.</p>
+      </div>
+      <div class="phone"><img src="/img/app-menu.jpg" alt="Το μενού του πελάτη στο κινητό"></div>
+    </div>
+
+    <section class="alt" id="how">
+      <div class="wrap">
+        <h2>Πώς δουλεύει</h2>
+        <p class="sub">Στήνεται σε ένα απόγευμα. Δεν χρειάζεται εφαρμογή στο κινητό του πελάτη ούτε καινούργιος εξοπλισμός.</p>
+        <div class="steps">
+          <div><span class="n">1</span><b>Περνάτε το μενού</b><p>Πιάτα, τιμές, φωτογραφίες, αλλεργιογόνα και επιλογές. Οι μεταφράσεις σε 8 γλώσσες μπαίνουν από τη διαχείριση.</p></div>
+          <div><span class="n">2</span><b>Τυπώνετε τα QR</b><p>Ένα QR για κάθε τραπέζι, δωμάτιο ή ξαπλώστρα, σε αυτοκόλλητο, κάρτα ή επιτραπέζια πινακίδα, με το λογότυπό σας.</p></div>
+          <div><span class="n">3</span><b>Δέχεστε παραγγελίες</b><p>Ο σερβιτόρος τις εγκρίνει από το κινητό ή το tablet και η κουζίνα τις βλέπει στην οθόνη ή τις τυπώνει.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>Όλα όσα χρειάζεται ένα κατάστημα εστίασης</h2>
+        <p class="sub">Χωρίς κόστος ανά παραγγελία και χωρίς προμήθεια.</p>
+        <div class="features">
+          <div><b>Μενού σε 8 γλώσσες</b><p>Ελληνικά, αγγλικά, γερμανικά, γαλλικά, ιταλικά, ισπανικά, ολλανδικά, πολωνικά. Ανοίγει αυτόματα στη γλώσσα του κινητού.</p></div>
+          <div><b>Παραγγελία από το τραπέζι</b><p>Καλάθι, σημειώσεις ανά πιάτο και επιλογές όπως «ψήσιμο» ή «έξτρα φέτα +1,50 €».</p></div>
+          <div><b>Σερβιτόρος και λογαριασμός</b><p>Ο πελάτης καλεί τον σερβιτόρο ή ζητά λογαριασμό με μετρητά ή κάρτα με ένα κουμπί.</p></div>
+          <div><b>Οθόνη κουζίνας</b><p>Οι παραγγελίες εμφανίζονται ζωντανά με τον αριθμό τραπεζιού και χρονόμετρο, με εκτύπωση σε θερμικό εκτυπωτή.</p></div>
+          <div><b>Αποδείξεις και ιστορικό</b><p>Κάθε λογαριασμός αποθηκεύεται, τυπώνεται και εξάγεται σε Excel. Ο πελάτης παίρνει αντίγραφο στο κινητό.</p></div>
+          <div><b>Ξενοδοχεία και παραλίες</b><p>Room service ανά δωμάτιο και παραγγελία από την ξαπλώστρα, με το ίδιο σύστημα.</p></div>
+          <div><b>Αλλεργιογόνα ΕΕ</b><p>Τα 14 αλλεργιογόνα του Κανονισμού 1169/2011 σε κάθε πιάτο, μεταφρασμένα αυτόματα.</p></div>
+          <div><b>Η δική σας εικόνα</b><p>Λογότυπο, φωτογραφία εξωφύλλου και το χρώμα του καταστήματός σας.</p></div>
+          <div><b>Δουλεύει με την ταμειακή σας</b><p>Οι παραγγελίες περνούν από το προσωπικό, που τις καταχωρεί στην ταμειακή σας όπως σήμερα (myDATA).</p></div>
+        </div>
+        <div class="shots">
+          <figure><img src="/img/app-waiter.jpg" alt="Οθόνη σερβιτόρου" loading="lazy"><figcaption>Οθόνη σερβιτόρου: κλήσεις, έγκριση παραγγελιών, θέσεις</figcaption></figure>
+          <figure><img src="/img/app-receipt.jpg" alt="Απόδειξη λογαριασμού στο κινητό του πελάτη" loading="lazy"><figcaption>Αντίγραφο λογαριασμού στο κινητό του πελάτη</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt" id="pricing">
+      <div class="wrap">
+        <h2>Απλές τιμές, χωρίς δεσμεύσεις</h2>
+        <p class="sub">Όλες οι τιμές είναι ανά κατάστημα, χωρίς προμήθεια στις παραγγελίες. Με ετήσια πληρωμή οι 2 μήνες είναι δωρεάν.</p>
+        <div class="billing" id="billing">
+          <button data-b="month" class="active">Μηνιαία</button>
+          <button data-b="year">Ετήσια (2 μήνες δώρο)</button>
+        </div>
+        <div class="plans" id="plans"></div>
+        <p class="extras">Όλα τα πλάνα χωρίς συμβόλαιο · Πάγωμα συνδρομής τους μήνες που το κατάστημα είναι κλειστό, χωρίς χρέωση ·
+          <b>Στήσιμο από εμάς:</b> €49 εφάπαξ (περνάμε μενού, μεταφράσεις και φωτογραφίες) · <b>Βάσεις QR από plexiglass:</b> €3 ανά τεμάχιο ·
+          Οι τιμές δεν περιλαμβάνουν ΦΠΑ 24%.</p>
+
+        <h3 style="margin-top:2.5rem">Σύγκριση με την αγορά</h3>
+        <div class="table-scroll">
+          <table class="cmp">
+            <thead><tr><th>Λύση</th><th>Τιμή</th><th>Παραγγελία από το τραπέζι</th><th>Κλήση σερβιτόρου</th><th>Γλώσσες</th></tr></thead>
+            <tbody>
+              <tr class="us"><td>Kalimenu Βασικό</td><td>€7,90/μήνα</td><td>Όχι</td><td>Ναι</td><td>8</td></tr>
+              <tr class="us"><td>Kalimenu Pro</td><td>€14,90/μήνα</td><td>Ναι</td><td>Ναι</td><td>8</td></tr>
+              <tr><td>Συνδρομητικά QR μενού (π.χ. doXmenu)</td><td>€9,99–12,99/μήνα</td><td>Όχι</td><td>Ναι</td><td>Πολλές</td></tr>
+              <tr><td>Ελληνικά QR μενού με συνδρομή (π.χ. ilo)</td><td>από €18/μήνα</td><td>Όχι</td><td>—</td><td>—</td></tr>
+              <tr><td>QR μενού εφάπαξ</td><td>€150–160 εφάπαξ</td><td>Όχι</td><td>Όχι</td><td>Συνήθως 1–2</td></tr>
+              <tr><td>Διεθνή συστήματα παραγγελίας</td><td>από ~€45/μήνα</td><td>Ναι</td><td>Ναι</td><td>Πολλές</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted small">Τιμές ανταγωνιστών όπως δημοσιεύονται στις ιστοσελίδες τους, Σεπτέμβριος 2026.</p>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="wrap" style="max-width:760px">
+        <h2>Συχνές ερωτήσεις</h2>
+        <details><summary>Χρειάζεται ο πελάτης να κατεβάσει εφαρμογή;</summary><p>Όχι. Σκανάρει το QR με την κάμερα και το μενού ανοίγει στον browser.</p></details>
+        <details><summary>Τι γίνεται με το myDATA και τις αποδείξεις;</summary><p>Από προεπιλογή κάθε παραγγελία περνάει από τον σερβιτόρο, που την καταχωρεί στην ταμειακή σας όπως κάνει σήμερα. Η απόδειξη λογαριασμού του Kalimenu δεν αντικαθιστά τη νόμιμη απόδειξη. Μπορείτε όμως να σημειώνετε πάνω της τον αριθμό ή το ΜΑΡΚ της νόμιμης απόδειξης.</p></details>
+        <details><summary>Είμαστε ανοιχτοί μόνο το καλοκαίρι. Πληρώνουμε όλο τον χρόνο;</summary><p>Όχι. Παγώνετε τη συνδρομή τους μήνες που είστε κλειστοί χωρίς χρέωση, και το μενού και τα QR σας μένουν όπως είναι.</p></details>
+        <details><summary>Χρειάζομαι tablet ή εκτυπωτή;</summary><p>Όχι απαραίτητα. Ο σερβιτόρος δουλεύει από το κινητό του. Για την κουζίνα αρκεί οποιοδήποτε tablet ή υπολογιστής, και αν έχετε θερμικό εκτυπωτή 80 mm, τυπώνει και δελτία.</p></details>
+        <details><summary>Μπορώ να αλλάζω τιμές και πιάτα μόνος μου;</summary><p>Ναι, από τη διαχείριση, όποτε θέλετε. Οι αλλαγές φαίνονται αμέσως χωρίς να ξανατυπώσετε τα QR.</p></details>
+        <details><summary>Υπάρχει δέσμευση;</summary><p>Όχι. Πληρώνετε μηνιαία και σταματάτε όποτε θέλετε. Με την ετήσια πληρωμή κερδίζετε 2 μήνες.</p></details>
+      </div>
+    </section>
+
+    <section class="alt contact" id="contact">
+      <div class="wrap">
+        <h2>Δείτε το στο κατάστημά σας</h2>
+        <p class="sub" style="margin-left:auto;margin-right:auto">Ο πρώτος μήνας είναι δωρεάν. Ελάτε να σας το δείξουμε από κοντά, στο δικό σας μενού.</p>
+        <div class="ctas" id="contactCtas">
+          <a class="btn" href="/demo">Δοκιμάστε το demo</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap">© <span id="year"></span> Kalimenu · Ψηφιακό μενού και παραγγελία με QR</div></footer>
+
   <script type="module">
-    import { api, esc } from '/js/util.js';
-    const d = await api('/api/demo');
-    const t = d.tables[0];
-    document.getElementById('links').innerHTML = [
-      ['Μενού πελάτη', `Όπως το βλέπει ο πελάτης μετά το σκανάρισμα του QR (Τραπέζι ${esc(t?.label ?? '')})`, t?.url],
-      ['Σερβιτόρος', 'Κλήσεις, έγκριση παραγγελιών, λογαριασμοί', '/staff/waiter'],
-      ['Κουζίνα', 'Οθόνη πάσου με τις παραγγελίες σε πραγματικό χρόνο', '/staff/kitchen'],
-      ['Διαχείριση', 'Μενού, θέσεις και QR, ιστορικό, ρυθμίσεις', '/staff/admin'],
-    ].map(([h, p, href]) => `<a href="${href}" target="_blank"><div><b>${h}</b><span>${p}</span></div><span class="go">›</span></a>`).join('');
-    if (d.pins) document.getElementById('pins').textContent =
-      `PIN για το demo: Διαχείριση ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;
+    // Contact details shown on the page – fill these in before publishing.
+    const CONTACT = { phone: '', email: '' };
+
+    const PLANS = [
+      { name: 'Δωρεάν', for: 'Για να ξεκινήσετε με ψηφιακό μενού', month: 0,
+        items: ['Ψηφιακό μενού σε 8 γλώσσες', 'Έως 40 πιάτα', 'QR για έως 10 τραπέζια', 'Αλλεργιογόνα και ωράριο', 'Με την ένδειξη «Kalimenu»'] },
+      { name: 'Βασικό', for: 'Ψηφιακό μενού χωρίς παραγγελίες', month: 790,
+        items: ['Όλα του Δωρεάν, χωρίς όρια', 'Κλήση σερβιτόρου και λογαριασμού', 'Λογότυπο, εξώφυλλο, χρώμα καταστήματος', 'Φωτογραφίες σε κάθε πιάτο', 'Εκτύπωση QR σε 3 μεγέθη'] },
+      { name: 'Pro', for: 'Πλήρης παραγγελία από το τραπέζι', month: 1490, best: true,
+        items: ['Όλα του Βασικού', 'Παραγγελία από το τραπέζι', 'Οθόνη σερβιτόρου και κουζίνας', 'Επιλογές και έξτρα στα πιάτα', 'Δελτία παραγγελίας και αποδείξεις', 'Ιστορικό, στατιστικά, Excel'] },
+      { name: 'Ξενοδοχείο', for: 'Εστιατόριο, room service και παραλία', month: 2490,
+        items: ['Όλα του Pro', 'Δωμάτια και ξαπλώστρες', 'Απεριόριστες θέσεις', 'Στήσιμο από εμάς χωρίς χρέωση', 'Προτεραιότητα στην υποστήριξη'], plus: 2 },
+    ];
+    const eur = (c) => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
+    let billing = 'month';
+    function renderPlans() {
+      document.getElementById('plans').innerHTML = PLANS.map((p) => {
+        const yearly = p.month * 10;
+        const price = billing === 'year' && p.month ? `${eur(Math.round(yearly / 12))}<small>/μήνα</small>` : `${eur(p.month)}<small>${p.month ? '/μήνα' : ''}</small>`;
+        const per = !p.month ? 'Για πάντα' : billing === 'year' ? `${eur(yearly)} τον χρόνο` : 'Χωρίς συμβόλαιο';
+        return `<div class="plan ${p.best ? 'best' : ''}">
+          <h3>${p.name}</h3><div class="for">${p.for}</div>
+          <div class="price">${price}</div><div class="per">${per}</div>
+          <ul>${p.items.map((it, i) => `<li class="${i === 0 && p.month ? 'plus' : ''}">${it}</li>`).join('')}</ul>
+          <a class="btn ${p.best ? '' : 'secondary'} block" href="#contact">${p.month ? 'Ξεκινήστε με 1 μήνα δωρεάν' : 'Ξεκινήστε δωρεάν'}</a>
+        </div>`;
+      }).join('');
+    }
+    document.querySelectorAll('#billing button').forEach((b) => b.onclick = () => {
+      billing = b.dataset.b;
+      document.querySelectorAll('#billing button').forEach((x) => x.classList.toggle('active', x === b));
+      renderPlans();
+    });
+    renderPlans();
+    const ctas = document.getElementById('contactCtas');
+    if (CONTACT.phone) ctas.insertAdjacentHTML('afterbegin', `<a class="btn" href="tel:${CONTACT.phone.replace(/\s/g, '')}">Καλέστε μας: ${CONTACT.phone}</a>`);
+    if (CONTACT.email) ctas.insertAdjacentHTML('beforeend', `<a class="btn secondary" href="mailto:${CONTACT.email}?subject=Kalimenu">${CONTACT.email}</a>`);
+    document.getElementById('year').textContent = new Date().getFullYear();
   </script>
 </body>
 </html>

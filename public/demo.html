@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kalimenu · Demo</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: #f5f5f5; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    .list { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .list a { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
+      color: var(--text); text-decoration: none; }
+    .list a:last-child { border-bottom: 0; }
+    .list a:hover { background: #fafafa; }
+    .list b { display: block; }
+    .list span { color: var(--muted); font-size: .9rem; }
+    .list .go { color: var(--faint); }
+    .pins { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Kalimenu · Demo</h1>
+    <p class="lead">Ψηφιακό μενού και παραγγελία με QR για εστιατόρια και ξενοδοχεία. <a href="/">Αρχική σελίδα και τιμές</a></p>
+    <div class="list" id="links"></div>
+    <p class="pins" id="pins"></p>
+  </div>
+  <script type="module">
+    import { api, esc } from '/js/util.js';
+    const d = await api('/api/demo');
+    const t = d.tables[0];
+    document.getElementById('links').innerHTML = [
+      ['Μενού πελάτη', `Όπως το βλέπει ο πελάτης μετά το σκανάρισμα του QR (Τραπέζι ${esc(t?.label ?? '')})`, t?.url],
+      ['Σερβιτόρος', 'Κλήσεις, έγκριση παραγγελιών, λογαριασμοί', '/staff/waiter'],
+      ['Κουζίνα', 'Οθόνη πάσου με τις παραγγελίες σε πραγματικό χρόνο', '/staff/kitchen'],
+      ['Διαχείριση', 'Μενού, θέσεις και QR, ιστορικό, ρυθμίσεις', '/staff/admin'],
+    ].map(([h, p, href]) => `<a href="${href}" target="_blank"><div><b>${h}</b><span>${p}</span></div><span class="go">›</span></a>`).join('');
+    if (d.pins) document.getElementById('pins').textContent =
+      `PIN για το demo: Διαχείριση ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;
+  </script>
+</body>
+</html>
