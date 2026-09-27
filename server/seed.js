@@ -104,8 +104,7 @@ export const DEFAULT_RESTAURANT = {
   reviewUrl: '',
 };
 
-export function seed(db, { newToken }) {
-  const set = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+export async function seed(db, { newToken }) {
   const settings = {
     restaurant: DEFAULT_RESTAURANT,
     languages: LANGS,
@@ -113,27 +112,33 @@ export function seed(db, { newToken }) {
     requireApproval: true,
     onlinePayments: 'demo',
     currency: 'EUR',
+    brandColor: '#1f3a5f',
     pins: { admin: '1234', waiter: '1111', kitchen: '2222' },
     secret: randomBytes(32).toString('hex'),
     publicBaseUrl: '',
   };
-  for (const [k, v] of Object.entries(settings)) set.run(k, JSON.stringify(v));
+  for (const [k, v] of Object.entries(settings)) {
+    await db.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+      [k, JSON.stringify(v)]);
+  }
 
-  const insCat = db.prepare('INSERT INTO categories (name, icon, sort) VALUES (?, ?, ?)');
   const catIds = {};
-  CATEGORIES.forEach((c, i) => {
-    catIds[c.key] = Number(insCat.run(JSON.stringify(c.name), c.icon, i).lastInsertRowid);
-  });
+  for (const [i, c] of CATEGORIES.entries()) {
+    catIds[c.key] = await db.insert('INSERT INTO categories (name, icon, sort) VALUES (?, ?, ?)', [JSON.stringify(c.name), c.icon, i]);
+  }
 
-  const insItem = db.prepare(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, sort)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
-  ITEMS.forEach(([cat, emoji, price, allergens, tags, name, desc], i) => {
-    insItem.run(catIds[cat], JSON.stringify(name), JSON.stringify(desc), price,
-      JSON.stringify(allergens), JSON.stringify(tags), emoji, i);
-  });
+  for (const [i, [cat, emoji, price, allergens, tags, name, desc]] of ITEMS.entries()) {
+    await db.insert(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, sort)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [catIds[cat], JSON.stringify(name), JSON.stringify(desc), price,
+      JSON.stringify(allergens), JSON.stringify(tags), emoji, i]);
+  }
 
-  const insTable = db.prepare('INSERT INTO tables (label, token, kind) VALUES (?, ?, ?)');
-  for (let i = 1; i <= 12; i++) insTable.run(String(i), newToken(), 'table');
-  for (const room of ['101', '102', '201', '202']) insTable.run(room, newToken(), 'room');
-  for (let i = 1; i <= 4; i++) insTable.run(String(i), newToken(), 'sunbed');
+  const spots = [
+    ...Array.from({ length: 12 }, (_, i) => [String(i + 1), 'table']),
+    ...['101', '102', '201', '202'].map((r) => [r, 'room']),
+    ...Array.from({ length: 4 }, (_, i) => [String(i + 1), 'sunbed']),
+  ];
+  for (const [label, kind] of spots) {
+    await db.insert('INSERT INTO tables (label, token, kind) VALUES (?, ?, ?)', [label, newToken(), kind]);
+  }
 }

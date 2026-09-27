@@ -23,16 +23,16 @@ export function topBar(me, current, title) {
   bar.className = 'bar';
   bar.innerHTML = `<div class="bar-inner">
     <div class="title"><span class="conn" id="conn"></span>${esc(title)}<span class="venue">${esc(me.restaurant || '')}</span></div>
-    ${links.map(([k, ic, l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${icon(ic, 16)}<span>${l}</span></a>`).join('')}
+    ${links.map(([k, , l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${l}</a>`).join('')}
     <button id="soundBtn" title="Ήχος ειδοποιήσεων"></button>
-    <button id="logout" title="Έξοδος">${icon('logout', 16)}<span>Έξοδος</span></button>
+    <button id="logout" title="Έξοδος"><span>Έξοδος</span></button>
   </div>`;
   document.body.prepend(bar);
   let soundOn = false;
   const sb = bar.querySelector('#soundBtn');
   const setSound = (on) => {
     soundOn = on;
-    sb.innerHTML = `${icon(on ? 'volume' : 'volumeOff', 16)}<span>${on ? 'Ήχος ενεργός' : 'Ήχος'}</span>`;
+    sb.innerHTML = `${icon(on ? 'volume' : 'volumeOff', 16)}<span>${on ? 'Ήχος: ναι' : 'Ήχος: όχι'}</span>`;
     if (on) unlockAudio();
   };
   setSound(false);

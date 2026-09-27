@@ -4,48 +4,42 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Taverna QR · Demo</title>
-  <link rel="stylesheet" href="/css/fonts.css">
   <link rel="stylesheet" href="/css/app.css">
   <style>
-    body { background: radial-gradient(1200px 600px at 80% -10%, #22335e 0%, transparent 60%), #0e1629; color: #f5efe3; min-height: 100vh; }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 3.5rem 1.25rem; }
-    .eyebrow { color: var(--gold); letter-spacing: .18em; text-transform: uppercase; font-size: .78rem; font-weight: 600; }
-    h1 { font-family: var(--serif); font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.05; margin: .6rem 0 1rem; font-weight: 600; letter-spacing: -.035em; }
-    h1 em { color: var(--gold); font-style: normal; }
-    .lead { color: #c9c1b1; font-size: 1.1rem; max-width: 620px; }
-    .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-top: 2.5rem; }
-    .c { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 20px; padding: 1.3rem;
-      text-decoration: none; color: inherit; transition: .2s; display: block; }
-    .c:hover { transform: translateY(-3px); border-color: var(--gold); background: rgba(255,255,255,.07); }
-    .c .i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(201,164,92,.5); color: var(--gold); }
-    .c h3 { margin: .7rem 0 .3rem; font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
-    .c p { margin: 0; color: #b3ab9b; font-size: .92rem; }
-    .pins { margin-top: 2rem; color: #b3ab9b; font-size: .92rem; }
-    .pins b { color: var(--gold); }
+    body { background: #f5f5f5; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    .list { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .list a { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
+      color: var(--text); text-decoration: none; }
+    .list a:last-child { border-bottom: 0; }
+    .list a:hover { background: #fafafa; }
+    .list b { display: block; }
+    .list span { color: var(--muted); font-size: .9rem; }
+    .list .go { color: var(--faint); }
+    .pins { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="eyebrow">Taverna QR · Εστιατόρια &amp; Ξενοδοχεία</div>
-    <h1>Το μενού σας, <em>σε κάθε γλώσσα</em>,<br>σε κάθε τραπέζι και δωμάτιο.</h1>
-    <p class="lead">Ο πελάτης σκανάρει το QR του τραπεζιού, διαβάζει το μενού στη γλώσσα του, παραγγέλνει, καλεί τον σερβιτόρο
-      ή ζητά τον λογαριασμό. Η παραγγελία φτάνει στο πάσο με τον αριθμό του τραπεζιού.</p>
-    <div class="cards" id="cards"></div>
+    <h1>Taverna QR · Demo</h1>
+    <p class="lead">Ψηφιακό μενού και παραγγελία με QR για εστιατόρια και ξενοδοχεία.</p>
+    <div class="list" id="links"></div>
     <p class="pins" id="pins"></p>
   </div>
   <script type="module">
     import { api, esc } from '/js/util.js';
-    import { icon } from '/js/icons.js';
     const d = await api('/api/demo');
     const t = d.tables[0];
-    document.getElementById('cards').innerHTML = [
-      ['phonePay', 'Μενού επισκέπτη', `Όπως το βλέπει ο πελάτης μετά το σκανάρισμα του QR`, t?.url],
-      ['users', 'Σερβιτόρος', 'Εγκρίσεις, κλήσεις, λογαριασμοί, θέσεις', '/staff/waiter'],
-      ['flame', 'Κουζίνα · Πάσο', 'Οθόνη κουζίνας με ζωντανές παραγγελίες', '/staff/kitchen'],
-      ['sliders', 'Διαχείριση', 'Μενού, φωτογραφίες, μεταφράσεις, QR, στατιστικά', '/staff/admin'],
-    ].map(([i, h, p, href]) => `<a class="c" href="${href}" target="_blank"><div class="i">${icon(i, 22)}</div><h3>${h}</h3><p>${p}</p></a>`).join('');
-    if (d.pins) document.getElementById('pins').innerHTML =
-      `PIN demo → Admin <b>${d.pins.admin}</b> · Σερβιτόρος <b>${d.pins.waiter}</b> · Κουζίνα <b>${d.pins.kitchen}</b>`;
+    document.getElementById('links').innerHTML = [
+      ['Μενού πελάτη', `Όπως το βλέπει ο πελάτης μετά το σκανάρισμα του QR (Τραπέζι ${esc(t?.label ?? '')})`, t?.url],
+      ['Σερβιτόρος', 'Κλήσεις, έγκριση παραγγελιών, λογαριασμοί', '/staff/waiter'],
+      ['Κουζίνα', 'Οθόνη πάσου με τις παραγγελίες σε πραγματικό χρόνο', '/staff/kitchen'],
+      ['Διαχείριση', 'Μενού, θέσεις και QR, ιστορικό, ρυθμίσεις', '/staff/admin'],
+    ].map(([h, p, href]) => `<a href="${href}" target="_blank"><div><b>${h}</b><span>${p}</span></div><span class="go">›</span></a>`).join('');
+    if (d.pins) document.getElementById('pins').textContent =
+      `PIN για το demo: Διαχείριση ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;
   </script>
 </body>
 </html>

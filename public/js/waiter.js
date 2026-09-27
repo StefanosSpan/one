@@ -44,7 +44,7 @@ function start() {
         <span class="meta">#${o.id} · <span class="lang">${LANG_CODES[o.lang] || ''}</span> · ${timeAgo(o.createdAt)}</span></div>
       ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
         <span class="muted">${euro(i.qty * i.price)}</span></div>`).join('')}
-      ${o.note ? `<div class="onote">${icon('message', 14)} ${esc(o.note)}</div>` : ''}
+      ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
       <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span><b>${euro(o.total)}</b></div>
       ${buttons ? `<div class="row">${buttons}</div>` : ''}
     </div>`;
@@ -59,38 +59,38 @@ function start() {
     $('#app').innerHTML = `
       <div class="grid">
         <section class="col">
-          <h2>${icon('bell', 18)} Κλήσεις <span class="n">${calls.length}</span></h2>
+          <h2>Κλήσεις <span class="n">${calls.length}</span></h2>
           ${calls.length ? calls.map((c) => `<div class="panel alert">
             <div class="panel-head"><span class="tbl">${esc(spotName(c.tableKind, c.tableLabel))}</span><span class="meta">${timeAgo(c.createdAt)}</span></div>
             <div class="call-what">${c.type === 'bill'
-              ? `${icon('receipt', 16)} Ζητά λογαριασμό${c.paymentMethod ? ` · ${c.paymentMethod === 'card' ? 'Κάρτα' : 'Μετρητά'}` : ''}`
-              : `${icon('bell', 16)} Ζητά εξυπηρέτηση`}</div>
+              ? `Ζητά λογαριασμό${c.paymentMethod ? ` · ${c.paymentMethod === 'card' ? 'Κάρτα' : 'Μετρητά'}` : ''}`
+              : 'Ζητά εξυπηρέτηση'}</div>
             <div class="row">
               ${c.type === 'bill' ? `<button class="btn secondary sm" data-table="${c.tableId}">Λογαριασμός</button>` : ''}
-              <button class="btn sm" data-call="${c.id}">${icon('check', 16)} Εξυπηρετήθηκε</button>
+              <button class="btn sm" data-call="${c.id}">Εξυπηρετήθηκε</button>
             </div></div>`).join('') : '<div class="nothing">Καμία κλήση</div>'}
 
-          <h2 class="mt">${icon('receipt', 18)} Προς έγκριση <span class="n">${pending.length}</span></h2>
+          <h2 class="mt">Προς έγκριση <span class="n">${pending.length}</span></h2>
           ${data.requireApproval ? '' : '<div class="nothing">Η έγκριση είναι απενεργοποιημένη. Οι παραγγελίες πηγαίνουν απευθείας στην κουζίνα.</div>'}
           ${pending.length ? pending.map((o) => orderPanel(o, `
-            <button class="btn danger sm" data-status="rejected" data-id="${o.id}">${icon('x', 16)} Απόρριψη</button>
-            <button class="btn success sm" data-status="accepted" data-id="${o.id}">${icon('check', 16)} Έγκριση</button>`)).join('')
+            <button class="btn danger sm" data-status="rejected" data-id="${o.id}">Απόρριψη</button>
+            <button class="btn success sm" data-status="accepted" data-id="${o.id}">Έγκριση</button>`)).join('')
             : data.requireApproval ? '<div class="nothing">Δεν υπάρχουν νέες παραγγελίες</div>' : ''}
         </section>
 
         <section class="col">
-          <h2>${icon('check', 18)} Έτοιμα για σερβίρισμα <span class="n">${ready.length}</span></h2>
-          ${ready.length ? ready.map((o) => orderPanel(o, `<button class="btn success sm" data-status="served" data-id="${o.id}">${icon('check', 16)} Σερβιρίστηκε</button>`)).join('')
+          <h2>Έτοιμα για σερβίρισμα <span class="n">${ready.length}</span></h2>
+          ${ready.length ? ready.map((o) => orderPanel(o, `<button class="btn success sm" data-status="served" data-id="${o.id}">Σερβιρίστηκε</button>`)).join('')
             : '<div class="nothing">Τίποτα έτοιμο ακόμη</div>'}
-          <h2 class="mt">${icon('flame', 18)} Στην κουζίνα <span class="n">${inKitchen.length}</span></h2>
+          <h2 class="mt">Στην κουζίνα <span class="n">${inKitchen.length}</span></h2>
           ${inKitchen.length ? inKitchen.map((o) => orderPanel(o)).join('') : '<div class="nothing">Καμία παραγγελία στην κουζίνα</div>'}
         </section>
 
         <section class="col">
-          <h2>${icon('grid', 18)} Θέσεις <button class="btn secondary sm push" id="soldOut">${icon('ban', 15)} Διαθεσιμότητα</button></h2>
+          <h2>Θέσεις <button class="btn secondary sm push" id="soldOut">Διαθεσιμότητα πιάτων</button></h2>
           <div class="tables">
             ${tables.filter((t) => t.active).map((t) => `<button class="tcard ${t.calls.length ? 'call' : t.orders ? 'busy' : ''}" data-table="${t.id}">
-              <span class="tkind">${icon(KIND[t.kind]?.icon || 'utensils', 13)} ${esc((KIND[t.kind] || KIND.table).one)}</span>
+              <span class="tkind">${esc((KIND[t.kind] || KIND.table).one)}</span>
               <b>${esc(t.label)}</b>
               ${t.orders ? `<div class="small">${euro(t.total)}</div>` : '<div class="small muted">Ελεύθερο</div>'}
               ${t.total && t.paid >= t.total ? '<span class="badge green">Εξοφλήθηκε</span>' : ''}
@@ -111,12 +111,12 @@ function start() {
     const orders = data.orders.filter((o) => o.tableId === id);
     const billable = orders.filter((o) => o.status !== 'rejected');
     const { el, close } = sheet(`
-      <div class="sheet-head"><h2>${esc(spotName(t.kind, t.label))}</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
+      <div class="sheet-head"><h2>${esc(spotName(t.kind, t.label))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
       ${orders.length ? orders.map((o) => orderPanel(o)).join('') : '<p class="muted">Δεν υπάρχουν ανοιχτές παραγγελίες.</p>'}
       ${billable.length ? `
         <div class="sum-row"><span>Σύνολο</span><span>${euro(t.total)}</span></div>
         ${t.paid ? `<p class="badge green">Εξοφλήθηκε online: ${euro(t.paid)}</p>` : ''}
-        <button class="btn block success" id="closeT">${icon('check', 16)} Εξόφληση και κλείσιμο</button>
+        <button class="btn block success" id="closeT">Εξόφληση και κλείσιμο</button>
         <p class="muted small">Η θέση αδειάζει για τους επόμενους πελάτες. Βεβαιωθείτε ότι έχει εκδοθεί απόδειξη από το ταμείο.</p>` : ''}
     `);
     $('#closeT', el)?.addEventListener('click', () => {
@@ -129,7 +129,7 @@ function start() {
   async function openSoldOut() {
     const items = await api('/api/staff/items');
     const { el } = sheet(`
-      <div class="sheet-head"><h2>Διαθεσιμότητα πιάτων</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
+      <div class="sheet-head"><h2>Διαθεσιμότητα πιάτων</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
       <p class="muted small">Ό,τι απενεργοποιήσετε εμφανίζεται αμέσως ως «Εξαντλήθηκε» στους πελάτες.</p>
       ${items.map((i) => `<label class="switch"><input type="checkbox" data-item="${i.id}" ${i.available ? 'checked' : ''}>
         <span>${esc(itemName(i.name))}</span></label>`).join('')}

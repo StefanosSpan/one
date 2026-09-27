@@ -11,10 +11,12 @@
     "start": "node --no-warnings server/index.js",
     "dev": "node --no-warnings --watch server/index.js",
     "reset-db": "node --no-warnings server/reset.js",
-    "test": "node --no-warnings --test"
+    "test": "node --no-warnings --test",
+    "test:pg": "DATABASE_URL=${DATABASE_URL:-postgres://taverna:taverna@127.0.0.1:5432/taverna_test} node --no-warnings --test"
   },
   "dependencies": {
     "express": "^5.2.1",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.4"
   }
 }

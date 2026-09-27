@@ -9,25 +9,25 @@ let tab = 'dash';
 const me = await requireLogin(['admin']);
 if (me) start();
 
-const TAG_LABELS = { popular: 'Πρόταση του σεφ', new: 'Νέο', vegetarian: 'Χορτοφαγικό (V)', vegan: 'Vegan (VG)', gluten_free: 'Χωρίς γλουτένη (GF)', spicy: 'Πικάντικο' };
+const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: 'Χορτοφαγικό', vegan: 'Vegan', gluten_free: 'Χωρίς γλουτένη', spicy: 'Πικάντικο' };
 
 
 function start() {
   topBar(me, 'admin', 'Διαχείριση');
-  const tabs = [['dash', 'chart', 'Επισκόπηση'], ['menu', 'book', 'Μενού'], ['tables', 'qr', 'Θέσεις & QR'], ['store', 'home', 'Κατάστημα'], ['settings', 'sliders', 'Ρυθμίσεις']];
-  $('#tabs').innerHTML = tabs.map(([k, ic, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${icon(ic, 16)} ${l}</button>`).join('');
+  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις']];
+  $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
   $$('#tabs button').forEach((b) => b.onclick = () => {
     tab = b.dataset.tab;
     $$('#tabs button').forEach((x) => x.classList.toggle('active', x === b));
     render();
   });
-  liveStaff((evt) => { if (tab === 'dash' && evt.startsWith('order')) render(); });
+  liveStaff((evt) => { if ((tab === 'dash' || tab === 'history') && evt.startsWith('order')) render(); });
   render();
 }
 
 async function render() {
   settings = await api('/api/admin/settings');
-  const views = { dash: renderDash, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings };
+  const views = { dash: renderDash, history: renderHistory, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings };
   await views[tab]();
 }
 
@@ -135,13 +135,62 @@ async function renderDash() {
       <div class="panel"><h3>Γρήγορη δοκιμή</h3>
         <p class="muted small">Ανοίξτε το μενού μιας θέσης σε άλλη καρτέλα ή στο κινητό σας και κάντε μια δοκιμαστική παραγγελία.</p>
         <div class="links">
-          ${demo.tables.map((t) => `<a class="btn secondary sm" href="${esc(t.url)}" target="_blank">${icon('phonePay', 15)} Μενού · ${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</a>`).join('')}
-          <a class="btn secondary sm" href="/staff/waiter" target="_blank">${icon('users', 15)} Σερβιτόρος</a>
-          <a class="btn secondary sm" href="/staff/kitchen" target="_blank">${icon('flame', 15)} Κουζίνα</a>
+          ${demo.tables.map((t) => `<a class="btn secondary sm" href="${esc(t.url)}" target="_blank">Μενού · ${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</a>`).join('')}
+          <a class="btn secondary sm" href="/staff/waiter" target="_blank">Σερβιτόρος</a>
+          <a class="btn secondary sm" href="/staff/kitchen" target="_blank">Κουζίνα</a>
         </div>
       </div>
     </div>`;
   $$('[data-days]').forEach((b) => b.onclick = () => { statDays = Number(b.dataset.days); renderDash(); });
+}
+
+// ---------------------------------------------------------------------------
+// Order history (stored in the database) + CSV export
+// ---------------------------------------------------------------------------
+const STATUS_LABEL = { pending: 'Αναμονή έγκρισης', accepted: 'Εγκρίθηκε', preparing: 'Ετοιμάζεται', ready: 'Έτοιμη',
+  served: 'Σερβιρίστηκε', rejected: 'Απορρίφθηκε' };
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hist = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(new Date()), status: '' };
+
+async function renderHistory() {
+  const qs = new URLSearchParams({ from: hist.from, to: hist.to, ...(hist.status ? { status: hist.status } : {}) });
+  const { orders, summary } = await api(`/api/admin/orders?${qs}`);
+  const when = (iso) => new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  $('#app').innerHTML = `
+    <div class="filters">
+      <label>Από<input class="input" type="date" id="hFrom" value="${hist.from}"></label>
+      <label>Έως<input class="input" type="date" id="hTo" value="${hist.to}"></label>
+      <label>Κατάσταση<select class="input" id="hStatus">
+        <option value="">Όλες</option>
+        ${Object.entries(STATUS_LABEL).map(([k, v]) => `<option value="${k}" ${hist.status === k ? 'selected' : ''}>${v}</option>`).join('')}
+      </select></label>
+      <a class="btn secondary sm" id="csv" href="/api/admin/orders.csv?${qs}">Εξαγωγή σε Excel (CSV)</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="l">Παραγγελίες</div><div class="v">${summary.count}</div></div>
+      <div class="stat"><div class="l">Σύνολο</div><div class="v">${euro(summary.revenue)}</div></div>
+      <div class="stat"><div class="l">Μέση παραγγελία</div><div class="v">${euro(summary.count ? Math.round(summary.revenue / summary.count) : 0)}</div></div>
+      <div class="stat"><div class="l">Απορρίφθηκαν</div><div class="v">${summary.rejected}</div></div>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>#</th><th>Ημερομηνία</th><th>Θέση</th><th>Πιάτα</th><th>Γλώσσα</th><th>Κατάσταση</th><th class="num">Σύνολο</th></tr></thead>
+        <tbody>
+          ${orders.length ? orders.map((o) => `<tr>
+            <td>${o.id}</td>
+            <td style="white-space:nowrap">${when(o.createdAt)}</td>
+            <td style="white-space:nowrap">${esc((KIND[o.tableKind] || KIND.table).one)} ${esc(o.tableLabel)}</td>
+            <td class="items">${o.items.map((i) => `${i.qty}× ${esc(itemName(i.name))}`).join(', ')}${o.note ? `<br><i>${esc(o.note)}</i>` : ''}</td>
+            <td>${esc(o.lang.toUpperCase())}</td>
+            <td><span class="badge ${o.status === 'rejected' ? 'red' : o.status === 'served' ? 'green' : 'gray'}">${STATUS_LABEL[o.status]}</span>${o.paid ? ' <span class="badge green">Εξοφλήθηκε</span>' : ''}</td>
+            <td class="num">${euro(o.total)}</td>
+          </tr>`).join('') : '<tr><td colspan="7" class="muted" style="text-align:center;padding:2rem">Δεν υπάρχουν παραγγελίες σε αυτό το διάστημα.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">Όλες οι παραγγελίες αποθηκεύονται μόνιμα στη βάση δεδομένων. Εμφανίζονται έως 2.000 ανά αναζήτηση.</p>`;
+  const apply = () => { hist.from = $('#hFrom').value; hist.to = $('#hTo').value; hist.status = $('#hStatus').value; renderHistory(); };
+  ['#hFrom', '#hTo', '#hStatus'].forEach((sel) => $(sel).addEventListener('change', apply));
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +203,7 @@ async function renderMenu() {
   const noPhoto = items.filter((i) => !i.image_url).length;
   $('#app').innerHTML = `
     <div class="toolbar">
-      <button class="btn" id="addCat">${icon('plus', 16)} Νέα κατηγορία</button>
+      <button class="btn" id="addCat">Νέα κατηγορία</button>
       ${noPhoto ? `<span class="muted small">${noPhoto} από ${items.length} πιάτα δεν έχουν φωτογραφία. Οι φωτογραφίες αυξάνουν σημαντικά τις παραγγελίες.</span>` : ''}
     </div>
     ${categories.map((c, ci) => {
@@ -165,7 +214,7 @@ async function renderMenu() {
           <button class="mini" data-cmove="${ci}" data-dir="-1" title="Πάνω">${icon('up', 15)}</button>
           <button class="mini" data-cmove="${ci}" data-dir="1" title="Κάτω">${icon('down', 15)}</button>
           <button class="mini" data-cedit="${c.id}" title="Επεξεργασία">${icon('edit', 15)}</button>
-          <button class="btn sm" data-iadd="${c.id}">${icon('plus', 15)} Πιάτο</button>
+          <button class="btn sm" data-iadd="${c.id}">Πιάτο</button>
         </div>
         ${list.map((i, ii) => `<div class="list-item ${i.available ? '' : 'off'}">
           <div class="thumb-sm">${i.image_url ? `<img src="${esc(i.image_url)}" alt="">` : icon('image', 18)}</div>
@@ -214,7 +263,7 @@ function editCategory(c) {
     ${i18nEditor([{ key: 'name', label: 'Όνομα', max: 80 }], { name: c?.name })}
     <label class="switch"><input type="checkbox" id="active" ${c?.active === false ? '' : 'checked'}> Εμφανίζεται στο μενού</label>
     <div class="row">
-      ${c ? `<button class="btn danger" id="del">${icon('trash', 16)} Διαγραφή</button>` : ''}
+      ${c ? `<button class="btn danger" id="del">Διαγραφή</button>` : ''}
       <button class="btn" id="save">Αποθήκευση</button>
     </div>`);
   const read = bindI18n(el);
@@ -252,7 +301,7 @@ function editItem(item, categoryId) {
     </div></label>
     <label class="switch"><input type="checkbox" id="avail" ${i.available ? 'checked' : ''}> Διαθέσιμο τώρα</label>
     <div class="row">
-      ${item ? `<button class="btn danger" id="del">${icon('trash', 16)} Διαγραφή</button>` : ''}
+      ${item ? `<button class="btn danger" id="del">Διαγραφή</button>` : ''}
       <button class="btn" id="save">Αποθήκευση</button>
     </div>`);
   const read = bindI18n(el);
@@ -294,9 +343,9 @@ async function renderTables() {
       <div class="toolbar">
         <select class="input" id="newKind" style="max-width:170px">${kindOptions('table')}</select>
         <input class="input" id="newLabel" placeholder="Όνομα ή αριθμός (π.χ. 13, 204, Βεράντα 2)" style="flex:2;min-width:200px">
-        <button class="btn" id="addOne">${icon('plus', 16)} Προσθήκη</button>
+        <button class="btn" id="addOne">Προσθήκη</button>
         <button class="btn secondary" id="addMany">Πολλές μαζί</button>
-        <a class="btn success" href="/staff/qr" target="_blank">${icon('printer', 16)} Εκτύπωση QR</a>
+        <a class="btn success" href="/staff/qr" target="_blank">Εκτύπωση QR</a>
       </div>
       ${location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? `<div class="note-box">
         Η διαχείριση είναι ανοιχτή από <b>localhost</b>, οπότε τα QR δείχνουν σε localhost και δεν ανοίγουν από κινητό.
@@ -396,7 +445,18 @@ function renderStore() {
 // ---------------------------------------------------------------------------
 function renderSettings() {
   const s = settings;
+  const SWATCHES = ['#1f3a5f', '#1a1a1a', '#0f5e4a', '#7a2e2e', '#8a5a14', '#2b4c8c', '#5b3a73', '#b0452d'];
+  const dbInfo = s.database === 'postgres'
+    ? 'PostgreSQL (ορίζεται με τη μεταβλητή DATABASE_URL).'
+    : 'SQLite, στο αρχείο <code>data/taverna.db</code> του server. Για online φιλοξενία ορίστε <code>DATABASE_URL</code> ώστε να χρησιμοποιηθεί PostgreSQL.';
   $('#app').innerHTML = `<div class="panel narrow">
+    <h3>Χρώμα καταστήματος</h3>
+    <p class="muted small" style="margin-top:0">Χρησιμοποιείται στα κουμπιά και τις επιλογές του μενού που βλέπουν οι πελάτες.</p>
+    <div class="color-row">
+      <input type="color" id="brand" value="${esc(s.brandColor || '#1f3a5f')}">
+      <div class="swatches">${SWATCHES.map((c) => `<button type="button" data-sw="${c}" style="background:${c}" title="${c}"></button>`).join('')}</div>
+    </div>
+
     <h3>Ροή παραγγελιών</h3>
     <label class="switch"><input type="checkbox" id="approval" ${s.requireApproval ? 'checked' : ''}>
       <span><b>Έγκριση από το προσωπικό πριν την κουζίνα</b><br><span class="muted small">Ο σερβιτόρος βλέπει την παραγγελία, την καταχωρεί στο ταμείο/POS και την εγκρίνει.</span></span></label>
@@ -429,8 +489,12 @@ function renderSettings() {
     <label class="field"><span>Η διεύθυνση που ανοίγουν τα QR (π.χ. https://menu.to-magazi-sas.gr ή http://192.168.1.20:3000)</span>
       <input class="input" id="baseUrl" value="${esc(s.publicBaseUrl)}" placeholder="${esc(location.origin)}"></label>
 
-    <button class="btn" id="save">Αποθήκευση ρυθμίσεων</button>
+    <h3>Βάση δεδομένων</h3>
+    <p class="small" style="margin:0">Όλα τα δεδομένα (μενού, θέσεις, παραγγελίες, κλήσεις, ρυθμίσεις) αποθηκεύονται σε ${dbInfo}</p>
+
+    <div style="margin-top:1.2rem"><button class="btn" id="save">Αποθήκευση ρυθμίσεων</button></div>
   </div>`;
+  $$('[data-sw]').forEach((b) => b.onclick = () => { $('#brand').value = b.dataset.sw; });
   $('#save').onclick = async () => {
     const body = {
       requireApproval: $('#approval').checked,
@@ -439,6 +503,7 @@ function renderSettings() {
       defaultLanguage: $('#defLang').value,
       pins: { admin: $('#pinAdmin').value.trim(), waiter: $('#pinWaiter').value.trim(), kitchen: $('#pinKitchen').value.trim() },
       publicBaseUrl: $('#baseUrl').value.trim(),
+      brandColor: $('#brand').value,
     };
     try { await api('/api/admin/settings', { method: 'PUT', body }); toast('Οι ρυθμίσεις αποθηκεύτηκαν', 'ok'); render(); }
     catch (err) { toast(err.message, 'err'); }

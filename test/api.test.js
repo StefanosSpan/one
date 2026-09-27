@@ -6,7 +6,15 @@ import { join } from 'node:path';
 
 const dir = mkdtempSync(join(tmpdir(), 'taverna-test-'));
 process.env.DATA_DIR = dir;
+// With DATABASE_URL set the same tests run against PostgreSQL (the database is emptied first).
+if (process.env.DATABASE_URL) {
+  const { openDatabase, dropAll } = await import('../server/db/adapter.js');
+  const tmp = await openDatabase();
+  await dropAll(tmp);
+  await tmp.close();
+}
 const { app } = await import('../server/index.js');
+const { db } = await import('../server/db.js');
 
 let server, base, token;
 const cookies = {};
@@ -37,7 +45,7 @@ before(async () => {
   await login('1234', 'admin');
 });
 
-after(() => { server.close(); rmSync(dir, { recursive: true, force: true }); });
+after(async () => { server.close(); await db.close(); rmSync(dir, { recursive: true, force: true }); });
 
 test('public menu has 8 languages and items', async () => {
   const { status, data } = await call(`/api/public/table/${token}`);
@@ -104,4 +112,28 @@ test('admin can create an item with translations', async () => {
   assert.equal(r.status, 201);
   assert.equal(r.data.price_cents, 550);
   assert.deepEqual(r.data.allergens, ['gluten']);
+});
+
+test('orders are stored and can be listed and exported as CSV', async () => {
+  await call(`/api/public/table/${token}/orders`, { method: 'POST', body: { items: [{ id: 3, qty: 1 }], lang: 'fr' } });
+  const h = await call('/api/admin/orders', { as: 'admin' });
+  assert.equal(h.status, 200);
+  assert.ok(h.data.orders.length >= 2);
+  assert.equal(h.data.orders[0].lang, 'fr'); // newest first
+  assert.ok(h.data.summary.revenue > 0);
+
+  const res = await fetch(`${base}/api/admin/orders.csv`, { headers: { Cookie: cookies.admin } });
+  assert.equal(res.status, 200);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf]); // UTF-8 BOM for Excel
+  const csv = new TextDecoder().decode(bytes);
+  assert.match(csv, /Τζατζίκι/);
+  assert.match(csv, /4,50/);
+});
+
+test('stats are numeric on every database', async () => {
+  const { data } = await call('/api/admin/stats?days=7', { as: 'admin' });
+  assert.equal(typeof data.orders, 'number');
+  assert.equal(typeof data.revenue, 'number');
+  assert.equal(typeof data.top[0].qty, 'number');
 });

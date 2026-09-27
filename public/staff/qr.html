@@ -4,21 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Εκτύπωση QR</title>
-  <link rel="stylesheet" href="/css/fonts.css">
   <link rel="stylesheet" href="/css/app.css">
   <style>
     body { background: #fff; }
-    .toolbar { padding: 1rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
-    .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64mm, 1fr)); gap: 6mm; padding: 6mm; }
-    .qcard { border: 1px solid #ddd5c5; border-radius: 4mm; padding: 7mm 5mm 6mm; text-align: center; break-inside: avoid; background: #fffdf9; position: relative; }
-    .qcard::before { content: ''; position: absolute; inset: 2mm; border: .3mm solid #c9a45c; border-radius: 2.5mm; opacity: .6; pointer-events: none; }
-    .qcard .rn { font-size: 13pt; font-weight: 600; letter-spacing: -.02em; color: #141d31; }
-    .qcard .tn { margin: 1.5mm 0 4mm; font-size: 7.5pt; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #9c7a36; }
+    .toolbar { padding: 1rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+    .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62mm, 1fr)); gap: 5mm; padding: 6mm; }
+    .qcard { border: .3mm solid #cfcfcf; border-radius: 2mm; padding: 6mm 5mm 5mm; text-align: center; break-inside: avoid; }
+    .qcard .rn { font-size: 11pt; font-weight: 700; color: #1a1a1a; }
+    .qcard .tn { font-size: 20pt; font-weight: 700; margin: 1mm 0 3mm; color: var(--brand); }
     .qcard .qr { width: 40mm; height: 40mm; margin: 0 auto; }
     .qcard .qr svg { width: 100%; height: 100%; }
-    .qcard .cta { font-size: 9pt; font-weight: 600; margin-top: 3.5mm; color: #141d31; }
-    .qcard .sub { font-size: 7pt; color: #6f6a60; margin-top: 1mm; letter-spacing: .02em; }
-    .qcard .codes { font-size: 6.5pt; margin-top: 2.5mm; letter-spacing: .2em; color: #9c7a36; font-weight: 600; }
+    .qcard .cta { font-size: 9.5pt; font-weight: 600; margin-top: 3mm; color: #1a1a1a; }
+    .qcard .sub { font-size: 7.5pt; color: #6b6b6b; margin-top: .8mm; }
+    .qcard .codes { font-size: 6.5pt; margin-top: 2mm; color: #9a9a9a; letter-spacing: .05em; }
     @media print { .toolbar { display: none; } .sheetgrid { padding: 0; } @page { margin: 10mm; } }
   </style>
 </head>
@@ -36,6 +34,7 @@
     try {
       const [tables, s] = await Promise.all([api('/api/admin/tables'), api('/api/admin/settings')]);
       const codes = s.languages.map((l) => LANGUAGES[l].short).join(' · ');
+      if (s.brandColor) document.documentElement.style.setProperty('--brand', s.brandColor);
       const active = tables.filter((t) => t.active);
       const svgs = await Promise.all(active.map((t) => fetch(`/api/admin/tables/${t.id}/qr.svg`).then((r) => r.text())));
       document.getElementById('grid').innerHTML = active.map((t, i) => `
@@ -44,7 +43,7 @@
           <div class="tn">${esc(KIND[t.kind] || KIND.table)} ${esc(t.label)}</div>
           <div class="qr">${svgs[i]}</div>
           <div class="cta">Σκανάρετε για μενού και παραγγελία</div>
-          <div class="sub">Scan for menu &amp; ordering</div>
+          <div class="sub">Scan to view the menu and order</div>
           <div class="codes">${codes}</div>
         </div>`).join('');
     } catch {
