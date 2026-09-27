@@ -229,22 +229,34 @@ function renderMenu() {
   setupScrollSpy();
 }
 
-let spy;
+let spyHandler;
 function setupScrollSpy() {
-  spy?.disconnect();
+  if (spyHandler) window.removeEventListener('scroll', spyHandler);
   const chips = $$('#catnav .chip');
+  const titles = $$('.section-title');
   if (!chips.length) return;
+  let current;
   const activate = (id) => {
+    if (id === current) return;
+    current = id;
     chips.forEach((c) => c.classList.toggle('active', c.dataset.cat === id));
     const active = chips.find((c) => c.dataset.cat === id);
     if (active) active.parentElement.scrollTo({ left: Math.max(0, active.offsetLeft - active.parentElement.offsetLeft - 24), behavior: 'smooth' });
   };
-  activate(chips[0].dataset.cat);
-  spy = new IntersectionObserver((entries) => {
-    const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-    if (visible[0]) activate(visible[0].target.id.replace('cat-', ''));
-  }, { rootMargin: '-140px 0px -60% 0px' });
-  $$('.section-title').forEach((s) => spy.observe(s));
+  let ticking = false;
+  spyHandler = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      // The active category is the last section whose title has scrolled under the sticky bars.
+      let id = titles[0]?.id;
+      for (const el of titles) if (el.getBoundingClientRect().top < 160) id = el.id;
+      if (id) activate(id.replace('cat-', ''));
+    });
+  };
+  window.addEventListener('scroll', spyHandler, { passive: true });
+  spyHandler();
 }
 
 function marks(i, withChef = true) {

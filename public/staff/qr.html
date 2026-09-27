@@ -12,11 +12,11 @@
     .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64mm, 1fr)); gap: 6mm; padding: 6mm; }
     .qcard { border: 1px solid #ddd5c5; border-radius: 4mm; padding: 7mm 5mm 6mm; text-align: center; break-inside: avoid; background: #fffdf9; position: relative; }
     .qcard::before { content: ''; position: absolute; inset: 2mm; border: .3mm solid #c9a45c; border-radius: 2.5mm; opacity: .6; pointer-events: none; }
-    .qcard .rn { font-family: var(--serif); font-size: 15pt; font-weight: 500; color: #141d31; }
+    .qcard .rn { font-size: 13pt; font-weight: 600; letter-spacing: -.02em; color: #141d31; }
     .qcard .tn { margin: 1.5mm 0 4mm; font-size: 7.5pt; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #9c7a36; }
     .qcard .qr { width: 40mm; height: 40mm; margin: 0 auto; }
     .qcard .qr svg { width: 100%; height: 100%; }
-    .qcard .cta { font-family: var(--serif); font-size: 10.5pt; margin-top: 3.5mm; color: #141d31; }
+    .qcard .cta { font-size: 9pt; font-weight: 600; margin-top: 3.5mm; color: #141d31; }
     .qcard .sub { font-size: 7pt; color: #6f6a60; margin-top: 1mm; letter-spacing: .02em; }
     .qcard .codes { font-size: 6.5pt; margin-top: 2.5mm; letter-spacing: .2em; color: #9c7a36; font-weight: 600; }
     @media print { .toolbar { display: none; } .sheetgrid { padding: 0; } @page { margin: 10mm; } }
