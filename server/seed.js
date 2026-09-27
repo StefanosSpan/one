@@ -103,7 +103,7 @@ const OPTIONS = {
 };
 
 export const DEFAULT_RESTAURANT = {
-  name: 'Ταβέρνα Ο Νίκος',
+  name: 'Το εστιατόριό σας',
   description: t(
     'Παραδοσιακή ελληνική κουζίνα δίπλα στη θάλασσα, από το 1985.',
     'Traditional Greek cuisine by the sea, since 1985.',

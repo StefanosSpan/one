@@ -545,7 +545,7 @@ function renderStore() {
     <h3>Στοιχεία απόδειξης</h3>
     <p class="muted small" style="margin-top:0">Τυπώνονται στην κεφαλίδα της απόδειξης λογαριασμού.</p>
     <div class="two">
-      <label class="field"><span>Επωνυμία επιχείρησης</span><input class="input" id="legalName" value="${esc(r.legalName || '')}" placeholder="π.χ. Νικολάου Ν. & ΣΙΑ Ο.Ε."></label>
+      <label class="field"><span>Επωνυμία επιχείρησης</span><input class="input" id="legalName" value="${esc(r.legalName || '')}" placeholder="π.χ. Παπαδόπουλος Γ. & ΣΙΑ Ο.Ε."></label>
       <label class="field"><span>ΑΦΜ</span><input class="input" id="vatNumber" value="${esc(r.vatNumber || '')}" inputmode="numeric"></label>
       <label class="field"><span>ΔΟΥ</span><input class="input" id="taxOffice" value="${esc(r.taxOffice || '')}"></label>
       <label class="field"><span>Κείμενο στο τέλος της απόδειξης</span><input class="input" id="receiptFooter" value="${esc(r.receiptFooter || '')}" placeholder="π.χ. Σας περιμένουμε ξανά!"></label>
