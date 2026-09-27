@@ -25,6 +25,7 @@
   <div class="wrap">
     <h1>Kalimenu · Demo</h1>
     <p class="lead">Ψηφιακό μενού και παραγγελία με QR για εστιατόρια και ξενοδοχεία. <a href="/">Αρχική σελίδα και τιμές</a></p>
+    <p><a class="btn" href="/signup">Φτιάξτε το δικό σας μενού δωρεάν</a></p>
     <div class="list" id="links"></div>
     <p class="pins" id="pins"></p>
   </div>
@@ -32,11 +33,12 @@
     import { api, esc } from '/js/util.js';
     const d = await api('/api/demo');
     const t = d.tables[0];
+    const staff = (page) => `/staff?v=${encodeURIComponent(d.venue || '')}&next=${page}`;
     document.getElementById('links').innerHTML = [
       ['Μενού πελάτη', `Όπως το βλέπει ο πελάτης μετά το σκανάρισμα του QR (Τραπέζι ${esc(t?.label ?? '')})`, t?.url],
-      ['Σερβιτόρος', 'Κλήσεις, έγκριση παραγγελιών, λογαριασμοί', '/staff/waiter'],
-      ['Κουζίνα', 'Οθόνη πάσου με τις παραγγελίες σε πραγματικό χρόνο', '/staff/kitchen'],
-      ['Διαχείριση', 'Μενού, θέσεις και QR, ιστορικό, ρυθμίσεις', '/staff/admin'],
+      ['Σερβιτόρος', 'Κλήσεις, έγκριση παραγγελιών, λογαριασμοί', staff('/staff/waiter')],
+      ['Κουζίνα', 'Οθόνη πάσου με τις παραγγελίες σε πραγματικό χρόνο', staff('/staff/kitchen')],
+      ['Διαχείριση', 'Μενού, θέσεις και QR, ιστορικό, ρυθμίσεις', staff('/staff/admin')],
     ].map(([h, p, href]) => `<a href="${href}" target="_blank"><div><b>${h}</b><span>${p}</span></div><span class="go">›</span></a>`).join('');
     if (d.pins) document.getElementById('pins').textContent =
       `PIN για το demo: Διαχείριση ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;

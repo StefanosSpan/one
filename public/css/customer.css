@@ -162,3 +162,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .receipt-card { display: flex; justify-content: space-between; align-items: center; gap: .8rem; border: 1px solid #a9d4b9; background: var(--green-bg);
   border-radius: var(--radius); padding: .8rem 1rem; margin: .8rem 0; }
 .receipt-card b { display: block; }
+
+/* Free plan: small credit under the menu */
+.powered { text-align: center; font-size: .78rem; color: var(--faint); margin: 1.5rem 0 5.5rem; }
+.powered a { color: var(--muted); text-decoration: none; font-weight: 600; }

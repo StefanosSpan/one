@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Super admin · Kalimenu</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/staff.css">
+  <link rel="stylesheet" href="/css/auth.css">
+  <style>
+    .auth-top .in { max-width: 1200px; }
+    .sa { max-width: 1200px; margin: 1.2rem auto 3rem; padding: 0 16px; }
+    .sa .stats { margin-bottom: 1rem; }
+    .sa-tools { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .8rem; }
+    .sa-tools .input { max-width: 280px; }
+    .sa table.data td { vertical-align: top; }
+    .sa .name b { display: block; }
+    .sa .name span { color: var(--muted); font-size: .82rem; }
+    .st { font-size: .78rem; font-weight: 600; padding: .12rem .45rem; border-radius: 99px; background: var(--fill); white-space: nowrap; }
+    .st.trialing { background: var(--blue-bg); color: var(--blue); }
+    .st.active { background: var(--green-bg); color: var(--green); }
+    .st.past_due, .st.paused { background: var(--amber-bg); color: var(--amber); }
+    .st.canceled, .st.suspended { background: var(--red-bg); color: var(--red); }
+    .sa .acts { display: flex; gap: .3rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div id="toasts"></div>
+  <header class="auth-top"><div class="in">
+    <a class="wordmark" href="/">Kali<span>menu</span> <small style="font-weight:600;color:var(--muted);font-size:.8rem">super admin</small></a>
+    <span id="who" class="small muted"></span>
+  </div></header>
+
+  <main class="auth" id="loginBox" hidden>
+    <form class="card" id="login">
+      <h1>Super admin</h1>
+      <p class="lead">Διαχείριση όλων των καταστημάτων και συνδρομών.</p>
+      <label class="field"><span>E-mail</span><input class="input" name="email" type="email" required autocomplete="username"></label>
+      <label class="field"><span>Κωδικός</span><input class="input" name="password" type="password" required autocomplete="current-password"></label>
+      <button class="btn block">Σύνδεση</button>
+    </form>
+  </main>
+
+  <main class="sa" id="app" hidden></main>
+
+  <script type="module">
+    import { $, $$, api, toast, sheet, esc, euro } from '/js/util.js';
+
+    const STATUS = { trialing: 'Δοκιμή', active: 'Ενεργή', past_due: 'Εκκρεμεί πληρωμή', paused: 'Πάγωμα', canceled: 'Ακυρώθηκε', suspended: 'Αναστολή' };
+    const day = (iso) => (iso ? new Date(iso).toLocaleDateString('el-GR') : '—');
+    const left = (iso) => Math.ceil((new Date(iso) - Date.now()) / 86400_000);
+    let data;
+    let filter = { q: '', status: '' };
+
+    async function boot() {
+      try {
+        const me = await api('/api/super/me');
+        $('#who').innerHTML = `${esc(me.email)} · <a href="#" id="out">Έξοδος</a>`;
+        $('#out').onclick = async (e) => { e.preventDefault(); await api('/api/super/logout', { method: 'POST' }); location.reload(); };
+        $('#app').hidden = false;
+        load();
+      } catch {
+        $('#loginBox').hidden = false;
+      }
+    }
+
+    $('#login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try { await api('/api/super/login', { method: 'POST', body: { email: e.target.email.value, password: e.target.password.value } }); location.reload(); }
+      catch (err) { toast(err.message, 'err'); }
+    });
+
+    async function load() {
+      data = await api('/api/super/overview');
+      render();
+    }
+
+    function render() {
+      const t = data.totals;
+      const q = filter.q.trim().toLowerCase();
+      const rows = data.venues.filter((v) => (!q || `${v.name} ${v.slug} ${v.email}`.toLowerCase().includes(q))
+        && (!filter.status || v.status === filter.status));
+      $('#app').innerHTML = `
+        <div class="stats">
+          <div class="stat"><div class="l">Μηνιαία έσοδα (MRR)</div><div class="v">${euro(t.mrr)}</div></div>
+          <div class="stat"><div class="l">Καταστήματα</div><div class="v">${t.venues}</div></div>
+          <div class="stat"><div class="l">Πληρώνουν</div><div class="v">${t.paying}</div></div>
+          <div class="stat"><div class="l">Σε δοκιμή</div><div class="v">${t.trialing}</div></div>
+          <div class="stat"><div class="l">Λήγει δοκιμή σε 7 ημ.</div><div class="v">${t.trialsEnding7}</div></div>
+          <div class="stat"><div class="l">Νέα (30 ημέρες)</div><div class="v">${t.signups30}</div></div>
+          <div class="stat"><div class="l">Δωρεάν / πάγωμα</div><div class="v">${t.free} / ${t.paused}</div></div>
+        </div>
+        ${data.stripe ? '' : '<div class="plan-banner warn"><span>Δεν έχουν οριστεί κλειδιά Stripe: οι ιδιοκτήτες δεν μπορούν ακόμα να πληρώσουν online.</span></div>'}
+        <div class="sa-tools">
+          <input class="input" id="q" placeholder="Αναζήτηση: όνομα, κωδικός, e-mail" value="${esc(filter.q)}">
+          <select class="input" id="st" style="max-width:200px"><option value="">Όλες οι καταστάσεις</option>
+            ${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${filter.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <button class="btn secondary sm" id="csv">Εξαγωγή CSV</button>
+        </div>
+        <div class="table-scroll"><table class="data">
+          <thead><tr><th>Κατάστημα</th><th>Πλάνο</th><th>Κατάσταση</th><th>Εγγραφή</th><th>Χρήση</th><th>Παραγγ. 30 ημ.</th><th>MRR</th><th></th></tr></thead>
+          <tbody>${rows.map((v) => `<tr>
+            <td class="name"><b>${esc(v.name)}${v.isDemo ? ' <span class="badge gray">demo</span>' : ''}</b><span>${esc(v.email || '—')} · ${esc(v.slug)}</span></td>
+            <td>${esc(data.plans[v.plan]?.name || v.plan)}${v.plan !== 'free' ? `<br><span class="muted small">${v.interval === 'year' ? 'ετήσιο' : 'μηνιαίο'}${v.stripe ? ' · Stripe' : ''}</span>` : ''}</td>
+            <td><span class="st ${v.status}">${STATUS[v.status] || v.status}</span>
+              ${v.status === 'trialing' ? `<br><span class="muted small">${left(v.trialEndsAt) > 0 ? `λήγει σε ${left(v.trialEndsAt)} ημ.` : 'έληξε'}</span>` : ''}</td>
+            <td>${day(v.createdAt)}</td>
+            <td class="small">${v.items} πιάτα<br>${v.spots} θέσεις</td>
+            <td>${v.orders30}${v.lastOrderAt ? `<br><span class="muted small">τελ. ${day(v.lastOrderAt)}</span>` : ''}</td>
+            <td>${v.mrr ? euro(v.mrr) : '—'}</td>
+            <td><button class="btn secondary sm" data-open="${v.id}">Διαχείριση</button></td>
+          </tr>`).join('') || '<tr><td colspan="8" class="muted">Δεν βρέθηκαν καταστήματα.</td></tr>'}</tbody>
+        </table></div>`;
+      $('#q').oninput = (e) => { filter.q = e.target.value; const pos = e.target.selectionStart; render(); $('#q').focus(); $('#q').setSelectionRange(pos, pos); };
+      $('#st').onchange = (e) => { filter.status = e.target.value; render(); };
+      $('#csv').onclick = () => exportCsv(rows);
+      $$('[data-open]').forEach((b) => b.onclick = () => manage(data.venues.find((v) => v.id === Number(b.dataset.open))));
+    }
+
+    function manage(v) {
+      const { el, close } = sheet(`
+        <div class="sheet-head"><h2>${esc(v.name)}</h2><button class="icon-btn" data-close>✕</button></div>
+        <p class="muted small" style="margin-top:0">${esc(v.email || 'χωρίς λογαριασμό ιδιοκτήτη')} · κωδικός ${esc(v.slug)} · εγγραφή ${day(v.createdAt)}</p>
+        <div class="acts" style="margin:.6rem 0 1rem">
+          <button class="btn sm" id="imp">Άνοιγμα διαχείρισης</button>
+          ${v.email ? '<button class="btn secondary sm" id="reset">Σύνδεσμος νέου κωδικού</button>' : ''}
+          ${v.email ? `<a class="btn secondary sm" href="mailto:${esc(v.email)}">E-mail</a>` : ''}
+        </div>
+        <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+          <label class="field"><span>Πλάνο</span><select class="input" id="plan">
+            ${Object.entries(data.plans).map(([k, p]) => `<option value="${k}" ${v.plan === k ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+          <label class="field"><span>Κατάσταση</span><select class="input" id="status">
+            ${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${v.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        </div>
+        <label class="field"><span>Χρέωση</span><select class="input" id="interval">
+          <option value="month" ${v.interval !== 'year' ? 'selected' : ''}>Μηνιαία</option><option value="year" ${v.interval === 'year' ? 'selected' : ''}>Ετήσια</option></select></label>
+        <p class="muted small">Οι αλλαγές εδώ δεν αλλάζουν τη χρέωση στο Stripe· χρησιμοποιήστε τες για δώρα, εκπτώσεις ή πελάτες που πληρώνουν με άλλο τρόπο (π.χ. κατάθεση).</p>
+        <button class="btn block" id="save">Αποθήκευση</button>
+        <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">
+        <div class="acts">
+          <button class="btn secondary sm" data-ext="14">+14 ημέρες δοκιμή</button>
+          <button class="btn secondary sm" data-ext="30">+1 μήνας δοκιμή</button>
+          <button class="btn secondary sm" data-ext="60">+2 μήνες δοκιμή</button>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">
+        <div class="acts">
+          ${v.status === 'suspended' ? '<button class="btn secondary sm" id="unsuspend">Άρση αναστολής</button>'
+            : '<button class="btn secondary sm" id="suspend">Αναστολή (το μενού και οι συνδέσεις σταματούν)</button>'}
+          ${v.isDemo ? '' : '<button class="btn danger sm" id="del">Διαγραφή καταστήματος</button>'}
+        </div>`);
+      const put = async (body, msg) => {
+        try { await api(`/api/super/venues/${v.id}`, { method: 'PUT', body }); toast(msg, 'ok'); close(); load(); }
+        catch (e) { toast(e.message, 'err'); }
+      };
+      $('#save', el).onclick = () => put({ plan: $('#plan', el).value, status: $('#status', el).value, interval: $('#interval', el).value }, 'Αποθηκεύτηκε');
+      $$('[data-ext]', el).forEach((b) => b.onclick = () => put({ extendTrialDays: Number(b.dataset.ext) }, 'Η δοκιμή παρατάθηκε'));
+      $('#suspend', el)?.addEventListener('click', () => confirm('Αναστολή του καταστήματος;') && put({ status: 'suspended' }, 'Ανεστάλη'));
+      $('#unsuspend', el)?.addEventListener('click', () => put({ status: 'active' }, 'Η αναστολή άρθηκε'));
+      $('#imp', el).onclick = async () => {
+        const r = await api(`/api/super/venues/${v.id}/impersonate`, { method: 'POST' });
+        window.open(r.next, '_blank');
+      };
+      $('#reset', el)?.addEventListener('click', async () => {
+        try {
+          const r = await api(`/api/super/venues/${v.id}/reset-link`, { method: 'POST' });
+          await navigator.clipboard?.writeText(r.link).catch(() => {});
+          prompt(`Στάλθηκε e-mail στο ${r.email}. Μπορείτε επίσης να στείλετε αυτόν τον σύνδεσμο (ισχύει 24 ώρες):`, r.link);
+        } catch (e) { toast(e.message, 'err'); }
+      });
+      $('#del', el)?.addEventListener('click', async () => {
+        const typed = prompt(`Θα διαγραφούν οριστικά όλα τα δεδομένα του καταστήματος. Γράψτε «${v.slug}» για επιβεβαίωση:`);
+        if (typed === null) return;
+        try { await api(`/api/super/venues/${v.id}`, { method: 'DELETE', body: { confirm: typed.trim() } }); toast('Διαγράφηκε', 'ok'); close(); load(); }
+        catch (e) { toast(e.message, 'err'); }
+      });
+    }
+
+    function exportCsv(rows) {
+      const cell = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
+      const lines = [['Κατάστημα', 'Κωδικός', 'E-mail', 'Πλάνο', 'Χρέωση', 'Κατάσταση', 'Λήξη δοκιμής', 'Εγγραφή', 'Πιάτα', 'Θέσεις', 'Παραγγελίες 30 ημ.', 'MRR (€)'],
+        ...rows.map((v) => [v.name, v.slug, v.email, data.plans[v.plan]?.name, v.interval, STATUS[v.status], day(v.trialEndsAt), day(v.createdAt),
+          v.items, v.spots, v.orders30, (v.mrr / 100).toFixed(2).replace('.', ',')])];
+      const blob = new Blob([`﻿${lines.map((r) => r.map(cell).join(';')).join('\r\n')}`], { type: 'text/csv' });
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'kalimenu-katastimata.csv' });
+      a.click();
+    }
+
+    boot();
+  </script>
+</body>
+</html>

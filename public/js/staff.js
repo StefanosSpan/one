@@ -39,7 +39,10 @@ export function topBar(me, current, title) {
   sb.onclick = () => setSound(!soundOn);
   // Browsers only allow sound after a user gesture: enable on first tap anywhere.
   document.addEventListener('pointerdown', () => { if (!soundOn) setSound(true); }, { once: true });
-  bar.querySelector('#logout').onclick = async () => { await api('/api/staff/logout', { method: 'POST' }); location.href = '/staff'; };
+  bar.querySelector('#logout').onclick = async () => {
+    await api('/api/staff/logout', { method: 'POST' });
+    location.href = me.owner ? '/login' : `/staff?v=${encodeURIComponent(me.venue?.slug || '')}`;
+  };
   return { soundEnabled: () => soundOn };
 }
 

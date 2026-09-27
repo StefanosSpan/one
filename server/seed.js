@@ -126,41 +126,70 @@ export const DEFAULT_RESTAURANT = {
   reviewUrl: '',
 };
 
-export async function seed(db, { newToken }) {
+// Creates the settings, starter menu and spots of a venue.
+//   sample:   include the example menu (21 dishes in 8 languages) that the owner can edit or delete
+//   demoInfo: also use the example venue details (address, phone, Wi-Fi)
+//   spots:  how many tables / rooms / sunbeds get a QR code
+export async function seed(db, {
+  newToken, venueId, name, sample = true, demoInfo = false, pins, onlinePayments = 'off',
+  spots = { table: 12, room: 4, sunbed: 4 },
+}) {
+  // Address, phone and Wi-Fi of the example are only for the public demo; real venues fill in their own.
+  const restaurant = demoInfo ? { ...DEFAULT_RESTAURANT } : { name, description: {}, hours: {}, address: '', phone: '' };
+  if (name) restaurant.name = name;
   const settings = {
-    restaurant: DEFAULT_RESTAURANT,
+    restaurant,
     languages: LANGS,
     defaultLanguage: 'el',
     requireApproval: true,
-    onlinePayments: 'demo',
+    onlinePayments,
     currency: 'EUR',
     brandColor: '#1f3a5f',
-    pins: { admin: '1234', waiter: '1111', kitchen: '2222' },
+    pins: pins || randomPins(),
     secret: randomBytes(32).toString('hex'),
     publicBaseUrl: '',
   };
   for (const [k, v] of Object.entries(settings)) {
-    await db.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
-      [k, JSON.stringify(v)]);
+    await db.run('INSERT INTO settings (venue_id, key, value) VALUES (?, ?, ?)', [venueId, k, JSON.stringify(v)]);
   }
 
-  const catIds = {};
-  for (const [i, c] of CATEGORIES.entries()) {
-    catIds[c.key] = await db.insert('INSERT INTO categories (name, icon, sort) VALUES (?, ?, ?)', [JSON.stringify(c.name), c.icon, i]);
+  if (sample) {
+    const catIds = {};
+    for (const [i, c] of CATEGORIES.entries()) {
+      catIds[c.key] = await db.insert('INSERT INTO categories (venue_id, name, icon, sort) VALUES (?, ?, ?, ?)',
+        [venueId, JSON.stringify(c.name), c.icon, i]);
+    }
+    for (const [i, [cat, emoji, price, allergens, tags, dish, desc]] of ITEMS.entries()) {
+      await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, sort, options)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venueId, catIds[cat], JSON.stringify(dish), JSON.stringify(desc), price,
+        JSON.stringify(allergens), JSON.stringify(tags), emoji, i, JSON.stringify(OPTIONS[i] || [])]);
+    }
+  } else {
+    for (const [i, c] of CATEGORIES.filter((x) => ['starters', 'mains', 'drinks'].includes(x.key)).entries()) {
+      await db.insert('INSERT INTO categories (venue_id, name, icon, sort) VALUES (?, ?, ?, ?)', [venueId, JSON.stringify(c.name), '', i]);
+    }
   }
 
-  for (const [i, [cat, emoji, price, allergens, tags, name, desc]] of ITEMS.entries()) {
-    await db.insert(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, sort, options)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [catIds[cat], JSON.stringify(name), JSON.stringify(desc), price,
-      JSON.stringify(allergens), JSON.stringify(tags), emoji, i, JSON.stringify(OPTIONS[i] || [])]);
-  }
-
-  const spots = [
-    ...Array.from({ length: 12 }, (_, i) => [String(i + 1), 'table']),
-    ...['101', '102', '201', '202'].map((r) => [r, 'room']),
-    ...Array.from({ length: 4 }, (_, i) => [String(i + 1), 'sunbed']),
+  const rooms = ['101', '102', '201', '202', '301', '302', '401', '402'];
+  const list = [
+    ...Array.from({ length: spots.table || 0 }, (_, i) => [String(i + 1), 'table']),
+    ...Array.from({ length: spots.room || 0 }, (_, i) => [rooms[i] || String(100 + i + 1), 'room']),
+    ...Array.from({ length: spots.sunbed || 0 }, (_, i) => [String(i + 1), 'sunbed']),
   ];
-  for (const [label, kind] of spots) {
-    await db.insert('INSERT INTO tables (label, token, kind) VALUES (?, ?, ?)', [label, newToken(), kind]);
+  for (const [label, kind] of list) {
+    await db.insert('INSERT INTO tables (venue_id, label, token, kind) VALUES (?, ?, ?, ?)', [venueId, label, newToken(), kind]);
   }
+  return settings;
+}
+
+// Six-digit PINs, different for each role.
+export function randomPins() {
+  const used = new Set();
+  const pin = () => {
+    let p;
+    do p = String(100000 + (randomBytes(4).readUInt32BE() % 900000)); while (used.has(p));
+    used.add(p);
+    return p;
+  };
+  return { admin: pin(), waiter: pin(), kitchen: pin() };
 }

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Δημιουργία λογαριασμού · Kalimenu</title>
+  <meta name="description" content="Φτιάξτε το ψηφιακό μενού του καταστήματός σας σε λίγα λεπτά. Δωρεάν δοκιμή χωρίς κάρτα.">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+  <div id="toasts"></div>
+  <header class="auth-top"><div class="in">
+    <a class="wordmark" href="/">Kali<span>menu</span></a>
+    <a class="link" href="/login">Έχετε ήδη λογαριασμό; Σύνδεση</a>
+  </div></header>
+
+  <main class="auth">
+    <form class="card" id="form" novalidate>
+      <h1>Ξεκινήστε δωρεάν</h1>
+      <p class="lead">Σε 5 λεπτά έχετε μενού σε 8 γλώσσες και QR για κάθε τραπέζι. Χωρίς εγκατάσταση, από τον browser.</p>
+      <div class="trial-note" id="trialNote"></div>
+
+      <label class="field"><span>Όνομα καταστήματος</span>
+        <input class="input" name="business" maxlength="80" required autocomplete="organization" placeholder="π.χ. Ταβέρνα Το Κύμα"></label>
+
+      <span class="field-label small muted">Πλάνο</span>
+      <div class="plan-pick" id="plans"></div>
+
+      <div class="row2">
+        <label class="field"><span>Τραπέζια με QR</span><input class="input" name="tables" type="number" min="0" max="100" value="10"></label>
+        <label class="field" data-hotel hidden><span>Δωμάτια</span><input class="input" name="rooms" type="number" min="0" max="300" value="0"></label>
+        <label class="field" data-hotel hidden><span>Ξαπλώστρες</span><input class="input" name="sunbeds" type="number" min="0" max="300" value="0"></label>
+      </div>
+
+      <label class="check"><input type="checkbox" name="sample" checked>
+        <span>Ξεκινήστε με δείγμα μενού (21 πιάτα σε 8 γλώσσες) που αλλάζετε ή σβήνετε όποτε θέλετε</span></label>
+
+      <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">
+      <label class="field"><span>E-mail</span><input class="input" name="email" type="email" required autocomplete="email"></label>
+      <label class="field"><span>Κωδικός</span><input class="input" name="password" type="password" minlength="8" required autocomplete="new-password">
+        <p class="hint">Τουλάχιστον 8 χαρακτήρες.</p></label>
+      <label class="check"><input type="checkbox" name="acceptTerms">
+        <span>Αποδέχομαι τους <a href="/terms" target="_blank">όρους χρήσης και την πολιτική απορρήτου</a></span></label>
+
+      <button class="btn block" id="submit" style="margin-top:.8rem">Δημιουργία λογαριασμού</button>
+      <p class="hint" style="text-align:center;margin-top:.6rem">Δεν χρειάζεται κάρτα. Στο τέλος της δοκιμής επιλέγετε αν θα συνεχίσετε.</p>
+    </form>
+    <p class="foot">Θέλετε πρώτα να το δείτε; <a href="/demo">Δοκιμάστε το demo</a></p>
+  </main>
+
+  <script type="module">
+    import { api, toast } from '/js/util.js';
+    const params = new URLSearchParams(location.search);
+    const form = document.getElementById('form');
+    const eur = (c) => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
+    const { plans, trialDays } = await api('/api/plans');
+    const interval = params.get('interval') === 'year' ? 'year' : 'month';
+    const initial = plans[params.get('plan')] ? params.get('plan') : 'pro';
+    const SUB = { free: 'Μόνο μενού', basic: 'Μενού και κλήση σερβιτόρου', pro: 'Παραγγελία από το τραπέζι', hotel: 'Room service και ξαπλώστρες' };
+    const months = Math.round(trialDays / 30);
+
+    document.getElementById('plans').innerHTML = ['free', 'basic', 'pro', 'hotel'].map((k) => {
+      const p = plans[k];
+      const price = !p.month ? 'Δωρεάν για πάντα' : interval === 'year' ? `${eur(p.month * 10)}/έτος` : `${eur(p.month)}/μήνα`;
+      return `<label><input type="radio" name="plan" value="${k}" ${k === initial ? 'checked' : ''}><b>${p.name}</b><span>${SUB[k]} · ${price}</span></label>`;
+    }).join('');
+
+    function update() {
+      const plan = form.plan.value;
+      const hotel = plans[plan].kinds.length > 1;
+      document.querySelectorAll('[data-hotel]').forEach((el) => { el.hidden = !hotel; });
+      form.tables.max = plans[plan].maxSpots || 100;
+      document.getElementById('trialNote').textContent = plan === 'free'
+        ? 'Το Δωρεάν πλάνο δεν λήγει ποτέ: μενού έως 40 πιάτα και 10 τραπέζια. Αναβαθμίζετε όποτε θέλετε.'
+        : `${months} μήνες δωρεάν δοκιμή του πλάνου ${plans[plan].name}, χωρίς κάρτα. Μετά ${plans[plan].month ? eur(plans[plan].month) : ''} τον μήνα + ΦΠΑ, μόνο αν το επιλέξετε.`;
+    }
+    form.addEventListener('change', update);
+    update();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit');
+      btn.disabled = true;
+      try {
+        const r = await api('/api/account/signup', { method: 'POST', body: {
+          business: form.business.value, email: form.email.value, password: form.password.value,
+          plan: form.plan.value, interval, tables: form.tables.value, rooms: form.rooms.value, sunbeds: form.sunbeds.value,
+          sample: form.sample.checked, acceptTerms: form.acceptTerms.checked,
+        } });
+        location.href = r.next;
+      } catch (err) {
+        toast(err.message === 'error' ? 'Κάτι πήγε στραβά. Δοκιμάστε ξανά.' : err.message, 'err');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

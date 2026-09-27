@@ -9,7 +9,62 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const schema = (dialect) => readFileSync(join(HERE, `schema.${dialect}.sql`), 'utf8');
 
-export const TABLES = ['receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings'];
+export const TABLES = ['uploads', 'receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts', 'venues', 'admins'];
+
+// ---------------------------------------------------------------------------
+// Migration from the single-venue schema (before venues existed): the old tables are
+// renamed, the new schema is created and every row is copied into venue 1.
+// ---------------------------------------------------------------------------
+const LEGACY = {
+  settings: ['key', 'value'],
+  categories: ['id', 'name', 'icon', 'sort', 'active'],
+  tables: ['id', 'label', 'token', 'active', 'kind'],
+  items: ['id', 'category_id', 'name', 'description', 'price_cents', 'allergens', 'tags', 'emoji', 'image_url', 'available', 'sort', 'options'],
+  orders: ['id', 'table_id', 'status', 'note', 'lang', 'total_cents', 'paid', 'closed', 'created_at', 'updated_at'],
+  order_items: ['id', 'order_id', 'item_id', 'name', 'qty', 'price_cents', 'note', 'options'],
+  calls: ['id', 'table_id', 'type', 'payment_method', 'status', 'created_at'],
+  receipts: ['id', 'number', 'token', 'table_id', 'table_label', 'table_kind', 'order_ids', 'lines', 'total_cents', 'payment', 'fiscal_ref', 'lang', 'created_at'],
+};
+const LEGACY_INDEXES = ['idx_receipts_created', 'idx_orders_table', 'idx_orders_created', 'idx_order_items', 'idx_calls_status'];
+// Columns added to the single-venue schema over time; old databases may miss them.
+const LEGACY_COLUMNS = [['tables', 'kind', "TEXT NOT NULL DEFAULT 'table'"], ['items', 'options', "TEXT DEFAULT '[]'"],
+  ['order_items', 'options', "TEXT DEFAULT '[]'"]];
+
+async function migrateLegacy(api, { columns, tableExists }) {
+  const cols = await columns('settings');
+  if (!cols.length || cols.includes('venue_id')) return false;
+  const present = [];
+  for (const name of Object.keys(LEGACY)) if (await tableExists(name)) present.push(name);
+  const missing = [];
+  for (const [table, column, ddl] of LEGACY_COLUMNS) {
+    if (present.includes(table) && !(await columns(table)).includes(column)) missing.push(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
+  await api.tx(async (t) => {
+    for (const sql of missing) await t.exec(sql);
+    for (const idx of LEGACY_INDEXES) await t.exec(`DROP INDEX IF EXISTS ${idx}`);
+    for (const name of present) await t.exec(`ALTER TABLE ${name} RENAME TO legacy_${name}`);
+    await t.exec(schema(api.dialect));
+
+    const rows = await t.all("SELECT value FROM legacy_settings WHERE key = 'restaurant'");
+    let name = 'Κατάστημα';
+    try { name = JSON.parse(rows[0]?.value || '{}').name || name; } catch { /* keep default */ }
+    await t.run(`INSERT INTO venues (id, slug, name, plan, status, created_at) VALUES (1, 'main', ?, 'hotel', 'active', ?)`,
+      [name, new Date().toISOString()]);
+    for (const name of Object.keys(LEGACY)) {
+      if (!present.includes(name)) continue;
+      const list = LEGACY[name].join(', ');
+      if (name === 'order_items') await t.exec(`INSERT INTO order_items (${list}) SELECT ${list} FROM legacy_order_items`);
+      else await t.exec(`INSERT INTO ${name} (venue_id, ${list}) SELECT 1, ${list} FROM legacy_${name}`);
+    }
+    for (const name of [...present].reverse()) await t.exec(`DROP TABLE legacy_${name}`);
+    if (api.dialect === 'postgres') {
+      for (const name of ['venues', ...present.filter((n) => n !== 'settings')]) {
+        await t.exec(`SELECT setval(pg_get_serial_sequence('${name}', 'id'), COALESCE((SELECT MAX(id) FROM ${name}), 0) + 1, false)`);
+      }
+    }
+  });
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // SQLite
@@ -47,15 +102,9 @@ async function openSqlite(file) {
     return run;
   };
 
-  await api.exec(schema('sqlite'));
-  // Migration for databases created before spots had a type.
-  const addColumn = async (table, column, ddl) => {
-    const cols = await api.all(`PRAGMA table_info(${table})`);
-    if (!cols.some((c) => c.name === column)) await api.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
-  };
-  await addColumn('tables', 'kind', "TEXT NOT NULL DEFAULT 'table'");
-  await addColumn('items', 'options', "TEXT DEFAULT '[]'");
-  await addColumn('order_items', 'options', "TEXT DEFAULT '[]'");
+  const columns = async (table) => (await api.all(`PRAGMA table_info(${table})`)).map((c) => c.name);
+  const migrated = await migrateLegacy(api, { columns, tableExists: async (t) => (await columns(t)).length > 0 });
+  if (!migrated) await api.exec(schema('sqlite'));
   return api;
 }
 
@@ -98,7 +147,11 @@ async function openPostgres(url) {
   };
   api.close = () => pool.end();
 
-  await api.exec(schema('postgres'));
+  const columns = async (table) => (await api.all(
+    'SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ?', [table]))
+    .map((c) => c.column_name);
+  const migrated = await migrateLegacy(api, { columns, tableExists: async (t) => (await columns(t)).length > 0 });
+  if (!migrated) await api.exec(schema('postgres'));
   return api;
 }
 

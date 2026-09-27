@@ -13,16 +13,35 @@
     <div class="box">
       <div class="login-mark"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
       <h1 style="margin:.7rem 0 0;font-size:1.2rem">Σύνδεση προσωπικού</h1>
-      <p class="muted small" style="margin:.3rem 0 0">Πληκτρολογήστε το PIN σας</p>
+      <p class="muted small" style="margin:.3rem 0 0" id="venueLine">Πληκτρολογήστε το PIN σας</p>
+      <label class="field" id="venueField" hidden style="margin:.8rem 0 0;text-align:left"><span>Κωδικός καταστήματος</span>
+        <input class="input" id="venueCode" autocapitalize="off" autocomplete="off" placeholder="π.χ. taverna-to-kyma"></label>
       <div class="pin-dots" id="dots"></div>
       <div class="pad" id="pad"></div>
       <p class="muted small" id="demo" style="margin-top:1rem"></p>
+      <p class="small" style="margin-top:1rem"><a href="/login">Είστε ιδιοκτήτης; Σύνδεση με e-mail</a></p>
     </div>
   </div>
   <script type="module">
     import { api, toast } from '/js/util.js';
     const HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
-    const next = new URLSearchParams(location.search).get('next');
+    const params = new URLSearchParams(location.search);
+    const next = params.get('next');
+    // The venue code comes from the link the owner shares (/staff?v=code) and is remembered on this device.
+    const store = { get: () => { try { return localStorage.getItem('venue') || ''; } catch { return ''; } },
+      set: (v) => { try { localStorage.setItem('venue', v); } catch { /* private mode */ } } };
+    if (params.get('v')) store.set(params.get('v').toLowerCase());
+    let venue = store.get();
+    const venueField = document.getElementById('venueField');
+    const venueInput = document.getElementById('venueCode');
+    const showVenue = () => {
+      document.getElementById('venueLine').innerHTML = venue
+        ? `Κατάστημα <b>${venue.replace(/[^a-z0-9-]/g, '')}</b> · <a href="#" id="changeVenue">αλλαγή</a>` : 'Πληκτρολογήστε το PIN σας';
+      document.getElementById('changeVenue')?.addEventListener('click', (e) => {
+        e.preventDefault(); venueField.hidden = false; venueInput.value = venue; venueInput.focus();
+      });
+    };
+    showVenue();
     let pin = '';
     const dots = document.getElementById('dots');
     const render = () => { dots.innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join(''); };
@@ -31,9 +50,12 @@
     async function submit() {
       if (pin.length < 4) return;
       try {
-        const { role } = await api('/api/staff/login', { method: 'POST', body: { pin } });
+        if (!venueField.hidden) venue = venueInput.value.trim().toLowerCase();
+        const { role, venue: code } = await api('/api/staff/login', { method: 'POST', body: { pin, venue } });
+        store.set(code);
         location.href = next && next.startsWith('/staff/') ? next : HOME[role];
       } catch (e) {
+        if (e.reason === 'venue_required') { venueField.hidden = false; venueInput.focus(); }
         toast(e.message === 'error' ? 'Σφάλμα σύνδεσης' : e.message, 'err');
         pin = ''; render();
       }
@@ -46,6 +68,7 @@
     };
     pad.addEventListener('click', (e) => { const k = e.target.dataset.k; if (k) press(k); });
     document.addEventListener('keydown', (e) => {
+      if (e.target === venueInput) { if (e.key === 'Enter') press('OK'); return; }
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') press('⌫');
       else if (e.key === 'Enter') press('OK');
@@ -53,7 +76,7 @@
     render();
     api('/api/staff/me').then((me) => { location.href = next && next.startsWith('/staff/') ? next : HOME[me.role]; }).catch(() => {});
     api('/api/demo').then((d) => {
-      if (d.pins) document.getElementById('demo').textContent = `PIN για το demo: Διαχείριση ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;
+      if (d.pins && (!venue || venue === d.venue)) document.getElementById('demo').textContent = `PIN για το demo: Διαχείριση ${d.pins.admin} · Σερβιτόρος ${d.pins.waiter} · Κουζίνα ${d.pins.kitchen}`;
     }).catch(() => {});
   </script>
 </body>

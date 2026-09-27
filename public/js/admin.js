@@ -4,7 +4,8 @@ import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND } from './
 import { LANGUAGES, STRINGS } from './i18n.js';
 
 let settings = null;
-let tab = 'dash';
+const TAB_KEYS = ['dash', 'history', 'receipts', 'menu', 'tables', 'store', 'settings', 'billing'];
+let tab = TAB_KEYS.includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'dash';
 
 const me = await requireLogin(['admin']);
 if (me) start();
@@ -14,21 +15,25 @@ const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: '
 
 function start() {
   topBar(me, 'admin', 'Διαχείριση');
-  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις']];
+  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
-  $$('#tabs button').forEach((b) => b.onclick = () => {
-    tab = b.dataset.tab;
-    $$('#tabs button').forEach((x) => x.classList.toggle('active', x === b));
-    render();
-  });
+  $$('#tabs button').forEach((b) => b.onclick = () => go(b.dataset.tab));
   liveStaff((evt) => { if ((tab === 'dash' || tab === 'history') && evt.startsWith('order')) render(); });
+  render();
+}
+
+function go(next) {
+  tab = next;
+  $$('#tabs button').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
+  history.replaceState(null, '', tab === 'dash' ? location.pathname : `?tab=${tab}`);
   render();
 }
 
 async function render() {
   settings = await api('/api/admin/settings');
-  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings };
+  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings, billing: renderBilling };
   await views[tab]();
+  $$('[data-go]').forEach((b) => b.onclick = (e) => { e.preventDefault(); go(b.dataset.go); });
 }
 
 // ---------------------------------------------------------------------------
@@ -111,9 +116,11 @@ function photoField(root, sel, initial, { wide = false, contain = false, onChang
 // ---------------------------------------------------------------------------
 let statDays = 1;
 async function renderDash() {
-  const [s, demo] = await Promise.all([api(`/api/admin/stats?days=${statDays}`), api('/api/demo')]);
+  const [s, spots, menu] = await Promise.all([api(`/api/admin/stats?days=${statDays}`), api('/api/admin/tables'), api('/api/admin/menu')]);
   const max = Math.max(1, ...s.byDay.map((d) => d.revenue));
   $('#app').innerHTML = `
+    ${planBanner()}
+    ${setupChecklist(spots, menu, s)}
     <div class="seg">
       ${[[1, 'Σήμερα'], [7, '7 ημέρες'], [30, '30 ημέρες']].map(([d, l]) => `<button class="${statDays === d ? 'active' : ''}" data-days="${d}">${l}</button>`).join('')}
     </div>
@@ -136,13 +143,142 @@ async function renderDash() {
       <div class="panel"><h3>Γρήγορη δοκιμή</h3>
         <p class="muted small">Ανοίξτε το μενού μιας θέσης σε άλλη καρτέλα ή στο κινητό σας και κάντε μια δοκιμαστική παραγγελία.</p>
         <div class="links">
-          ${demo.tables.map((t) => `<a class="btn secondary sm" href="${esc(t.url)}" target="_blank">Μενού · ${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</a>`).join('')}
+          ${spots.filter((t) => t.active).slice(0, 3).map((t) => `<a class="btn secondary sm" href="${esc(t.url)}" target="_blank">Μενού · ${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</a>`).join('')}
           <a class="btn secondary sm" href="/staff/waiter" target="_blank">Σερβιτόρος</a>
           <a class="btn secondary sm" href="/staff/kitchen" target="_blank">Κουζίνα</a>
         </div>
       </div>
     </div>`;
-  $$('[data-days]').forEach((b) => b.onclick = () => { statDays = Number(b.dataset.days); renderDash(); });
+  $$('[data-days]').forEach((b) => b.onclick = () => { statDays = Number(b.dataset.days); render(); });
+  $('#hideSetup')?.addEventListener('click', () => {
+    try { localStorage.setItem(`setupDone:${settings.venue.slug}`, '1'); } catch { /* private mode */ }
+    $('#setup').remove();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Subscription state and first steps after sign-up
+// ---------------------------------------------------------------------------
+const daysLeft = (iso) => Math.max(0, Math.ceil((new Date(iso) - Date.now()) / 86400_000));
+
+function planBanner() {
+  const v = settings.venue;
+  if (v.isDemo) return '';
+  const name = v.features.name;
+  if (v.status === 'trialing' && v.effectivePlan !== 'free') {
+    const d = daysLeft(v.trialEndsAt);
+    return `<div class="plan-banner"><span>Δωρεάν δοκιμή του πλάνου <b>${esc(name)}</b>: απομένουν <b>${d} ${d === 1 ? 'ημέρα' : 'ημέρες'}</b>. Δεν χρειάζεται κάρτα μέχρι τότε.</span>
+      <a class="btn sm" href="?tab=billing" data-go="billing">Επιλογή πλάνου</a></div>`;
+  }
+  if (v.status === 'past_due') {
+    return `<div class="plan-banner warn"><span>Η τελευταία πληρωμή της συνδρομής απέτυχε. Ενημερώστε την κάρτα σας για να μη διακοπούν οι παραγγελίες.</span>
+      <a class="btn sm" href="?tab=billing" data-go="billing">Συνδρομή</a></div>`;
+  }
+  if (v.effectivePlan === 'free') {
+    const why = v.status === 'paused' ? 'Η συνδρομή είναι σε πάγωμα.' : v.status === 'trialing' ? 'Η δωρεάν δοκιμή έληξε.' : 'Είστε στο Δωρεάν πλάνο.';
+    return `<div class="plan-banner warn"><span>${why} Το μενού λειτουργεί, αλλά οι παραγγελίες και οι κλήσεις σερβιτόρου είναι κλειστές.</span>
+      <a class="btn sm" href="?tab=billing" data-go="billing">Δείτε τα πλάνα</a></div>`;
+  }
+  return '';
+}
+
+function setupChecklist(spots, menu, stats) {
+  const v = settings.venue;
+  let hidden = false;
+  try { hidden = localStorage.getItem(`setupDone:${v.slug}`) === '1'; } catch { /* private mode */ }
+  if (v.isDemo || hidden) return '';
+  const r = settings.restaurant || {};
+  const steps = [
+    [!!(r.phone || r.address || r.logoUrl), 'Στοιχεία και λογότυπο', 'Διεύθυνση, τηλέφωνο, ωράριο, Wi-Fi και λογότυπο.', 'store'],
+    [menu.items.length > 0, 'Το μενού σας', menu.items.length ? `${menu.items.length} πιάτα. Αν ξεκινήσατε με το δείγμα, αλλάξτε ή διαγράψτε ό,τι δεν ισχύει.` : 'Προσθέστε κατηγορίες και πιάτα.', 'menu'],
+    [spots.length > 0, 'Θέσεις και QR', `${spots.length} θέσεις. Τυπώστε τα QR σε αυτοκόλλητα ή επιτραπέζιες κάρτες.`, 'tables'],
+    [false, 'Το προσωπικό σας', 'Στείλτε στους σερβιτόρους τον σύνδεσμο σύνδεσης και το PIN τους.', 'settings'],
+    [stats.orders > 0, 'Δοκιμαστική παραγγελία', 'Σκανάρετε ένα QR με το κινητό σας και στείλτε μια παραγγελία.', 'dash'],
+  ];
+  return `<div class="panel setup" id="setup">
+    <div class="setup-head"><h3>Πρώτα βήματα</h3><button class="btn ghost sm" id="hideSetup">Απόκρυψη</button></div>
+    <ol>${steps.map(([done, title, text, target]) => `<li class="${done ? 'done' : ''}">
+      <span class="tick">${done ? icon('check', 14) : ''}</span>
+      <div><b>${title}</b><p class="muted small">${text}</p></div>
+      ${target !== 'dash' ? `<a class="btn secondary sm" href="?tab=${target}" data-go="${target}">Άνοιγμα</a>` : ''}
+    </li>`).join('')}</ol>
+  </div>`;
+}
+
+const PLAN_ORDER = ['free', 'basic', 'pro', 'hotel'];
+const STATUS_TEXT = { trialing: 'Δωρεάν δοκιμή', active: 'Ενεργή', past_due: 'Εκκρεμεί πληρωμή', paused: 'Σε πάγωμα', canceled: 'Ακυρώθηκε' };
+
+async function renderBilling() {
+  let acc;
+  try { acc = await api('/api/account'); } catch (e) {
+    $('#app').innerHTML = `<div class="panel narrow"><h3>Συνδρομή</h3><p>${esc(e.message)}</p>
+      <a class="btn" href="/login">Σύνδεση ιδιοκτήτη</a></div>`;
+    return;
+  }
+  const v = acc.venue;
+  const params = new URLSearchParams(location.search);
+  if (params.get('checkout') === 'success') toast('Ευχαριστούμε! Η συνδρομή ενεργοποιείται σε λίγα δευτερόλεπτα.', 'ok');
+  let interval = v.interval || 'month';
+  const limits = (p) => [p.maxItems ? `έως ${p.maxItems} πιάτα` : 'απεριόριστα πιάτα', p.maxSpots ? `έως ${p.maxSpots} θέσεις` : 'απεριόριστες θέσεις',
+    p.ordering ? 'παραγγελία από το τραπέζι' : 'χωρίς παραγγελίες', p.calls ? 'κλήση σερβιτόρου' : null,
+    p.kinds.length > 1 ? 'δωμάτια και ξαπλώστρες' : null, p.branding ? 'λογότυπο, φωτογραφίες, χρώμα' : 'με την ένδειξη Kalimenu'].filter(Boolean);
+  const paidNow = ['active', 'past_due'].includes(v.status) && v.plan !== 'free';
+
+  const draw = () => {
+    $('#app').innerHTML = `${planBanner()}
+    <div class="panel">
+      <h3>Η συνδρομή σας</h3>
+      <div class="kv"><span>Πλάνο</span><b>${esc(acc.plans[v.plan].name)}${v.effectivePlan !== v.plan ? ` <span class="muted">(ισχύει τώρα: ${esc(acc.plans[v.effectivePlan].name)})</span>` : ''}</b></div>
+      <div class="kv"><span>Κατάσταση</span><b>${STATUS_TEXT[v.status] || v.status}${v.status === 'trialing' ? ` · λήγει ${new Date(v.trialEndsAt).toLocaleDateString('el-GR')}` : ''}</b></div>
+      ${paidNow ? `<div class="kv"><span>Χρέωση</span><b>${v.interval === 'year' ? 'Ετήσια' : 'Μηνιαία'}</b></div>` : ''}
+      <div class="kv"><span>Χρήση</span><b>${acc.usage.items} πιάτα · ${acc.usage.spots} θέσεις</b></div>
+      <div class="kv"><span>Λογαριασμός</span><b>${esc(acc.email)}</b></div>
+      <div class="links" style="margin-top:1rem">
+        ${acc.billing.customer ? '<button class="btn secondary sm" id="portal">Κάρτα, τιμολόγια, ακύρωση</button>' : ''}
+        ${paidNow ? '<button class="btn secondary sm" id="pause">Πάγωμα για τη χειμερινή περίοδο</button>' : ''}
+        ${v.status === 'paused' ? '<button class="btn sm" id="resume">Επανενεργοποίηση</button>' : ''}
+      </div>
+      ${acc.billing.demo ? '<p class="muted small">Δοκιμαστική λειτουργία: δεν έχουν οριστεί κλειδιά Stripe, οπότε η επιλογή πλάνου ενεργοποιείται χωρίς πληρωμή.</p>' : ''}
+    </div>
+    <div class="seg" style="margin-top:1rem">
+      <button data-int="month" class="${interval === 'month' ? 'active' : ''}">Μηνιαία</button>
+      <button data-int="year" class="${interval === 'year' ? 'active' : ''}">Ετήσια (2 μήνες δώρο)</button>
+    </div>
+    <div class="plan-cards">${PLAN_ORDER.map((k) => {
+      const p = acc.plans[k];
+      const price = k === 'free' ? '0 €' : interval === 'year' ? `${euro(p.month * 10)}<small>/έτος</small>` : `${euro(p.month)}<small>/μήνα</small>`;
+      const current = paidNow ? v.plan === k && v.interval === interval : v.effectivePlan === k && k === 'free';
+      return `<div class="plan-card ${current ? 'current' : ''}">
+        <h4>${esc(p.name)}</h4><div class="price">${price}</div><p class="muted small">${k === 'free' ? 'Για πάντα' : '+ ΦΠΑ 24%'}</p>
+        <ul>${limits(p).map((l) => `<li>${l}</li>`).join('')}</ul>
+        ${k === 'free' ? '' : current ? '<span class="badge">Τρέχον πλάνο</span>'
+          : `<button class="btn sm block" data-plan="${k}">${paidNow ? 'Αλλαγή σε αυτό' : v.status === 'trialing' && v.effectivePlan !== 'free' ? 'Επιλογή (χρέωση μετά τη δοκιμή)' : 'Επιλογή'}</button>`}
+      </div>`;
+    }).join('')}</div>
+    <p class="muted small">Η πληρωμή γίνεται με κάρτα μέσω Stripe. Μπορείτε να ακυρώσετε ή να παγώσετε όποτε θέλετε.</p>`;
+
+    $$('[data-int]').forEach((b) => b.onclick = () => { interval = b.dataset.int; draw(); });
+    $$('[data-plan]').forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const r = await api('/api/account/checkout', { method: 'POST', body: { plan: b.dataset.plan, interval } });
+        if (r.url) { location.href = r.url; return; }
+        toast(r.updated ? 'Το πλάνο άλλαξε' : 'Το πλάνο ενεργοποιήθηκε', 'ok');
+        render();
+      } catch (e) { toast(e.message, 'err'); b.disabled = false; }
+    });
+    $('#portal')?.addEventListener('click', async () => {
+      try { location.href = (await api('/api/account/portal', { method: 'POST' })).url; } catch (e) { toast(e.message, 'err'); }
+    });
+    const pause = (paused) => async () => {
+      if (paused && !confirm('Κατά το πάγωμα δεν χρεώνεστε. Το μενού και τα QR συνεχίζουν να λειτουργούν χωρίς παραγγελίες. Συνέχεια;')) return;
+      try { await api('/api/account/pause', { method: 'POST', body: { paused } }); toast(paused ? 'Η συνδρομή πάγωσε' : 'Η συνδρομή ενεργοποιήθηκε', 'ok'); render(); }
+      catch (e) { toast(e.message, 'err'); }
+    };
+    $('#pause')?.addEventListener('click', pause(true));
+    $('#resume')?.addEventListener('click', pause(false));
+  };
+  draw();
 }
 
 // ---------------------------------------------------------------------------
@@ -599,12 +735,12 @@ function renderSettings() {
       «Δελτίο Παραγγελίας Εστίασης» από πιστοποιημένη ταμειακή ή πάροχο. Με ενεργή την έγκριση, το προσωπικό καταχωρεί την παραγγελία
       στο ταμείο σας. Συμβουλευτείτε τον λογιστή σας πριν την απενεργοποιήσετε.</div>
 
-    <h3>Online πληρωμές</h3>
+    <h3>Online πληρωμές πελατών</h3>
     <select class="input" id="payments" style="max-width:380px">
       <option value="off" ${s.onlinePayments === 'off' ? 'selected' : ''}>Απενεργοποιημένες (μετρητά ή κάρτα στη θέση)</option>
-      <option value="demo" ${s.onlinePayments === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (demo)</option>
+      ${s.demoPaymentsAllowed ? `<option value="demo" ${s.onlinePayments === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (demo)</option>` : ''}
     </select>
-    <p class="muted small">Η σύνδεση με Viva Wallet ή Stripe θα προστεθεί σε επόμενη έκδοση.</p>
+    <p class="muted small">Η πληρωμή του λογαριασμού από το κινητό του πελάτη (Viva Wallet) θα προστεθεί σε επόμενη έκδοση.</p>
 
     <h3>Γλώσσες μενού</h3>
     <div class="checks">${s.allLanguages.map((l) => `<label><input type="checkbox" data-lang-on="${l}" ${s.languages.includes(l) ? 'checked' : ''}>${LANGUAGES[l].name}</label>`).join('')}</div>
@@ -613,6 +749,11 @@ function renderSettings() {
     </select></label>
     <p class="muted small">Ο πελάτης βλέπει αυτόματα τη γλώσσα του κινητού του, εφόσον είναι διαθέσιμη.</p>
 
+    <h3>Σύνδεση προσωπικού</h3>
+    <p class="muted small" style="margin-top:0">Στείλτε αυτόν τον σύνδεσμο στους σερβιτόρους και στην κουζίνα. Ανοίγει από κινητό, tablet ή υπολογιστή· συνδέονται με το PIN τους.</p>
+    <div class="copy-row"><input class="input" id="staffUrl" readonly value="${esc(s.staffUrl)}"><button class="btn secondary sm" id="copyStaff" type="button">Αντιγραφή</button></div>
+    <p class="muted small">Κωδικός καταστήματος: <b>${esc(s.venue.slug)}</b></p>
+
     <h3>PIN προσωπικού</h3>
     <div class="two">
       <label class="field"><span>Διαχειριστής (τρέχον: ${esc(s.pins.admin)})</span><input class="input" id="pinAdmin" inputmode="numeric" placeholder="Νέο PIN, 4-8 ψηφία"></label>
@@ -620,16 +761,18 @@ function renderSettings() {
       <label class="field"><span>Κουζίνα (τρέχον: ${esc(s.pins.kitchen)})</span><input class="input" id="pinKitchen" inputmode="numeric" placeholder="Νέο PIN"></label>
     </div>
 
-    <h3>Δημόσια διεύθυνση</h3>
-    <label class="field"><span>Η διεύθυνση που ανοίγουν τα QR (π.χ. https://menu.to-magazi-sas.gr ή http://192.168.1.20:3000)</span>
-      <input class="input" id="baseUrl" value="${esc(s.publicBaseUrl)}" placeholder="${esc(location.origin)}"></label>
-
-    <h3>Βάση δεδομένων</h3>
-    <p class="small" style="margin:0">Όλα τα δεδομένα (μενού, θέσεις, παραγγελίες, κλήσεις, ρυθμίσεις) αποθηκεύονται σε ${dbInfo}</p>
+    <details class="advanced"><summary>Για προχωρημένους</summary>
+      <label class="field"><span>Διεύθυνση που ανοίγουν τα QR. Αφήστε το κενό, εκτός αν έχετε δικό σας domain.</span>
+        <input class="input" id="baseUrl" value="${esc(s.publicBaseUrl)}" placeholder="${esc(location.origin)}"></label>
+      <p class="small">Βάση δεδομένων: ${dbInfo}</p>
+    </details>
 
     <div style="margin-top:1.2rem"><button class="btn" id="save">Αποθήκευση ρυθμίσεων</button></div>
   </div>`;
   $$('[data-sw]').forEach((b) => b.onclick = () => { $('#brand').value = b.dataset.sw; });
+  $('#copyStaff').onclick = async () => {
+    try { await navigator.clipboard.writeText(s.staffUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#staffUrl').select(); }
+  };
   $('#save').onclick = async () => {
     const body = {
       requireApproval: $('#approval').checked,

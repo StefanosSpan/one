@@ -1,7 +1,7 @@
 {
   "name": "kalimenu",
   "version": "0.1.0",
-  "description": "Ψηφιακό μενού & παραγγελία από το τραπέζι με QR για ταβέρνες και εστιατόρια",
+  "description": "Ψηφιακό μενού & παραγγελία από το τραπέζι με QR για εστιατόρια, ξενοδοχεία και beach bars (SaaS)",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,7 +12,8 @@
     "dev": "node --no-warnings --watch server/index.js",
     "reset-db": "node --no-warnings server/reset.js",
     "test": "node --no-warnings --test",
-    "test:pg": "DATABASE_URL=${DATABASE_URL:-postgres://taverna:taverna@127.0.0.1:5432/taverna_test} node --no-warnings --test"
+    "test:pg": "DATABASE_URL=${DATABASE_URL:-postgres://taverna:taverna@127.0.0.1:5432/taverna_test} node --no-warnings --test --test-concurrency=1",
+    "superadmin": "node --no-warnings server/superadmin.js"
   },
   "dependencies": {
     "express": "^5.2.1",

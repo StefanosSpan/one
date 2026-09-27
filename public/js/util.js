@@ -5,7 +5,8 @@ const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 
 export class ApiError extends Error {
-  constructor(status, code) { super(code); this.status = status; this.code = code; }
+  // code: the server's error text or code; reason: an extra machine-readable code (e.g. plan_limit, venue_required).
+  constructor(status, code, reason = '') { super(code); this.status = status; this.code = code; this.reason = reason; }
 }
 
 export async function api(path, { method = 'GET', body } = {}) {
@@ -16,7 +17,7 @@ export async function api(path, { method = 'GET', body } = {}) {
     credentials: 'same-origin',
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data.error || 'error');
+  if (!res.ok) throw new ApiError(res.status, data.error || 'error', data.code || '');
   return data;
 }
 

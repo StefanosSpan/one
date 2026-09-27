@@ -191,6 +191,11 @@ function renderAll(keepScroll = false) {
   $('#rname').textContent = r.name;
   $('#langBtn').innerHTML = `${icon('globe', 15)}${LANGUAGES[S.lang].short}`;
   $$('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+  const orderTab = $('.tabs button[data-tab="order"]');
+  if (orderTab) orderTab.hidden = !canOrder();
+  if (r.poweredBy && !$('#powered')) {
+    $('#app').insertAdjacentHTML('afterend', '<p id="powered" class="powered"><a href="/" target="_blank" rel="noopener">Kalimenu</a></p>');
+  }
   renderMain();
   renderBottom();
   if (keepScroll) window.scrollTo({ top: y });
@@ -202,7 +207,12 @@ function renderMain() {
   else renderInfo();
 }
 
+// What the venue's plan allows: ordering from the table, calling the waiter.
+const canOrder = () => S.data.features?.ordering !== false;
+const canCall = () => S.data.features?.calls !== false;
+
 function serviceRow() {
+  if (!canCall()) return '';
   const waiterOpen = S.state.calls.some((c) => c.type === 'waiter');
   const billOpen = S.state.calls.some((c) => c.type === 'bill');
   return `<div class="service">
@@ -214,7 +224,7 @@ function serviceRow() {
 function renderBottom() {
   const count = S.cart.reduce((s, l) => s + l.qty, 0);
   const total = S.cart.reduce((s, l) => s + unitPrice(l) * l.qty, 0);
-  $('#cartBar').hidden = count === 0 || S.tab === 'info';
+  $('#cartBar').hidden = count === 0 || S.tab === 'info' || !canOrder();
   $('#cartCount').textContent = count;
   $('#cartTotal').textContent = fmt(total);
   const svc = $('.service');
@@ -347,7 +357,7 @@ function dishMeta(i, withPrice = true) {
 
 function dishRow(i) {
   const inCart = S.cart.filter((l) => l.id === i.id).reduce((s, l) => s + l.qty, 0);
-  const add = i.available ? `<span class="add" role="button" aria-label="${esc(t('add'))}">${icon('plus', 16)}</span>` : '';
+  const add = i.available && canOrder() ? `<span class="add" role="button" aria-label="${esc(t('add'))}">${icon('plus', 16)}</span>` : '';
   return `
     <button class="dish ${i.available ? '' : 'off'}" data-id="${i.id}">
       <div class="dish-text">
@@ -376,7 +386,7 @@ function addToCart(id, qty, note = '', options = []) {
 
 function quickAdd(id) {
   const i = itemById(id);
-  if (!i?.available) return;
+  if (!i?.available || !canOrder()) { if (i) openItem(id); return; }
   // Dishes with required choices open the detail sheet instead.
   if (i.options?.some((g) => g.required)) { openItem(id); return; }
   addToCart(id, 1);
@@ -406,7 +416,7 @@ function openItem(id) {
     ${tr(i.description) ? `<p class="muted" style="margin:0">${esc(tr(i.description))}</p>` : ''}
     ${dishMeta(i, false)}
     ${i.allergens.length ? `<p class="detail-row"><span>${esc(t('allergens'))}:</span> ${i.allergens.map((a) => esc(t(`allergen_${a}`))).join(', ')}</p>` : ''}
-    ${i.available ? `
+    ${i.available && canOrder() ? `
       ${optionGroups(i)}
       <label class="field" style="margin-top:1rem"><input class="input" id="inote" maxlength="200" placeholder="${esc(t('itemNote'))}"></label>
       <div class="sheet-actions">
@@ -414,7 +424,7 @@ function openItem(id) {
         <button class="btn" id="addBtn"></button>
       </div>` : `<button class="btn secondary block" data-close style="margin-top:1rem">${esc(t('close'))}</button>`}
   `);
-  if (!i.available) return;
+  if (!i.available || !canOrder()) return;
   const picks = () => $$('.opt-group', el).flatMap((fs) =>
     $$('input:checked', fs).map((inp) => [Number(fs.dataset.g), Number(inp.value)]));
   const missing = () => (i.options || []).some((g, gi) => g.required && !picks().some(([pg]) => pg === gi));
