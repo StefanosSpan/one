@@ -11,7 +11,7 @@
   --ink: #141d31;
   --muted: #6f6a60;
   --line: #e9e1d2;
-  --serif: 'Noto Serif Display', 'Noto Serif', Georgia, 'Times New Roman', serif;
+  --serif: 'GFS Didot', 'Didot', 'Bodoni 72', Georgia, serif;
   --red: #c2410c;
   --red-soft: #fdeee6;
   --green: #15803d;
@@ -21,11 +21,11 @@
   --radius: 20px;
   --shadow: 0 1px 2px rgba(20, 33, 61, .04), 0 8px 24px -8px rgba(20, 33, 61, .12);
   --shadow-lg: 0 20px 50px -12px rgba(20, 33, 61, .35);
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+  --font: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--sand); line-height: 1.45; }
+body { margin: 0; font-synthesis: none; -webkit-font-smoothing: antialiased; font-family: var(--font); color: var(--ink); background: var(--sand); line-height: 1.45; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 a { color: var(--blue); }
@@ -83,7 +83,7 @@ label.field > span { display: block; font-size: .85rem; font-weight: 600; margin
   .sheet::before { display: none; }
 }
 .sheet-backdrop { backdrop-filter: blur(3px); }
-.sheet h2 { margin: .2rem 0 .8rem; font-size: 1.45rem; font-family: var(--serif); font-weight: 600; letter-spacing: -.01em; }
+.sheet h2 { margin: .2rem 0 .8rem; font-size: 1.75rem; font-family: var(--serif); font-weight: 400; line-height: 1.15; }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 @keyframes up { from { transform: translateY(40px); opacity: 0; } }
 @keyframes fade { from { opacity: 0; } }
