@@ -389,3 +389,48 @@ test('public menu link and pick-up orders', async () => {
   assert.equal((await call(`/api/staff/orders/${o.data.id}/handover`, { method: 'POST', as: 'waiter', body: {} })).status, 409);
   await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { takeaway: { enabled: false } } });
 });
+
+test('loyalty card, feedback, dish views and Wi-Fi QR', async () => {
+  const tables = (await call('/api/admin/tables', { as: 'admin' })).data;
+  const spot = tables[8];
+  const url = `/api/public/table/${spot.token}`;
+  const guest = 'guest-loyal-0001';
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { loyalty: { enabled: true, visits: 2, reward: { el: 'Δωρεάν γλυκό', en: 'Free dessert' } } } });
+  const dish = (await call(url)).data.items.find((i) => i.available && !i.options.some((g) => g.required));
+  const visit = async () => {
+    const o = await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: dish.id, qty: 1 }], guestId: guest } });
+    return o.data;
+  };
+  let receipt;
+  for (let i = 0; i < 2; i++) {
+    await visit();
+    receipt = (await call(`/api/staff/tables/${spot.id}/close`, { method: 'POST', as: 'waiter', body: {} })).data.receipt;
+  }
+  const card = (await call(`${url}/loyalty?guest=${guest}`)).data.loyalty;
+  assert.deepEqual([card.visits, card.needed, card.ready], [2, 2, true]);
+  const third = await visit();
+  const shown = (await call('/api/staff/overview', { as: 'waiter' })).data.orders.find((o) => o.id === third.id);
+  assert.equal(shown.loyaltyReward.el, 'Δωρεάν γλυκό');
+  assert.equal((await call(`/api/staff/orders/${third.id}/redeem`, { method: 'POST', as: 'waiter' })).status, 200);
+  assert.equal((await call(`${url}/loyalty?guest=${guest}`)).data.loyalty.visits, 0); // new card
+  assert.equal((await call(`/api/staff/orders/${third.id}/redeem`, { method: 'POST', as: 'waiter' })).status, 409);
+  await call(`/api/staff/tables/${spot.id}/close`, { method: 'POST', as: 'waiter', body: {} });
+
+  // Feedback once per bill; happy guests get the review link.
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { restaurant: { ...(await call('/api/admin/settings', { as: 'admin' })).data.restaurant, reviewUrl: 'https://g.page/r/x' } } });
+  const fb = await call(`/api/public/receipt/${receipt.token}/feedback`, { method: 'POST', body: { rating: 5, comment: 'Τέλεια!' } });
+  assert.equal(fb.data.reviewUrl, 'https://g.page/r/x');
+  assert.equal((await call(`/api/public/receipt/${receipt.token}/feedback`, { method: 'POST', body: { rating: 1 } })).status, 409);
+  const list = (await call('/api/admin/feedback', { as: 'admin' })).data;
+  assert.equal(list.list[0].comment, 'Τέλεια!');
+
+  // Dish views vs orders.
+  await call(`${url}/view`, { method: 'POST', body: { itemId: dish.id } });
+  const stats = (await call('/api/admin/dish-stats', { as: 'admin' })).data.items.find((i) => i.id === dish.id);
+  assert.equal(stats.views, 1);
+  assert.ok(stats.ordered >= 3);
+
+  const wifi = await fetch(`${base}${url}/wifi.svg`);
+  assert.equal(wifi.status, 200);
+  assert.match(await wifi.text(), /<svg/);
+});

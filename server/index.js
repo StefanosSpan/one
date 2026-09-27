@@ -298,7 +298,7 @@ async function loadOrders(venueId, where, params = [], { order = 'o.id', limit }
     id: o.id, tableId: o.table_id, tableLabel: o.table_label, tableKind: o.table_kind, status: o.status, note: o.note,
     lang: o.lang, total: o.total_cents, paid: !!o.paid, closed: !!o.closed,
     createdAt: o.created_at, updatedAt: o.updated_at,
-    tableZone: o.table_zone || '', etaAt: o.eta_at || '', channel: o.channel || 'table',
+    tableZone: o.table_zone || '', etaAt: o.eta_at || '', channel: o.channel || 'table', guestId: o.guest_id || '',
     customer: o.channel === 'takeaway' ? { name: o.customer_name, phone: o.customer_phone, pickupAt: o.pickup_at } : null,
     items: byOrder.get(o.id).map((i) => ({ id: i.id, itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note, options: i.options,
       station: i.station || 'kitchen', ready: !!i.ready, paidQty: Number(i.paid_qty) || 0 })),
@@ -371,6 +371,8 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
     defaultLanguage: s.defaultLanguage,
     onlinePayments: publicPayments(venue, table).provider,
     payments: publicPayments(venue, table),
+    loyalty: s.loyalty?.enabled ? { visits: Math.max(2, Number(s.loyalty.visits) || 5), reward: s.loyalty.reward || {} } : null,
+    feedback: s.feedback !== false,
     requireApproval: s.requireApproval,
     currency: s.currency,
     features: { ordering: f.ordering, calls: f.calls },
@@ -745,6 +747,11 @@ app.get('/api/staff/overview', requireStaff(), wrap(async (req, res) => {
     return { id: t.id, label: t.label, kind: t.kind, zone: t.zone, active: t.active, orders: mine.length, total, paid,
       calls: calls.filter((c) => c.tableId === t.id).map((c) => c.type) };
   });
+  // Guests who completed their loyalty card (their orders show the reward to the waiter).
+  const guests = [...new Set(orders.map((o) => o.guestId).filter(Boolean))].slice(0, 100);
+  const ready = new Map();
+  for (const g of guests) { const l = await loyaltyFor(req.venue, g); if (l?.ready) ready.set(g, l.reward); }
+  for (const o of orders) if (ready.has(o.guestId)) o.loyaltyReward = ready.get(o.guestId);
   res.json({ role: req.role, requireApproval: req.venue.settings.requireApproval, tables: tableSummaries, orders, calls });
 }));
 
@@ -909,6 +916,73 @@ app.put('/api/staff/receipts/:id', requireStaff('waiter'), wrap(async (req, res)
   res.json(await receiptById(req));
 }));
 
+// ---------------------------------------------------------------------------
+// Loyalty (visits counted from settled bills per phone), feedback after the bill, dish views, Wi-Fi QR
+// ---------------------------------------------------------------------------
+const GUEST_RE = /^[\w-]{8,40}$/;
+
+async function loyaltyFor(venue, guestId) {
+  const l = venue.settings.loyalty;
+  if (!l?.enabled || !GUEST_RE.test(guestId || '')) return null;
+  const last = await db.get('SELECT MAX(created_at) AS at FROM loyalty_redemptions WHERE venue_id = ? AND guest_id = ?', [venue.id, guestId]);
+  const { n } = await db.get('SELECT COUNT(*) AS n FROM receipts WHERE venue_id = ? AND guest_ids LIKE ? AND created_at > ?',
+    [venue.id, `%"${guestId}"%`, last?.at || '']);
+  const needed = Math.max(2, Number(l.visits) || 5);
+  return { visits: Math.min(Number(n), needed), needed, reward: l.reward || {}, ready: Number(n) >= needed };
+}
+
+app.get('/api/public/table/:token/loyalty', wrap(async (req, res) => {
+  await tableByToken(req);
+  res.json({ loyalty: await loyaltyFor(req.venue, String(req.query.guest || '')) });
+}));
+
+// The waiter gives the reward to a guest whose order shows it.
+app.post('/api/staff/orders/:id/redeem', requireStaff('waiter'), wrap(async (req, res) => {
+  const row = await db.get('SELECT guest_id FROM orders WHERE id = ? AND venue_id = ?', [Number(req.params.id) || 0, req.venue.id]);
+  if (!row) fail(404, 'Η παραγγελία δεν βρέθηκε');
+  const l = await loyaltyFor(req.venue, row.guest_id);
+  if (!l?.ready) fail(409, 'Ο πελάτης δεν έχει συμπληρώσει τις επισκέψεις');
+  await db.insert('INSERT INTO loyalty_redemptions (venue_id, guest_id, created_at) VALUES (?, ?, ?)', [req.venue.id, row.guest_id, now()]);
+  emit(staffChannel(req.venue), 'order:update', {});
+  res.json({ ok: true });
+}));
+
+// Rating after the bill (once per receipt). Happy guests are invited to review the venue on Google.
+app.post('/api/public/receipt/:token/feedback', wrap(async (req, res) => {
+  const r = await db.get('SELECT id, venue_id, table_label FROM receipts WHERE token = ?', [String(req.params.token)]);
+  if (!r) fail(404, 'not_found');
+  if (await db.get('SELECT id FROM feedback WHERE receipt_id = ?', [r.id])) fail(409, 'already_sent');
+  const rating = Math.trunc(Number(req.body?.rating));
+  if (!(rating >= 1 && rating <= 5)) fail(400, 'bad_rating');
+  const lang = LANGS.includes(req.body?.lang) ? req.body.lang : 'el';
+  await db.insert('INSERT INTO feedback (venue_id, receipt_id, table_label, rating, comment, lang, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [r.venue_id, r.id, r.table_label, rating, cleanText(req.body?.comment, 1000), lang, now()]);
+  const venue = await getVenue(r.venue_id);
+  res.json({ ok: true, reviewUrl: rating >= 4 ? venue?.settings.restaurant?.reviewUrl || '' : '' });
+}));
+
+// Dish opened on the menu (one count per guest and dish, sent by the menu).
+app.post('/api/public/table/:token/view', wrap(async (req, res) => {
+  const table = await tableByToken(req);
+  const itemId = Number(req.body?.itemId) || 0;
+  if (itemId && rateLimit(`view:${req.ip}:${itemId}`, 1, 30 * 60_000)) {
+    await db.run(`INSERT INTO item_views (venue_id, item_id, day, views) VALUES (?, ?, ?, 1)
+      ON CONFLICT (venue_id, item_id, day) DO UPDATE SET views = item_views.views + 1`, [table.venue_id, itemId, now().slice(0, 10)]);
+  }
+  res.json({ ok: true });
+}));
+
+// Wi-Fi QR: scanning it joins the network (WIFI: format understood by iPhone and Android cameras).
+const wifiEscape = (v) => String(v || '').replace(/([\\;,:"])/g, '\\$1');
+async function wifiQr(venue, res) {
+  const r = venue.settings.restaurant || {};
+  if (!r.wifiName) fail(404, 'not_found');
+  const text = `WIFI:T:${r.wifiPassword ? 'WPA' : 'nopass'};S:${wifiEscape(r.wifiName)};${r.wifiPassword ? `P:${wifiEscape(r.wifiPassword)};` : ''};`;
+  res.type('image/svg+xml').send(await QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' }));
+}
+app.get('/api/public/table/:token/wifi.svg', wrap(async (req, res) => { await tableByToken(req); await wifiQr(req.venue, res); }));
+app.get('/api/public/menu/:slug/wifi.svg', wrap(async (req, res) => { await wifiQr(await venueBySlugPublic(req), res); }));
+
 // Guest's digital copy (link sent to their phone when the spot is closed).
 app.get('/api/public/receipt/:token', wrap(async (req, res) => {
   const row = await db.get('SELECT * FROM receipts WHERE token = ?', [String(req.params.token)]);
@@ -1020,6 +1094,11 @@ admin.put('/settings', wrap(async (req, res) => {
       roomCharge: !!p.roomCharge,
     });
   }
+  if (b.loyalty && typeof b.loyalty === 'object') {
+    await set('loyalty', { enabled: !!b.loyalty.enabled, visits: Math.min(Math.max(Math.trunc(Number(b.loyalty.visits)) || 5, 2), 50),
+      reward: cleanI18n(b.loyalty.reward, 80) });
+  }
+  if (typeof b.feedback === 'boolean') await set('feedback', b.feedback);
   if (b.takeaway && typeof b.takeaway === 'object') {
     await set('takeaway', { enabled: !!b.takeaway.enabled, minMinutes: Math.min(Math.max(Math.trunc(Number(b.takeaway.minMinutes)) || 20, 5), 240) });
   }
@@ -1352,6 +1431,28 @@ admin.get('/orders.csv', wrap(async (req, res) => {
   const { from, to } = dateRange(req.query);
   res.setHeader('Content-Disposition', `attachment; filename="paraggelies_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
   res.type('text/csv; charset=utf-8').send(csv);
+}));
+
+admin.get('/feedback', wrap(async (req, res) => {
+  const list = await db.all('SELECT * FROM feedback WHERE venue_id = ? ORDER BY id DESC LIMIT 200', [req.venue.id]);
+  const { avg, n } = await db.get('SELECT AVG(rating) AS avg, COUNT(*) AS n FROM feedback WHERE venue_id = ?', [req.venue.id]);
+  res.json({ average: n ? Math.round(Number(avg) * 10) / 10 : null, count: Number(n), list: list.map((f) => ({
+    id: f.id, rating: f.rating, comment: f.comment, table: f.table_label, lang: f.lang, createdAt: f.created_at })) });
+}));
+
+// Dish views vs portions ordered: which dishes are looked at but not ordered.
+admin.get('/dish-stats', wrap(async (req, res) => {
+  const days = Math.min(Math.max(Math.trunc(Number(req.query.days) || 30), 1), 365);
+  const since = new Date(Date.now() - days * 86400_000).toISOString();
+  const v = req.venue.id;
+  const views = new Map((await db.all('SELECT item_id, SUM(views) AS n FROM item_views WHERE venue_id = ? AND day >= ? GROUP BY item_id',
+    [v, since.slice(0, 10)])).map((r) => [r.item_id, Number(r.n)]));
+  const ordered = new Map((await db.all(`SELECT oi.item_id, SUM(oi.qty) AS n FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    WHERE o.venue_id = ? AND o.created_at >= ? AND o.status != 'rejected' GROUP BY oi.item_id`, [v, since])).map((r) => [r.item_id, Number(r.n)]));
+  const items = (await db.all('SELECT id, name FROM items WHERE venue_id = ?', [v])).map((i) => ({
+    id: i.id, name: JSON.parse(i.name), views: views.get(i.id) || 0, ordered: ordered.get(i.id) || 0,
+  })).filter((i) => i.views || i.ordered).sort((a, b) => b.views - a.views);
+  res.json({ days, items });
 }));
 
 admin.get('/receipts', wrap(async (req, res) => {

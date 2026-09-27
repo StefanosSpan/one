@@ -57,6 +57,8 @@ function start() {
       ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
         <span class="muted">${euro(i.qty * i.price)}</span></div>`).join('')}
       ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
+      ${o.loyaltyReward ? `<div class="loyal-note">Κάρτα πιστότητας: δικαιούται <b>${esc(o.loyaltyReward.el || o.loyaltyReward.en || 'δώρο')}</b>
+        <button class="btn secondary sm" data-redeem="${o.id}">Δόθηκε</button></div>` : ''}
       ${o.customer ? `<div class="onote">Παραλαβή${o.customer.pickupAt ? ` στις ${new Date(o.customer.pickupAt).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}` : ' το συντομότερο'}
         · <a href="tel:${esc(o.customer.phone)}">${esc(o.customer.phone)}</a></div>` : ''}
       <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span>
@@ -136,6 +138,7 @@ function start() {
 
     $$('[data-call]').forEach((b) => b.onclick = () => act(() => api(`/api/staff/calls/${b.dataset.call}/done`, { method: 'POST' })));
     $$('[data-handover]').forEach((b) => b.onclick = () => handover(Number(b.dataset.handover)));
+    $$('[data-redeem]').forEach((b) => b.onclick = () => act(() => api(`/api/staff/orders/${b.dataset.redeem}/redeem`, { method: 'POST' }), 'Η επιβράβευση καταγράφηκε'));
     $$('[data-status]').forEach((b) => b.onclick = () => setStatus(b.dataset.id, b.dataset.status));
     $$('[data-table]').forEach((b) => b.onclick = () => openTable(Number(b.dataset.table)));
     $('#soldOut').onclick = openSoldOut;

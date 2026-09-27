@@ -169,7 +169,60 @@ function onReceipt(r) {
 const receiptCard = () => (S.receipt ? `<div class="receipt-card">
     <div><b>${esc(t('receipt'))}</b><span class="muted small">Νο ${esc(S.receipt.number)}</span></div>
     <a class="btn secondary sm" href="${esc(S.receipt.url)}?lang=${S.lang}" target="_blank">${esc(t('viewReceipt'))}</a>
-  </div>` : '');
+  </div>${feedbackCard()}` : '');
+
+// "How was it?" after the bill: 1–5 stars; happy guests are invited to leave a Google review.
+function feedbackCard() {
+  if (S.data.feedback === false || !S.receipt) return '';
+  const key = `fb:${S.receipt.url}`;
+  let sent = null;
+  try { sent = localStorage.getItem(key); } catch { /* ignore */ }
+  if (sent) return sent.startsWith('http') ? `<div class="feedback"><p>${esc(t('rateGoogle'))}</p>
+    <a class="btn block" href="${esc(sent)}" target="_blank" rel="noopener">${icon('star', 16)} ${esc(t('writeReview'))}</a></div>`
+    : `<div class="feedback"><p>${esc(t('rateThanks'))}</p></div>`;
+  return `<div class="feedback" id="fb"><b>${esc(t('rateUs'))}</b>
+    <div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button data-star="${n}" aria-label="${n}">${icon('star', 28)}</button>`).join('')}</div>
+    <div id="fbMore" hidden><textarea class="input" id="fbText" rows="2" maxlength="1000" placeholder="${esc(t('commentPh'))}"></textarea>
+      <button class="btn block" id="fbSend" style="margin-top:.5rem">${esc(t('send'))}</button></div></div>`;
+}
+
+function bindFeedback() {
+  const box = $('#fb');
+  if (!box) return;
+  let rating = 0;
+  const send = async () => {
+    try {
+      const r = await api(`/api/public/receipt/${S.receipt.url.split('/').pop()}/feedback`, { method: 'POST',
+        body: { rating, comment: $('#fbText')?.value || '', lang: S.lang } });
+      try { localStorage.setItem(`fb:${S.receipt.url}`, r.reviewUrl || '1'); } catch { /* ignore */ }
+    } catch { try { localStorage.setItem(`fb:${S.receipt.url}`, '1'); } catch { /* ignore */ } }
+    renderMain();
+  };
+  $$('[data-star]', box).forEach((b) => b.onclick = () => {
+    rating = Number(b.dataset.star);
+    $$('[data-star]', box).forEach((x) => x.classList.toggle('on', Number(x.dataset.star) <= rating));
+    if (rating >= 4) send(); else { $('#fbMore').hidden = false; $('#fbText').focus(); }
+  });
+  $('#fbSend')?.addEventListener('click', send);
+}
+
+// Loyalty card: stamps for settled visits from this phone.
+async function loyaltyCard() {
+  if (MODE !== 'table' || !S.data.loyalty) return '';
+  let l = null;
+  try { l = (await api(`${API}/loyalty?guest=${encodeURIComponent(guestId())}`)).loyalty; } catch { /* ignore */ }
+  if (!l) return '';
+  const reward = tr(l.reward);
+  return `<div class="loyalty ${l.ready ? 'ready' : ''}"><div class="loy-head">${icon('gift', 18)}<b>${esc(t('loyaltyCard'))}</b>
+      <span class="muted small">${esc(reward)}</span></div>
+    <div class="stamps">${Array.from({ length: l.needed }, (_, i) => `<i class="${i < l.visits ? 'on' : ''}"></i>`).join('')}</div>
+    <p class="small">${esc(l.ready ? tf('loyaltyReady', { r: reward }) : tf('loyaltyProgress', { n: l.visits, m: l.needed }))}</p></div>`;
+}
+async function showLoyalty(where) {
+  const html = await loyaltyCard();
+  const box = $(where);
+  if (box && html) box.innerHTML = html;
+}
 
 function onState(state) {
   const prev = new Map(S.state.orders.map((o) => [o.id, o.status]));
@@ -445,9 +498,11 @@ function optionGroups(i) {
     </fieldset>`).join('');
 }
 
+const viewed = new Set();
 function openItem(id) {
   const i = itemById(id);
   if (!i) return;
+  if (MODE === 'table' && !viewed.has(id)) { viewed.add(id); api(`${API}/view`, { method: 'POST', body: { itemId: id } }).catch(() => {}); }
   let qty = 1;
   const { el, close } = sheet(`
     ${i.image_url ? `<div class="sheet-photo"><img src="${esc(i.image_url)}" alt=""></div>` : ''}
@@ -629,7 +684,8 @@ const clock = (iso) => new Date(iso).toLocaleTimeString(S.lang, { hour: '2-digit
 
 function renderOrder() {
   const { orders, bill } = S.state;
-  const head = `<h1 class="page-title">${esc(t('myOrder'))}</h1><p class="muted small" style="margin:0">${esc(S.data.restaurant.name)} · ${esc(spot())}</p>${serviceRow()}`;
+  const head = `<h1 class="page-title">${esc(t('myOrder'))}</h1><p class="muted small" style="margin:0">${esc(S.data.restaurant.name)} · ${esc(spot())}</p>${serviceRow()}<div id="loyBox"></div>`;
+  setTimeout(() => { bindFeedback(); showLoyalty('#loyBox'); });
   if (!orders.length) {
     $('#app').innerHTML = `${head}${receiptCard()}<div class="empty"><p>${esc(t('noOrders'))}</p>
       <button class="btn" id="goMenu">${esc(t('menu'))}</button></div>`;
@@ -772,11 +828,13 @@ function renderInfo() {
   const row = (ic, title, body) => `<div class="info-row">${icon(ic, 20)}<div><h3>${esc(title)}</h3>${body}</div></div>`;
   $('#app').innerHTML = `
     ${venueHeader()}
+    <div id="loyInfo"></div>
     <div class="info-list">
       ${tr(r.hours) ? row('clock', t('hours'), `<p>${esc(tr(r.hours))}</p>`) : ''}
       ${r.wifiName ? row('wifi', t('wifi'), `<p>${esc(t('network'))}: <b>${esc(r.wifiName)}</b></p>
         ${r.wifiPassword ? `<p>${esc(t('password'))}: <span class="wifi-pass">${esc(r.wifiPassword)}</span>
-        <button class="link-btn" id="copyWifi">${esc(t('copy'))}</button></p>` : ''}`) : ''}
+        <button class="link-btn" id="copyWifi">${esc(t('copy'))}</button></p>` : ''}
+        <div class="wifi-qr"><img src="${API}/wifi.svg" alt="Wi-Fi QR" loading="lazy"><span class="muted small">${esc(t('wifiScan'))}</span></div>`) : ''}
       ${r.address ? row('pin', t('address'), `<p>${esc(r.address)}</p>${r.mapsUrl ? `<a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener">${esc(t('openMaps'))}</a>` : ''}`) : ''}
       ${r.phone ? row('phone', t('phone'), `<p><a href="tel:${esc(r.phone.replace(/\s/g, ''))}">${esc(r.phone)}</a></p>`) : ''}
       ${r.instagram ? row('instagram', 'Instagram', `<p><a href="${esc(r.instagram)}" target="_blank" rel="noopener">${esc(r.instagram.replace(/^https?:\/\/(www\.)?/, ''))}</a></p>`) : ''}
@@ -784,6 +842,7 @@ function renderInfo() {
       ${row('alert', t('allergens'), `<p class="muted">${esc(t('allergyNotice'))}</p>`)}
     </div>
   `;
+  showLoyalty('#loyInfo');
   $('#copyWifi')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(r.wifiPassword); toast(t('copied'), 'ok'); } catch { /* ignore */ }
   });

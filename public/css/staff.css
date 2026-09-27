@@ -303,3 +303,6 @@ details.advanced summary { cursor: pointer; font-weight: 600; }
 .zone-toggle { font-size: .85rem; }
 .staff-list .member { display: grid; grid-template-columns: 1.4fr 1fr .8fr 2fr auto; gap: .5rem; align-items: start; padding: .5rem 0; border-bottom: 1px solid var(--line); }
 @media (max-width: 760px) { .staff-list .member { grid-template-columns: 1fr 1fr; } }
+.loyal-note { display: flex; align-items: center; justify-content: space-between; gap: .5rem; background: var(--amber-bg); border-radius: 6px; padding: .4rem .6rem; margin-top: .4rem; font-size: .88rem; }
+.fb-row { padding: .5rem 0; border-top: 1px solid var(--line); }
+.fb-row .st { color: #e0a100; letter-spacing: .05em; }

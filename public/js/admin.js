@@ -139,7 +139,8 @@ function photoField(root, sel, initial, { wide = false, contain = false, onChang
 // ---------------------------------------------------------------------------
 let statDays = 1;
 async function renderDash() {
-  const [s, spots, menu] = await Promise.all([api(`/api/admin/stats?days=${statDays}`), api('/api/admin/tables'), api('/api/admin/menu')]);
+  const [s, spots, menu, fb, ds] = await Promise.all([api(`/api/admin/stats?days=${statDays}`), api('/api/admin/tables'), api('/api/admin/menu'),
+    api('/api/admin/feedback'), api('/api/admin/dish-stats?days=30')]);
   const max = Math.max(1, ...s.byDay.map((d) => d.revenue));
   $('#app').innerHTML = `
     ${planBanner()}
@@ -163,6 +164,16 @@ async function renderDash() {
       ${statDays > 1 ? `<div class="panel"><h3>Τζίρος ανά ημέρα</h3>
         <div class="bars" style="margin-bottom:1.5rem">${s.byDay.map((d) => `<div style="height:${Math.round((d.revenue / max) * 100)}%" title="${d.day}: ${euro(d.revenue)}"><span>${d.day.slice(8)}/${d.day.slice(5, 7)}</span></div>`).join('')}</div>
       </div>` : ''}
+      <div class="panel"><h3>Αξιολογήσεις πελατών ${fb.average ? `<span class="muted small">· ${fb.average}/5 από ${fb.count}</span>` : ''}</h3>
+        ${fb.list.length ? fb.list.slice(0, 6).map((f) => `<div class="fb-row"><span class="st">${'★'.repeat(f.rating)}${'☆'.repeat(5 - f.rating)}</span>
+          <span class="muted small"> · ${esc(f.table)} · ${new Date(f.createdAt).toLocaleDateString('el-GR')}</span>${f.comment ? `<div>${esc(f.comment)}</div>` : ''}</div>`).join('')
+          : '<p class="muted">Δεν υπάρχουν ακόμη αξιολογήσεις.</p>'}
+      </div>
+      <div class="panel"><h3>Προβολές και παραγγελίες ανά πιάτο <span class="muted small">· 30 ημέρες</span></h3>
+        ${ds.items.length ? `<table class="data"><thead><tr><th>Πιάτο</th><th class="num">Προβολές</th><th class="num">Μερίδες</th></tr></thead><tbody>
+          ${ds.items.slice(0, 10).map((i) => `<tr><td>${esc(itemName(i.name))}</td><td class="num">${i.views}</td><td class="num">${i.ordered}</td></tr>`).join('')}</tbody></table>
+          <p class="muted small">Πολλές προβολές με λίγες μερίδες: ελέγξτε τιμή, φωτογραφία ή περιγραφή.</p>` : '<p class="muted">Δεν υπάρχουν ακόμη δεδομένα.</p>'}
+      </div>
       <div class="panel"><h3>Γρήγορη δοκιμή</h3>
         <p class="muted small">Ανοίξτε το μενού μιας θέσης σε άλλη καρτέλα ή στο κινητό σας και κάντε μια δοκιμαστική παραγγελία.</p>
         <div class="links">
@@ -991,6 +1002,17 @@ function renderSettings() {
       <label class="field"><span>Ελάχιστος χρόνος ετοιμασίας (λεπτά)</span><input class="input" id="takeMin" type="number" min="5" max="240" value="${esc(s.takeaway?.minMinutes || 20)}"></label>
     </div>
 
+    <h3>Κάρτα πιστότητας και αξιολογήσεις</h3>
+    <div class="two">
+      <label class="switch"><input type="checkbox" id="loyOn" ${s.loyalty?.enabled ? 'checked' : ''}> Κάρτα πιστότητας</label>
+      <label class="field"><span>Επισκέψεις για το δώρο</span><input class="input" id="loyVisits" type="number" min="2" max="50" value="${esc(s.loyalty?.visits || 5)}"></label>
+      <label class="field"><span>Δώρο (ελληνικά)</span><input class="input" id="loyEl" maxlength="80" value="${esc(s.loyalty?.reward?.el || '')}" placeholder="π.χ. Δωρεάν γλυκό"></label>
+      <label class="field"><span>Δώρο (αγγλικά)</span><input class="input" id="loyEn" maxlength="80" value="${esc(s.loyalty?.reward?.en || '')}" placeholder="e.g. Free dessert"></label>
+    </div>
+    <p class="muted small">Κάθε λογαριασμός που κλείνει μετρά μία επίσκεψη για το κινητό του πελάτη, χωρίς να δώσει στοιχεία.
+      Όταν συμπληρωθούν, ο σερβιτόρος βλέπει το δώρο πάνω στην παραγγελία.</p>
+    <label class="switch"><input type="checkbox" id="fbOn" ${s.feedback !== false ? 'checked' : ''}> Αξιολόγηση μετά τον λογαριασμό (οι ικανοποιημένοι πελάτες οδηγούνται στις κριτικές Google)</label>
+
     <h3>Προσωπικό με όνομα</h3>
     <p class="muted small" style="margin-top:0">Κάθε άτομο με δικό του PIN. Οι σερβιτόροι με ζώνες βλέπουν πρώτα τα δικά τους τραπέζια
       (π.χ. Γιάννης: Βεράντα, Μαρία: Παραλία). Οι ζώνες ορίζονται στις «Θέσεις & QR».</p>
@@ -1087,6 +1109,8 @@ function renderSettings() {
       publicBaseUrl: $('#baseUrl').value.trim(),
       staff: readMembers(), stations: readStations(), defaultPrepMinutes: $('#defPrep').value,
       takeaway: { enabled: $('#takeaway').checked, minMinutes: $('#takeMin').value },
+      loyalty: { enabled: $('#loyOn').checked, visits: $('#loyVisits').value, reward: { el: $('#loyEl').value, en: $('#loyEn').value } },
+      feedback: $('#fbOn').checked,
     };
     try { await api('/api/admin/settings', { method: 'PUT', body }); toast('Οι ρυθμίσεις αποθηκεύτηκαν', 'ok'); render(); }
     catch (err) { toast(err.message, 'err'); }

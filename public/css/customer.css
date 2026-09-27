@@ -198,3 +198,21 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .pay-tip { margin-top: .8rem; flex-wrap: wrap; }
 .pay-tip .chips { margin: 0; }
 .menu-only { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .88rem; margin: .8rem 0 0; }
+
+/* Feedback, loyalty, Wi-Fi QR */
+.feedback { margin-top: .8rem; padding: .9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); text-align: center; }
+.feedback p { margin: 0 0 .6rem; }
+.stars { display: flex; justify-content: center; gap: .3rem; margin: .5rem 0; }
+.stars button { border: 0; background: none; color: var(--faint); padding: .2rem; }
+.stars button.on { color: #e0a100; }
+.stars button.on svg { fill: currentColor; }
+.loyalty { margin: .9rem 0 0; padding: .8rem .9rem; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); }
+.loyalty.ready { border-style: solid; border-color: var(--brand); }
+.loy-head { display: flex; align-items: center; gap: .45rem; }
+.loy-head span { margin-left: auto; }
+.stamps { display: flex; gap: .4rem; flex-wrap: wrap; margin: .6rem 0 .3rem; }
+.stamps i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); }
+.stamps i.on { background: var(--brand); border-color: var(--brand); }
+.loyalty p { margin: 0; }
+.wifi-qr { display: flex; align-items: center; gap: .7rem; margin-top: .5rem; }
+.wifi-qr img { width: 96px; height: 96px; background: #fff; padding: 4px; border-radius: 6px; }
