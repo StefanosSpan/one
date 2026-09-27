@@ -35,6 +35,7 @@ function errorText(e) {
   if (e.code === 'too_many_requests') return t('tooMany');
   if (e.code === 'item_unavailable') return t('itemUnavailable');
   if (e.code === 'invalid_table') return t('invalidTable');
+  if (e.code === 'option_required' || e.code === 'bad_option') return t('chooseRequired');
   return t('error');
 }
 
@@ -49,6 +50,28 @@ function applyBrand(hex = '#1f3a5f') {
   document.documentElement.style.setProperty('--brand', hex);
   document.documentElement.style.setProperty('--brand-ink', lum > 0.45 ? '#1a1a1a' : '#ffffff');
 }
+
+function setFavicon(url) {
+  if (!url) return;
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.append(link); }
+  link.href = url;
+  let apple = document.querySelector('link[rel="apple-touch-icon"]');
+  if (!apple) { apple = document.createElement('link'); apple.rel = 'apple-touch-icon'; document.head.append(apple); }
+  apple.href = url;
+}
+
+// Price of one unit of a cart line: dish price plus the chosen options.
+function unitPrice(line) {
+  const item = itemById(line.id);
+  if (!item) return 0;
+  return item.price_cents + (line.options || []).reduce((sum, [g, c]) => sum + (item.options?.[g]?.choices?.[c]?.price_cents || 0), 0);
+}
+const optionText = (item, picks = []) => picks
+  .map(([g, c]) => item.options?.[g]?.choices?.[c])
+  .filter(Boolean)
+  .map((c) => `${tr(c.name)}${c.price_cents ? ` +${fmt(c.price_cents)}` : ''}`)
+  .join(', ');
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -65,6 +88,7 @@ async function boot() {
   S.lang = chooseLanguage();
   document.title = S.data.restaurant.name;
   applyBrand(S.data.restaurant.brandColor);
+  setFavicon(S.data.restaurant.logoUrl);
   $('#bottom').hidden = false;
   bindChrome();
   // The venue name appears in the top bar once the big header has scrolled away.
@@ -98,7 +122,10 @@ async function refreshMenu() {
     S.data = await api(`/api/public/table/${token}`);
     if (!S.data.languages.includes(S.lang)) S.lang = chooseLanguage();
     applyBrand(S.data.restaurant.brandColor);
-    S.cart = S.cart.filter((l) => itemById(l.id));
+    // Drop cart lines (or option picks) that no longer exist after the owner edited the menu.
+    S.cart = S.cart.filter((l) => itemById(l.id)).map((l) => ({
+      ...l, options: (l.options || []).filter(([g, c]) => itemById(l.id).options?.[g]?.choices?.[c]),
+    }));
     saveCart();
     renderAll(true);
   } catch { /* keep current menu */ }
@@ -173,7 +200,7 @@ function serviceRow() {
 
 function renderBottom() {
   const count = S.cart.reduce((s, l) => s + l.qty, 0);
-  const total = S.cart.reduce((s, l) => s + (itemById(l.id)?.price_cents || 0) * l.qty, 0);
+  const total = S.cart.reduce((s, l) => s + unitPrice(l) * l.qty, 0);
   $('#cartBar').hidden = count === 0 || S.tab === 'info';
   $('#cartCount').textContent = count;
   $('#cartTotal').textContent = fmt(total);
@@ -187,10 +214,13 @@ function venueHeader() {
   const r = S.data.restaurant;
   return `
     ${r.coverUrl ? `<div class="cover"><img src="${esc(r.coverUrl)}" alt=""></div>` : ''}
-    <section class="venue">
-      <h1>${esc(r.name)}</h1>
-      ${tr(r.description) ? `<p>${esc(tr(r.description))}</p>` : ''}
-      <div class="meta"><span><b>${esc(spot())}</b></span>${tr(r.hours) ? `<span>${esc(tr(r.hours))}</span>` : ''}</div>
+    <section class="venue ${r.coverUrl ? 'on-cover' : ''} ${r.logoUrl ? 'with-logo' : ''}">
+      ${r.logoUrl ? `<img class="venue-logo" src="${esc(r.logoUrl)}" alt="${esc(r.name)}">` : ''}
+      <div class="venue-text">
+        <h1>${esc(r.name)}</h1>
+        ${tr(r.description) ? `<p>${esc(tr(r.description))}</p>` : ''}
+        <div class="meta"><span><b>${esc(spot())}</b></span>${tr(r.hours) ? `<span>${esc(tr(r.hours))}</span>` : ''}</div>
+      </div>
     </section>
     ${serviceRow()}`;
 }
@@ -319,10 +349,13 @@ function dishRow(i) {
     </button>`;
 }
 
-function addToCart(id, qty, note = '') {
-  const line = S.cart.find((l) => l.id === id && (l.note || '') === note);
+const sameLine = (l, id, note, options) => l.id === id && (l.note || '') === note
+  && JSON.stringify(l.options || []) === JSON.stringify(options);
+
+function addToCart(id, qty, note = '', options = []) {
+  const line = S.cart.find((l) => sameLine(l, id, note, options));
   if (line) line.qty = Math.min(50, line.qty + qty);
-  else S.cart.push({ id, qty, note });
+  else S.cart.push({ id, qty, note, options });
   saveCart();
   renderBottom();
   if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); }
@@ -331,8 +364,23 @@ function addToCart(id, qty, note = '') {
 function quickAdd(id) {
   const i = itemById(id);
   if (!i?.available) return;
+  // Dishes with required choices open the detail sheet instead.
+  if (i.options?.some((g) => g.required)) { openItem(id); return; }
   addToCart(id, 1);
   navigator.vibrate?.(15);
+}
+
+function optionGroups(i) {
+  return (i.options || []).map((g, gi) => `
+    <fieldset class="opt-group" data-g="${gi}">
+      <legend><b>${esc(tr(g.name))}</b><span class="${g.required ? 'req' : ''}">${esc(g.required ? t('required') : t('optional'))}</span></legend>
+      ${g.choices.map((c, ci) => `
+        <label class="opt">
+          <input type="${g.multi ? 'checkbox' : 'radio'}" name="g${gi}" value="${ci}">
+          <span>${esc(tr(c.name))}</span>
+          ${c.price_cents ? `<span class="opt-price">+${fmt(c.price_cents)}</span>` : ''}
+        </label>`).join('')}
+    </fieldset>`).join('');
 }
 
 function openItem(id) {
@@ -346,6 +394,7 @@ function openItem(id) {
     ${dishMeta(i, false)}
     ${i.allergens.length ? `<p class="detail-row"><span>${esc(t('allergens'))}:</span> ${i.allergens.map((a) => esc(t(`allergen_${a}`))).join(', ')}</p>` : ''}
     ${i.available ? `
+      ${optionGroups(i)}
       <label class="field" style="margin-top:1rem"><input class="input" id="inote" maxlength="200" placeholder="${esc(t('itemNote'))}"></label>
       <div class="sheet-actions">
         <div class="qty"><button id="minus" aria-label="-">${icon('minus', 16)}</button><span id="qv">1</span><button id="plus" aria-label="+">${icon('plus', 16)}</button></div>
@@ -353,10 +402,31 @@ function openItem(id) {
       </div>` : `<button class="btn secondary block" data-close style="margin-top:1rem">${esc(t('close'))}</button>`}
   `);
   if (!i.available) return;
-  const upd = () => { $('#qv', el).textContent = qty; $('#addBtn', el).textContent = `${t('addToCart')} · ${fmt(i.price_cents * qty)}`; };
+  const picks = () => $$('.opt-group', el).flatMap((fs) =>
+    $$('input:checked', fs).map((inp) => [Number(fs.dataset.g), Number(inp.value)]));
+  const missing = () => (i.options || []).some((g, gi) => g.required && !picks().some(([pg]) => pg === gi));
+  const upd = () => {
+    const unit = unitPrice({ id: i.id, options: picks() });
+    $('#qv', el).textContent = qty;
+    $('#addBtn', el).textContent = `${t('addToCart')} · ${fmt(unit * qty)}`;
+    $('#addBtn', el).classList.toggle('dim', missing());
+    $$('.opt-group', el).forEach((fs) => fs.classList.remove('invalid'));
+  };
+  el.addEventListener('change', upd);
   $('#minus', el).onclick = () => { qty = Math.max(1, qty - 1); upd(); };
   $('#plus', el).onclick = () => { qty = Math.min(50, qty + 1); upd(); };
-  $('#addBtn', el).onclick = () => { addToCart(i.id, qty, $('#inote', el).value.trim()); close(); };
+  $('#addBtn', el).onclick = () => {
+    if (missing()) {
+      (i.options || []).forEach((g, gi) => {
+        if (g.required && !picks().some(([pg]) => pg === gi)) $(`.opt-group[data-g="${gi}"]`, el).classList.add('invalid');
+      });
+      $('.opt-group.invalid', el)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast(t('chooseRequired'), 'err');
+      return;
+    }
+    addToCart(i.id, qty, $('#inote', el).value.trim(), picks());
+    close();
+  };
   upd();
 }
 
@@ -369,16 +439,17 @@ function openCart() {
   });
   let orderNote = '';
   const render = () => {
-    const total = S.cart.reduce((s, l) => s + (itemById(l.id)?.price_cents || 0) * l.qty, 0);
+    const total = S.cart.reduce((s, l) => s + unitPrice(l) * l.qty, 0);
     $('#cartBody', el).innerHTML = `
       <div class="sheet-head"><h2>${esc(t('yourCart'))}</h2><button class="icon-btn" data-close aria-label="${esc(t('close'))}">${icon('x', 18)}</button></div>
       <p class="muted small" style="margin:-.5rem 0 .3rem">${esc(spot())}</p>
       ${S.cart.length ? S.cart.map((l, idx) => {
         const i = itemById(l.id);
+        const opts = optionText(i, l.options);
         return `<div class="cart-line">
           ${i.image_url ? `<img class="cart-thumb" src="${esc(i.image_url)}" alt="">` : ''}
-          <div class="grow"><b>${esc(tr(i.name))}</b>${l.note ? `<div class="note">${esc(l.note)}</div>` : ''}
-            <div class="muted small">${fmt(i.price_cents * l.qty)}</div></div>
+          <div class="grow"><b>${esc(tr(i.name))}</b>${opts ? `<div class="note">${esc(opts)}</div>` : ''}${l.note ? `<div class="note">${esc(l.note)}</div>` : ''}
+            <div class="muted small">${fmt(unitPrice(l) * l.qty)}</div></div>
           <div class="qty"><button data-dec="${idx}">${icon('minus', 15)}</button><span>${l.qty}</span><button data-inc="${idx}">${icon('plus', 15)}</button></div>
         </div>`;
       }).join('') : `<div class="empty"><p>${esc(t('emptyCart'))}</p></div>`}
@@ -402,7 +473,7 @@ function openCart() {
       try {
         await api(`/api/public/table/${token}/orders`, {
           method: 'POST',
-          body: { items: S.cart.map((l) => ({ id: l.id, qty: l.qty, note: l.note })), note: orderNote, lang: S.lang },
+          body: { items: S.cart.map((l) => ({ id: l.id, qty: l.qty, note: l.note, options: l.options || [] })), note: orderNote, lang: S.lang },
         });
         S.cart = [];
         saveCart();
@@ -412,7 +483,7 @@ function openCart() {
       } catch (err) {
         toast(errorText(err), 'err');
         e.target.disabled = false;
-        if (err.code === 'item_unavailable') refreshMenu();
+        if (err.code === 'item_unavailable' || err.code === 'bad_option' || err.code === 'option_required') refreshMenu();
       }
     });
   };
@@ -442,7 +513,7 @@ function renderOrder() {
         <div class="order-head"><b>${esc(t('order'))} #${o.id} <span class="muted small" style="font-weight:400">· ${clock(o.createdAt)}</span></b>
           <span class="status s-${o.status}">${esc(t(`status_${o.status}`))}</span></div>
         ${o.status !== 'rejected' ? `<div class="progress">${STEPS.map((_, i) => `<i class="${i <= step ? 'on' : ''}"></i>`).join('')}</div>` : ''}
-        ${o.items.map((i) => `<div class="line"><span>${i.qty} × ${esc(tr(i.name))}${i.note ? `<br><span class="muted small">${esc(i.note)}</span>` : ''}</span>
+        ${o.items.map((i) => `<div class="line"><span>${i.qty} × ${esc(tr(i.name))}${(i.options || []).length ? `<br><span class="muted small">${esc(i.options.map((x) => tr(x.choice)).join(', '))}</span>` : ''}${i.note ? `<br><span class="muted small">${esc(i.note)}</span>` : ''}</span>
           <span>${fmt(i.price * i.qty)}</span></div>`).join('')}
         ${o.note ? `<p class="muted small" style="margin:.4rem 0 0">${esc(o.note)}</p>` : ''}
       </div>`;

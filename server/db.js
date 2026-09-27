@@ -54,6 +54,7 @@ export const mapItem = (r) => r && {
   description: parse(r.description, {}),
   allergens: parse(r.allergens, []),
   tags: parse(r.tags, []),
+  options: parse(r.options, []),
   available: !!r.available,
 };
 export const mapTable = (r) => r && { ...r, active: !!r.active };

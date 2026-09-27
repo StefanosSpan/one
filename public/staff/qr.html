@@ -6,49 +6,152 @@
   <title>Εκτύπωση QR</title>
   <link rel="stylesheet" href="/css/app.css">
   <style>
-    body { background: #fff; }
-    .toolbar { padding: 1rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
-    .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62mm, 1fr)); gap: 5mm; padding: 6mm; }
-    .qcard { border: .3mm solid #cfcfcf; border-radius: 2mm; padding: 6mm 5mm 5mm; text-align: center; break-inside: avoid; }
-    .qcard .rn { font-size: 11pt; font-weight: 700; color: #1a1a1a; }
-    .qcard .tn { font-size: 20pt; font-weight: 700; margin: 1mm 0 3mm; color: var(--brand); }
-    .qcard .qr { width: 40mm; height: 40mm; margin: 0 auto; }
-    .qcard .qr svg { width: 100%; height: 100%; }
-    .qcard .cta { font-size: 9.5pt; font-weight: 600; margin-top: 3mm; color: #1a1a1a; }
-    .qcard .sub { font-size: 7.5pt; color: #6b6b6b; margin-top: .8mm; }
-    .qcard .codes { font-size: 6.5pt; margin-top: 2mm; color: #9a9a9a; letter-spacing: .05em; }
-    @media print { .toolbar { display: none; } .sheetgrid { padding: 0; } @page { margin: 10mm; } }
+    body { background: #f5f5f5; }
+    .toolbar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid var(--line); padding: .8rem 1rem;
+      display: flex; gap: .6rem 1.2rem; align-items: flex-end; flex-wrap: wrap; }
+    .toolbar label { display: grid; gap: .2rem; font-size: .8rem; color: var(--muted); }
+    .toolbar label.chk { display: flex; align-items: center; gap: .4rem; color: var(--text); font-size: .9rem; padding-bottom: .55rem; }
+    .toolbar select { width: auto; padding: .45rem .6rem; }
+    .toolbar .count { color: var(--muted); font-size: .88rem; padding-bottom: .55rem; margin-left: auto; }
+    .hint { padding: .6rem 1rem; font-size: .85rem; color: var(--muted); }
+    .paper { background: #fff; margin: 0 auto 2rem; max-width: 210mm; min-height: 297mm; padding: 10mm; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .sheetgrid { display: grid; gap: 5mm; justify-content: center; }
+    .size-sticker .sheetgrid { grid-template-columns: repeat(4, 44mm); }
+    .size-card .sheetgrid { grid-template-columns: repeat(3, 60mm); }
+    .size-tent .sheetgrid { grid-template-columns: repeat(2, 90mm); }
+
+    .qcard { border: .3mm solid #cfcfcf; border-radius: 2mm; text-align: center; break-inside: avoid; page-break-inside: avoid;
+      display: flex; flex-direction: column; align-items: center; background: #fff; }
+    .qcard .logo { object-fit: contain; }
+    .qcard .rn { font-weight: 700; color: #1a1a1a; line-height: 1.2; }
+    .qcard .tn { font-weight: 700; color: var(--brand); line-height: 1.1; }
+    .qcard .tn-en { color: #6b6b6b; }
+    .qcard .qr { position: relative; }
+    .qcard .qr svg { width: 100%; height: 100%; display: block; }
+    .qcard .qr .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 24%; height: 24%;
+      background: #fff; border-radius: 12%; padding: 3%; display: grid; place-items: center; }
+    .qcard .qr .center img { width: 100%; height: 100%; object-fit: contain; }
+    .qcard .cta { font-weight: 600; color: #1a1a1a; }
+    .qcard .sub, .qcard .codes { color: #6b6b6b; }
+
+    .size-sticker .qcard { padding: 3mm 2.5mm; width: 44mm; }
+    .size-sticker .logo { height: 7mm; max-width: 30mm; margin-bottom: 1mm; }
+    .size-sticker .rn { font-size: 7pt; }
+    .size-sticker .tn { font-size: 11pt; margin: .5mm 0 1.5mm; }
+    .size-sticker .tn-en, .size-sticker .sub, .size-sticker .codes { display: none; }
+    .size-sticker .qr { width: 32mm; height: 32mm; }
+    .size-sticker .cta { font-size: 6.5pt; margin-top: 1.5mm; }
+
+    .size-card .qcard { padding: 5mm 4mm; width: 60mm; }
+    .size-card .logo { height: 11mm; max-width: 40mm; margin-bottom: 1.5mm; }
+    .size-card .rn { font-size: 9.5pt; }
+    .size-card .tn { font-size: 17pt; margin-top: 1mm; }
+    .size-card .tn-en { font-size: 7.5pt; margin-bottom: 2.5mm; }
+    .size-card .qr { width: 40mm; height: 40mm; }
+    .size-card .cta { font-size: 9pt; margin-top: 2.5mm; }
+    .size-card .sub { font-size: 7pt; margin-top: .6mm; }
+    .size-card .codes { font-size: 6pt; margin-top: 1.5mm; letter-spacing: .04em; }
+
+    .size-tent .qcard { padding: 8mm 6mm; width: 90mm; min-height: 128mm; justify-content: center; }
+    .size-tent .logo { height: 18mm; max-width: 60mm; margin-bottom: 3mm; }
+    .size-tent .rn { font-size: 13pt; }
+    .size-tent .tn { font-size: 30pt; margin-top: 2mm; }
+    .size-tent .tn-en { font-size: 10pt; margin-bottom: 5mm; }
+    .size-tent .qr { width: 60mm; height: 60mm; }
+    .size-tent .cta { font-size: 12pt; margin-top: 5mm; }
+    .size-tent .sub { font-size: 9pt; margin-top: 1mm; }
+    .size-tent .codes { font-size: 8pt; margin-top: 3mm; letter-spacing: .05em; }
+
+    @media print {
+      body { background: #fff; }
+      .toolbar, .hint { display: none; }
+      .paper { box-shadow: none; margin: 0; padding: 0; max-width: none; min-height: 0; }
+      @page { size: A4; margin: 10mm; }
+    }
   </style>
 </head>
 <body>
   <div id="toasts"></div>
   <div class="toolbar">
+    <label>Μέγεθος
+      <select class="input" id="size">
+        <option value="sticker">Αυτοκόλλητο (4,4 cm, 20 ανά σελίδα)</option>
+        <option value="card" selected>Κάρτα (6 cm, 12 ανά σελίδα)</option>
+        <option value="tent">Επιτραπέζια πινακίδα (A6, 4 ανά σελίδα)</option>
+      </select>
+    </label>
+    <label>Θέσεις
+      <select class="input" id="kind">
+        <option value="">Όλες</option>
+        <option value="table">Τραπέζια</option>
+        <option value="room">Δωμάτια</option>
+        <option value="sunbed">Ξαπλώστρες</option>
+      </select>
+    </label>
+    <label class="chk"><input type="checkbox" id="showLogo" checked> Λογότυπο στην κάρτα</label>
+    <label class="chk"><input type="checkbox" id="logoInQr"> Λογότυπο μέσα στο QR</label>
+    <span class="count" id="count"></span>
     <button class="btn" onclick="print()">Εκτύπωση</button>
-    <span class="muted small">Εκτυπώστε σε αυτοκόλλητο ή χαρτόνι. Κάθε QR αντιστοιχεί σε συγκεκριμένη θέση (τραπέζι, δωμάτιο ή ξαπλώστρα).</span>
   </div>
-  <div class="sheetgrid" id="grid"><div class="spinner"></div></div>
+  <p class="hint" id="hint">Εκτυπώστε σε αυτοκόλλητο χαρτί ή χαρτόνι σε μέγεθος A4, χωρίς «προσαρμογή στη σελίδα». Κάθε QR ανοίγει το μενού της συγκεκριμένης θέσης.</p>
+  <div class="paper size-card" id="paper"><div class="sheetgrid" id="grid"><div class="spinner"></div></div></div>
+
   <script type="module">
     import { api, esc } from '/js/util.js';
     import { LANGUAGES } from '/js/i18n.js';
-    const KIND = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
-    try {
-      const [tables, s] = await Promise.all([api('/api/admin/tables'), api('/api/admin/settings')]);
+    const KIND = { table: ['Τραπέζι', 'Table'], room: ['Δωμάτιο', 'Room'], sunbed: ['Ξαπλώστρα', 'Sunbed'] };
+    const params = new URLSearchParams(location.search);
+    const onlyIds = (params.get('ids') || '').split(',').filter(Boolean).map(Number);
+    const $ = (s) => document.querySelector(s);
+
+    let tables, s;
+    const svgCache = new Map();
+    const qrSvg = async (id, ecl) => {
+      const key = `${id}:${ecl}`;
+      if (!svgCache.has(key)) svgCache.set(key, await fetch(`/api/admin/tables/${id}/qr.svg?ecl=${ecl}`).then((r) => r.text()));
+      return svgCache.get(key);
+    };
+
+    async function render() {
+      const size = $('#size').value;
+      const kind = $('#kind').value;
+      const logo = s.restaurant.logoUrl;
+      const showLogo = $('#showLogo').checked && logo;
+      const logoInQr = $('#logoInQr').checked && logo;
+      $('#paper').className = `paper size-${size}`;
+      const list = tables.filter((t) => t.active && (!onlyIds.length || onlyIds.includes(t.id)) && (!kind || t.kind === kind));
+      $('#count').textContent = `${list.length} ${list.length === 1 ? 'QR' : 'QR'}`;
       const codes = s.languages.map((l) => LANGUAGES[l].short).join(' · ');
-      if (s.brandColor) document.documentElement.style.setProperty('--brand', s.brandColor);
-      const active = tables.filter((t) => t.active);
-      const svgs = await Promise.all(active.map((t) => fetch(`/api/admin/tables/${t.id}/qr.svg`).then((r) => r.text())));
-      document.getElementById('grid').innerHTML = active.map((t, i) => `
-        <div class="qcard">
+      const svgs = await Promise.all(list.map((t) => qrSvg(t.id, logoInQr ? 'H' : 'M')));
+      $('#grid').innerHTML = list.map((t, i) => {
+        const [el, en] = KIND[t.kind] || KIND.table;
+        return `<div class="qcard">
+          ${showLogo ? `<img class="logo" src="${esc(logo)}" alt="">` : ''}
           <div class="rn">${esc(s.restaurant.name)}</div>
-          <div class="tn">${esc(KIND[t.kind] || KIND.table)} ${esc(t.label)}</div>
-          <div class="qr">${svgs[i]}</div>
+          <div class="tn">${esc(el)} ${esc(t.label)}</div>
+          <div class="tn-en">${esc(en)} ${esc(t.label)}</div>
+          <div class="qr">${svgs[i]}${logoInQr ? `<div class="center"><img src="${esc(logo)}" alt=""></div>` : ''}</div>
           <div class="cta">Σκανάρετε για μενού και παραγγελία</div>
           <div class="sub">Scan to view the menu and order</div>
           <div class="codes">${codes}</div>
-        </div>`).join('');
-    } catch {
-      location.href = '/staff?next=/staff/qr';
+        </div>`;
+      }).join('') || '<p class="muted">Δεν υπάρχουν ενεργές θέσεις για εκτύπωση.</p>';
     }
+
+    try {
+      [tables, s] = await Promise.all([api('/api/admin/tables'), api('/api/admin/settings')]);
+    } catch {
+      location.href = `/staff?next=${encodeURIComponent('/staff/qr')}`;
+    }
+    if (s.brandColor) document.documentElement.style.setProperty('--brand', s.brandColor);
+    if (!s.restaurant.logoUrl) {
+      $('#showLogo').closest('label').hidden = true;
+      $('#logoInQr').closest('label').hidden = true;
+      $('#hint').textContent += ' Ανεβάστε λογότυπο στη Διαχείριση → Κατάστημα για να εμφανίζεται στις κάρτες.';
+    }
+    if (onlyIds.length === 1) $('#size').value = 'tent';
+    ['#size', '#kind', '#showLogo', '#logoInQr'].forEach((sel) => $(sel).addEventListener('change', render));
+    render();
   </script>
 </body>
 </html>

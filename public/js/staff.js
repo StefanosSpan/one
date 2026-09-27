@@ -60,4 +60,6 @@ export const KIND = {
   sunbed: { one: 'Ξαπλώστρα', short: 'Ξαπλ.', icon: 'pin' },
 };
 export const spotName = (kind, label, short = false) => `${(KIND[kind] || KIND.table)[short ? 'short' : 'one']} ${label}`;
+// Chosen options of an order line, e.g. "Καλοψημένο, Έξτρα φέτα".
+export const optionNames = (line) => (line.options || []).map((x) => x.choice?.el || x.choice?.en || '').join(', ');
 export const itemName = (name) => name?.el || name?.en || Object.values(name || {})[0] || '';

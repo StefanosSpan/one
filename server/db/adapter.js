@@ -49,8 +49,13 @@ async function openSqlite(file) {
 
   await api.exec(schema('sqlite'));
   // Migration for databases created before spots had a type.
-  const cols = await api.all('PRAGMA table_info(tables)');
-  if (!cols.some((c) => c.name === 'kind')) await api.exec("ALTER TABLE tables ADD COLUMN kind TEXT NOT NULL DEFAULT 'table'");
+  const addColumn = async (table, column, ddl) => {
+    const cols = await api.all(`PRAGMA table_info(${table})`);
+    if (!cols.some((c) => c.name === column)) await api.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  };
+  await addColumn('tables', 'kind', "TEXT NOT NULL DEFAULT 'table'");
+  await addColumn('items', 'options', "TEXT DEFAULT '[]'");
+  await addColumn('order_items', 'options', "TEXT DEFAULT '[]'");
   return api;
 }
 

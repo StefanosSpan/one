@@ -120,6 +120,43 @@ const ALLERGENS = ['gluten', 'crustaceans', 'eggs', 'fish', 'peanuts', 'soy', 'm
   'celery', 'mustard', 'sesame', 'sulphites', 'lupin', 'molluscs'];
 const TAGS = ['vegetarian', 'vegan', 'gluten_free', 'spicy', 'popular', 'new'];
 
+// Validates the customer's option choices ([[groupIndex, choiceIndex], ...]) and returns the unit price.
+function priceWithOptions(item, picks) {
+  const groups = item.options || [];
+  const selected = groups.map(() => new Set());
+  for (const pair of Array.isArray(picks) ? picks.slice(0, 50) : []) {
+    const [g, c] = Array.isArray(pair) ? pair.map(Number) : [];
+    if (!groups[g]?.choices?.[c]) fail(400, 'bad_option');
+    selected[g].add(c);
+  }
+  let unit = item.price_cents;
+  const chosen = [];
+  groups.forEach((group, g) => {
+    const picked = [...selected[g]].sort((a, b) => a - b);
+    if (group.required && !picked.length) fail(400, 'option_required');
+    if (!group.multi && picked.length > 1) fail(400, 'bad_option');
+    for (const c of picked) {
+      const choice = group.choices[c];
+      unit += choice.price_cents || 0;
+      chosen.push({ group: group.name, choice: choice.name, price_cents: choice.price_cents || 0 });
+    }
+  });
+  return { unit, chosen };
+}
+
+function cleanOptions(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 10).map((g) => ({
+    name: cleanI18n(g?.name, 60),
+    required: !!g?.required,
+    multi: !!g?.multi,
+    choices: (Array.isArray(g?.choices) ? g.choices : []).slice(0, 20).map((c) => ({
+      name: cleanI18n(c?.name, 60),
+      price_cents: Math.max(0, Math.min(100_000, Math.round(Number(c?.price || 0) * 100) || 0)),
+    })).filter((c) => c.name.el || c.name.en),
+  })).filter((g) => (g.name.el || g.name.en) && g.choices.length);
+}
+
 async function tableByToken(token) {
   const t = mapTable(await db.get('SELECT * FROM tables WHERE token = ?', [String(token)]));
   if (!t || !t.active) fail(404, 'invalid_table');
@@ -145,12 +182,12 @@ async function loadOrders(where, params = [], { order = 'o.id', limit } = {}) {
   const ids = orders.map((o) => o.id);
   const items = await db.all(`SELECT * FROM order_items WHERE order_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`, ids);
   const byOrder = new Map(ids.map((id) => [id, []]));
-  for (const it of items) byOrder.get(it.order_id).push({ ...it, name: JSON.parse(it.name) });
+  for (const it of items) byOrder.get(it.order_id).push({ ...it, name: JSON.parse(it.name), options: JSON.parse(it.options || '[]') });
   return orders.map((o) => ({
     id: o.id, tableId: o.table_id, tableLabel: o.table_label, tableKind: o.table_kind, status: o.status, note: o.note,
     lang: o.lang, total: o.total_cents, paid: !!o.paid, closed: !!o.closed,
     createdAt: o.created_at, updatedAt: o.updated_at,
-    items: byOrder.get(o.id).map((i) => ({ itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note })),
+    items: byOrder.get(o.id).map((i) => ({ itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note, options: i.options })),
   }));
 }
 
@@ -234,9 +271,10 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
     if (!item.available) fail(409, 'item_unavailable');
     const qty = Math.trunc(Number(l.qty));
     if (!(qty >= 1 && qty <= 50)) fail(400, 'bad_quantity');
-    prepared.push({ item, qty, note: cleanText(l.note, 200) });
+    const { unit, chosen } = priceWithOptions(item, l.options);
+    prepared.push({ item, qty, unit, chosen, note: cleanText(l.note, 200) });
   }
-  const total = prepared.reduce((s, p) => s + p.item.price_cents * p.qty, 0);
+  const total = prepared.reduce((s, p) => s + p.unit * p.qty, 0);
   const s = getSettings();
   const status = s.requireApproval ? 'pending' : 'accepted';
   const lang = LANGS.includes(req.body?.lang) ? req.body.lang : 'el';
@@ -246,8 +284,8 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
     const id = await t.insert(`INSERT INTO orders (table_id, status, note, lang, total_cents, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)`, [table.id, status, cleanText(req.body?.note, 300), lang, total, ts, ts]);
     for (const p of prepared) {
-      await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.item.price_cents, p.note]);
+      await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note, options) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.unit, p.note, JSON.stringify(p.chosen)]);
     }
     return id;
   });
@@ -518,15 +556,16 @@ async function itemInput(b) {
     allergens: JSON.stringify(ALLERGENS.filter((a) => (b.allergens || []).includes(a))),
     tags: JSON.stringify(TAGS.filter((a) => (b.tags || []).includes(a))),
     emoji: cleanText(b.emoji, 8), image_url: cleanText(b.imageUrl, 500), available: b.available === false ? 0 : 1,
+    options: JSON.stringify(cleanOptions(b.options)),
   };
 }
 
 admin.post('/items', wrap(async (req, res) => {
   const i = await itemInput(req.body || {});
   const { s: sort } = await db.get('SELECT COALESCE(MAX(sort), -1) + 1 AS s FROM items');
-  const id = await db.insert(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, image_url, available, sort)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [i.category_id, i.name, i.description, i.price_cents, i.allergens, i.tags,
-    i.emoji, i.image_url, i.available, sort]);
+  const id = await db.insert(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, image_url, available, sort, options)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [i.category_id, i.name, i.description, i.price_cents, i.allergens, i.tags,
+    i.emoji, i.image_url, i.available, sort, i.options]);
   broadcastMenuUpdate();
   res.status(201).json(mapItem(await db.get('SELECT * FROM items WHERE id = ?', [id])));
 }));
@@ -534,8 +573,8 @@ admin.post('/items', wrap(async (req, res) => {
 admin.put('/items/:id', wrap(async (req, res) => {
   const i = await itemInput(req.body || {});
   const r = await db.run(`UPDATE items SET category_id = ?, name = ?, description = ?, price_cents = ?, allergens = ?, tags = ?,
-    emoji = ?, image_url = ?, available = ? WHERE id = ?`, [i.category_id, i.name, i.description, i.price_cents,
-    i.allergens, i.tags, i.emoji, i.image_url, i.available, Number(req.params.id)]);
+    emoji = ?, image_url = ?, available = ?, options = ? WHERE id = ?`, [i.category_id, i.name, i.description, i.price_cents,
+    i.allergens, i.tags, i.emoji, i.image_url, i.available, i.options, Number(req.params.id)]);
   if (!r.changes) fail(404, 'Δεν βρέθηκε');
   broadcastMenuUpdate();
   res.json(mapItem(await db.get('SELECT * FROM items WHERE id = ?', [Number(req.params.id)])));
@@ -595,11 +634,25 @@ admin.delete('/tables/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-admin.get('/tables/:id/qr.svg', wrap(async (req, res) => {
+// QR codes. ?ecl=H gives the extra redundancy needed when a logo is printed in the middle.
+async function qrTable(req) {
   const t = await db.get('SELECT * FROM tables WHERE id = ?', [Number(req.params.id)]);
   if (!t) fail(404, 'Δεν βρέθηκε');
-  const svg = await QRCode.toString(`${baseUrl(req)}/t/${t.token}`, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
-  res.type('image/svg+xml').send(svg);
+  const errorCorrectionLevel = req.query.ecl === 'H' ? 'H' : 'M';
+  return { t, url: `${baseUrl(req)}/t/${t.token}`, errorCorrectionLevel };
+}
+
+admin.get('/tables/:id/qr.svg', wrap(async (req, res) => {
+  const { url, errorCorrectionLevel } = await qrTable(req);
+  res.type('image/svg+xml').send(await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel }));
+}));
+
+admin.get('/tables/:id/qr.png', wrap(async (req, res) => {
+  const { t, url, errorCorrectionLevel } = await qrTable(req);
+  const png = await QRCode.toBuffer(url, { type: 'png', width: 1200, margin: 2, errorCorrectionLevel });
+  const kind = { table: 'trapezi', room: 'domatio', sunbed: 'xaplostra' }[t.kind] || 'thesi';
+  res.setHeader('Content-Disposition', `attachment; filename="qr-${kind}-${String(t.label).replace(/[^\w-]+/g, '_')}.png"`);
+  res.type('image/png').send(png);
 }));
 
 admin.get('/stats', wrap(async (req, res) => {
@@ -665,7 +718,7 @@ admin.get('/orders.csv', wrap(async (req, res) => {
     const d = new Date(o.createdAt);
     rows.push([o.id, d.toLocaleDateString('el-GR'), d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }),
       `${KIND_EL[o.tableKind] || ''} ${o.tableLabel}`, STATUS_EL[o.status] || o.status, o.lang.toUpperCase(),
-      o.items.map((i) => `${i.qty}x ${i.name.el || i.name.en || ''}`).join(', '), o.note, money(o.total), o.paid ? 'Ναι' : 'Όχι']);
+      o.items.map((i) => `${i.qty}x ${i.name.el || i.name.en || ''}${i.options.length ? ` (${i.options.map((x) => x.choice.el || x.choice.en).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? 'Ναι' : 'Όχι']);
   }
   // Semicolons + BOM so Excel in Greek locale opens it with correct columns and characters.
   const csv = `﻿${rows.map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;

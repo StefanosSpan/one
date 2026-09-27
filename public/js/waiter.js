@@ -1,6 +1,6 @@
 import { $, $$, esc, api, toast, sheet, beep, timeAgo, euro } from './util.js';
 import { icon } from './icons.js';
-import { requireLogin, topBar, liveStaff, LANG_CODES, itemName, spotName, KIND } from './staff.js';
+import { requireLogin, topBar, liveStaff, LANG_CODES, itemName, optionNames, spotName, KIND } from './staff.js';
 
 const me = await requireLogin(['waiter']);
 if (me) start();
@@ -42,7 +42,7 @@ function start() {
     return `<div class="panel ${cls}">
       <div class="panel-head"><span class="tbl">${esc(spotName(o.tableKind, o.tableLabel))}</span>
         <span class="meta">#${o.id} · <span class="lang">${LANG_CODES[o.lang] || ''}</span> · ${timeAgo(o.createdAt)}</span></div>
-      ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
+      ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
         <span class="muted">${euro(i.qty * i.price)}</span></div>`).join('')}
       ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
       <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span><b>${euro(o.total)}</b></div>

@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS items (
   emoji       TEXT DEFAULT '',
   image_url   TEXT DEFAULT '',
   available   INTEGER DEFAULT 1,
-  sort        INTEGER DEFAULT 0
+  sort        INTEGER DEFAULT 0,
+  options     TEXT DEFAULT '[]'        -- JSON: [{name, required, multi, choices: [{name, price_cents}]}]
 );
 
 -- A "spot" that has its own QR code: restaurant table, hotel room or sunbed.
@@ -58,8 +59,9 @@ CREATE TABLE IF NOT EXISTS order_items (
   item_id     INTEGER,                 -- kept even if the dish is later deleted
   name        TEXT NOT NULL,           -- JSON snapshot of the dish name at order time
   qty         INTEGER NOT NULL,
-  price_cents INTEGER NOT NULL,        -- price at order time
-  note        TEXT DEFAULT ''
+  price_cents INTEGER NOT NULL,        -- unit price at order time, including chosen options
+  note        TEXT DEFAULT '',
+  options     TEXT DEFAULT '[]'        -- JSON snapshot of the chosen options
 );
 
 CREATE TABLE IF NOT EXISTS calls (
@@ -70,6 +72,9 @@ CREATE TABLE IF NOT EXISTS calls (
   status         TEXT NOT NULL DEFAULT 'open',
   created_at     TEXT NOT NULL
 );
+
+ALTER TABLE items ADD COLUMN IF NOT EXISTS options TEXT DEFAULT '[]';
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS options TEXT DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_orders_table   ON orders(table_id, closed);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);

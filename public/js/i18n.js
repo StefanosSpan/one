@@ -12,6 +12,7 @@ export const LANGUAGES = {
 
 export const STRINGS = {
   el: {
+    required: 'Υποχρεωτικό', optional: 'Προαιρετικό', chooseRequired: 'Κάντε τις υποχρεωτικές επιλογές',
     room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα', callService: 'Εξυπηρέτηση', chefsChoice: 'Πρόταση του σεφ', dietaryKey: 'V Χορτοφαγικό · VG Vegan · GF Χωρίς γλουτένη',
     menu: 'Μενού', myOrder: 'Παραγγελία', info: 'Πληροφορίες', table: 'Τραπέζι', search: 'Αναζήτηση πιάτου…',
     all: 'Όλα', vegetarian: 'Χορτοφαγικό', vegan: 'Vegan', gluten_free: 'Χωρίς γλουτένη', spicy: 'Πικάντικο',
@@ -44,6 +45,7 @@ export const STRINGS = {
     allergen_lupin: 'Λούπινο', allergen_molluscs: 'Μαλάκια',
   },
   en: {
+    required: 'Required', optional: 'Optional', chooseRequired: 'Please make the required choices',
     room: 'Room', sunbed: 'Sunbed', callService: 'Service', chefsChoice: 'Chef’s choice', dietaryKey: 'V Vegetarian · VG Vegan · GF Gluten-free',
     menu: 'Menu', myOrder: 'My order', info: 'Info', table: 'Table', search: 'Search dishes…',
     all: 'All', vegetarian: 'Vegetarian', vegan: 'Vegan', gluten_free: 'Gluten-free', spicy: 'Spicy',
@@ -76,6 +78,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupin', allergen_molluscs: 'Molluscs',
   },
   de: {
+    required: 'Erforderlich', optional: 'Optional', chooseRequired: 'Bitte treffen Sie die erforderliche Auswahl',
     room: 'Zimmer', sunbed: 'Liege', callService: 'Service', chefsChoice: 'Empfehlung des Küchenchefs', dietaryKey: 'V Vegetarisch · VG Vegan · GF Glutenfrei',
     menu: 'Speisekarte', myOrder: 'Bestellung', info: 'Info', table: 'Tisch', search: 'Gerichte suchen…',
     all: 'Alle', vegetarian: 'Vegetarisch', vegan: 'Vegan', gluten_free: 'Glutenfrei', spicy: 'Scharf',
@@ -108,6 +111,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupinen', allergen_molluscs: 'Weichtiere',
   },
   fr: {
+    required: 'Obligatoire', optional: 'Facultatif', chooseRequired: 'Veuillez faire les choix obligatoires',
     room: 'Chambre', sunbed: 'Transat', callService: 'Service', chefsChoice: 'Suggestion du chef', dietaryKey: 'V Végétarien · VG Végan · GF Sans gluten',
     menu: 'Menu', myOrder: 'Commande', info: 'Infos', table: 'Table', search: 'Rechercher un plat…',
     all: 'Tout', vegetarian: 'Végétarien', vegan: 'Végan', gluten_free: 'Sans gluten', spicy: 'Épicé',
@@ -140,6 +144,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupin', allergen_molluscs: 'Mollusques',
   },
   it: {
+    required: 'Obbligatorio', optional: 'Facoltativo', chooseRequired: 'Effettua le scelte obbligatorie',
     room: 'Camera', sunbed: 'Lettino', callService: 'Servizio', chefsChoice: 'Consigliato dallo chef', dietaryKey: 'V Vegetariano · VG Vegano · GF Senza glutine',
     menu: 'Menù', myOrder: 'Ordine', info: 'Info', table: 'Tavolo', search: 'Cerca un piatto…',
     all: 'Tutti', vegetarian: 'Vegetariano', vegan: 'Vegano', gluten_free: 'Senza glutine', spicy: 'Piccante',
@@ -172,6 +177,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupini', allergen_molluscs: 'Molluschi',
   },
   es: {
+    required: 'Obligatorio', optional: 'Opcional', chooseRequired: 'Haz las selecciones obligatorias',
     room: 'Habitación', sunbed: 'Tumbona', callService: 'Servicio', chefsChoice: 'Recomendación del chef', dietaryKey: 'V Vegetariano · VG Vegano · GF Sin gluten',
     menu: 'Carta', myOrder: 'Pedido', info: 'Info', table: 'Mesa', search: 'Buscar plato…',
     all: 'Todo', vegetarian: 'Vegetariano', vegan: 'Vegano', gluten_free: 'Sin gluten', spicy: 'Picante',
@@ -204,6 +210,7 @@ export const STRINGS = {
     allergen_lupin: 'Altramuces', allergen_molluscs: 'Moluscos',
   },
   nl: {
+    required: 'Verplicht', optional: 'Optioneel', chooseRequired: 'Maak de verplichte keuzes',
     room: 'Kamer', sunbed: 'Ligbed', callService: 'Service', chefsChoice: 'Aanrader van de chef', dietaryKey: 'V Vegetarisch · VG Veganistisch · GF Glutenvrij',
     menu: 'Menu', myOrder: 'Bestelling', info: 'Info', table: 'Tafel', search: 'Zoek een gerecht…',
     all: 'Alles', vegetarian: 'Vegetarisch', vegan: 'Veganistisch', gluten_free: 'Glutenvrij', spicy: 'Pittig',
@@ -236,6 +243,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupine', allergen_molluscs: 'Weekdieren',
   },
   pl: {
+    required: 'Wymagane', optional: 'Opcjonalne', chooseRequired: 'Dokonaj wymaganych wyborów',
     room: 'Pokój', sunbed: 'Leżak', callService: 'Obsługa', chefsChoice: 'Polecane przez szefa kuchni', dietaryKey: 'V Wegetariańskie · VG Wegańskie · GF Bez glutenu',
     menu: 'Menu', myOrder: 'Zamówienie', info: 'Informacje', table: 'Stolik', search: 'Szukaj dania…',
     all: 'Wszystko', vegetarian: 'Wegetariańskie', vegan: 'Wegańskie', gluten_free: 'Bez glutenu', spicy: 'Ostre',

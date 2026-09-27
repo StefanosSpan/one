@@ -137,3 +137,27 @@ test('stats are numeric on every database', async () => {
   assert.equal(typeof data.revenue, 'number');
   assert.equal(typeof data.top[0].qty, 'number');
 });
+
+test('dish options are validated and priced on the server', async () => {
+  const other = (await call('/api/demo')).data.tables[1].url.split('/').pop(); // separate table: orders are rate-limited per table
+  const url = `/api/public/table/${other}/orders`;
+  // Lamb chops (id 10) require a cooking choice.
+  assert.equal((await call(url, { method: 'POST', body: { items: [{ id: 10, qty: 1 }] } })).data.error, 'option_required');
+  assert.equal((await call(url, { method: 'POST', body: { items: [{ id: 10, qty: 1, options: [[0, 0], [0, 1]] }] } })).data.error, 'bad_option');
+  assert.equal((await call(url, { method: 'POST', body: { items: [{ id: 10, qty: 1, options: [[0, 7]] }] } })).data.error, 'bad_option');
+  // Greek salad (id 1): 8.50 + extra feta 1.50 + capers 0.50, twice.
+  const r = await call(url, { method: 'POST', body: { items: [{ id: 1, qty: 2, options: [[0, 0], [0, 1]] }] } });
+  assert.equal(r.status, 201);
+  assert.equal(r.data.items[0].price, 1050);
+  assert.equal(r.data.total, 2100);
+  assert.equal(r.data.items[0].options.length, 2);
+  assert.equal(r.data.items[0].options[0].choice.en, 'Extra feta');
+});
+
+test('QR codes can be downloaded as PNG', async () => {
+  const res = await fetch(`${base}/api/admin/tables/1/qr.png?ecl=H`, { headers: { Cookie: cookies.admin } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assert.deepEqual([...bytes.slice(1, 4)], [0x50, 0x4e, 0x47]); // "PNG"
+});

@@ -1,6 +1,6 @@
 import { $, $$, esc, api, toast, sheet, euro } from './util.js';
 import { icon } from './icons.js';
-import { requireLogin, topBar, liveStaff, itemName, KIND } from './staff.js';
+import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND } from './staff.js';
 import { LANGUAGES, STRINGS } from './i18n.js';
 
 let settings = null;
@@ -85,11 +85,12 @@ async function uploadImage(file) {
 }
 
 // Photo picker with preview. Returns a getter for the current URL.
-function photoField(root, sel, initial, { wide = false } = {}) {
+function photoField(root, sel, initial, { wide = false, contain = false, onChange } = {}) {
   let url = initial || '';
   const box = $(sel, root);
   const draw = () => {
-    box.innerHTML = `<div class="photo-drop ${wide ? 'wide' : ''} ${url ? 'has' : ''}">
+    onChange?.(url);
+    box.innerHTML = `<div class="photo-drop ${wide ? 'wide' : ''} ${contain ? 'contain' : ''} ${url ? 'has' : ''}">
       ${url ? `<img src="${esc(url)}" alt="">` : `<div class="ph">${icon('image', 26)}<span>Ανέβασμα φωτογραφίας</span><small>JPG, PNG, WEBP · έως 4MB</small></div>`}
       <input type="file" accept="image/*">
     </div>
@@ -180,7 +181,7 @@ async function renderHistory() {
             <td>${o.id}</td>
             <td style="white-space:nowrap">${when(o.createdAt)}</td>
             <td style="white-space:nowrap">${esc((KIND[o.tableKind] || KIND.table).one)} ${esc(o.tableLabel)}</td>
-            <td class="items">${o.items.map((i) => `${i.qty}× ${esc(itemName(i.name))}`).join(', ')}${o.note ? `<br><i>${esc(o.note)}</i>` : ''}</td>
+            <td class="items">${o.items.map((i) => `${i.qty}× ${esc(itemName(i.name))}${optionNames(i) ? ` (${esc(optionNames(i))})` : ''}`).join(', ')}${o.note ? `<br><i>${esc(o.note)}</i>` : ''}</td>
             <td>${esc(o.lang.toUpperCase())}</td>
             <td><span class="badge ${o.status === 'rejected' ? 'red' : o.status === 'served' ? 'green' : 'gray'}">${STATUS_LABEL[o.status]}</span>${o.paid ? ' <span class="badge green">Εξοφλήθηκε</span>' : ''}</td>
             <td class="num">${euro(o.total)}</td>
@@ -293,6 +294,12 @@ function editItem(item, categoryId) {
         ${menu.categories.map((c) => `<option value="${c.id}" ${c.id === i.category_id ? 'selected' : ''}>${esc(itemName(c.name))}</option>`).join('')}
       </select></label>
     </div>
+    <div class="field"><span class="lbl">Επιλογές και έξτρα</span>
+      <p class="muted small" style="margin:0 0 .5rem">Π.χ. «Ψήσιμο: Μέτριο / Καλοψημένο» (υποχρεωτική, μία επιλογή) ή «Έξτρα: Φέτα +1,50 €» (προαιρετική, πολλές).
+        Συμπληρώστε ελληνικά και αγγλικά· οι υπόλοιπες γλώσσες δείχνουν τα αγγλικά.</p>
+      <div id="optGroups"></div>
+      <button type="button" class="btn secondary sm" id="addGroup">Προσθήκη ομάδας επιλογών</button>
+    </div>
     <label class="field"><span>Χαρακτηρισμοί</span><div class="checks">
       ${menu.tags.map((tg) => `<label><input type="checkbox" data-tag="${tg}" ${i.tags.includes(tg) ? 'checked' : ''}>${TAG_LABELS[tg] || tg}</label>`).join('')}
     </div></label>
@@ -306,9 +313,11 @@ function editItem(item, categoryId) {
     </div>`);
   const read = bindI18n(el);
   const photo = photoField(el, '#photo', i.image_url, { wide: true });
+  const readOptions = optionsEditor($('#optGroups', el), $('#addGroup', el), i.options || []);
   $('#save', el).onclick = async () => {
     const body = {
       ...read(),
+      options: readOptions(),
       price: $('#price', el).value,
       categoryId: Number($('#cat', el).value),
       emoji: i.emoji || '',
@@ -329,6 +338,55 @@ function editItem(item, categoryId) {
   });
 }
 
+// Editor for option groups. Greek + English are edited here; other translations are kept as they were.
+function optionsEditor(box, addBtn, initial) {
+  const groups = initial.map((g) => ({ ...g, choices: g.choices.map((c) => ({ ...c })) }));
+  const nameInputs = (obj, cls) => `
+    <input class="input ${cls}" data-l="el" placeholder="Ελληνικά" value="${esc(obj?.el || '')}">
+    <input class="input ${cls}" data-l="en" placeholder="English" value="${esc(obj?.en || '')}">`;
+  const collect = () => {
+    $$('.og', box).forEach((gEl, gi) => {
+      const g = groups[gi];
+      g.name = { ...g.name, el: $('.gname[data-l="el"]', gEl).value.trim(), en: $('.gname[data-l="en"]', gEl).value.trim() };
+      g.required = $('.greq', gEl).checked;
+      g.multi = $('.gmulti', gEl).checked;
+      $$('.oc', gEl).forEach((cEl, ci) => {
+        const c = g.choices[ci];
+        c.name = { ...c.name, el: $('.cname[data-l="el"]', cEl).value.trim(), en: $('.cname[data-l="en"]', cEl).value.trim() };
+        c.price_cents = Math.round(Number($('.cprice', cEl).value || 0) * 100);
+      });
+    });
+  };
+  const draw = () => {
+    box.innerHTML = groups.map((g, gi) => `
+      <div class="og" data-g="${gi}">
+        <div class="og-head">${nameInputs(g.name, 'gname')}
+          <button type="button" class="mini" data-rmg="${gi}" title="Διαγραφή ομάδας">${icon('trash', 15)}</button></div>
+        <div class="og-flags">
+          <label><input type="checkbox" class="greq" ${g.required ? 'checked' : ''}> Υποχρεωτική</label>
+          <label><input type="checkbox" class="gmulti" ${g.multi ? 'checked' : ''}> Πολλές επιλογές</label>
+        </div>
+        ${g.choices.map((c, ci) => `<div class="oc">${nameInputs(c.name, 'cname')}
+          <input class="input cprice" type="number" step="0.10" min="0" placeholder="+€" value="${c.price_cents ? (c.price_cents / 100).toFixed(2) : ''}">
+          <button type="button" class="mini" data-rmc="${gi}:${ci}" title="Διαγραφή">${icon('x', 14)}</button></div>`).join('')}
+        <button type="button" class="btn ghost sm" data-addc="${gi}">+ Επιλογή</button>
+      </div>`).join('');
+    $$('[data-rmg]', box).forEach((b) => b.onclick = () => { collect(); groups.splice(Number(b.dataset.rmg), 1); draw(); });
+    $$('[data-rmc]', box).forEach((b) => b.onclick = () => {
+      collect(); const [gi, ci] = b.dataset.rmc.split(':').map(Number); groups[gi].choices.splice(ci, 1); draw();
+    });
+    $$('[data-addc]', box).forEach((b) => b.onclick = () => {
+      collect(); groups[Number(b.dataset.addc)].choices.push({ name: {}, price_cents: 0 }); draw();
+    });
+  };
+  addBtn.onclick = () => { collect(); groups.push({ name: {}, required: false, multi: false, choices: [{ name: {}, price_cents: 0 }, { name: {}, price_cents: 0 }] }); draw(); };
+  draw();
+  return () => {
+    collect();
+    return groups.map((g) => ({ ...g, choices: g.choices.map((c) => ({ name: c.name, price: c.price_cents / 100 })) }));
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Spots (tables / rooms / sunbeds) & QR
 // ---------------------------------------------------------------------------
@@ -345,7 +403,7 @@ async function renderTables() {
         <input class="input" id="newLabel" placeholder="Όνομα ή αριθμός (π.χ. 13, 204, Βεράντα 2)" style="flex:2;min-width:200px">
         <button class="btn" id="addOne">Προσθήκη</button>
         <button class="btn secondary" id="addMany">Πολλές μαζί</button>
-        <a class="btn success" href="/staff/qr" target="_blank">Εκτύπωση QR</a>
+        <a class="btn success" href="/staff/qr" target="_blank">Εκτύπωση όλων των QR</a>
       </div>
       ${location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? `<div class="note-box">
         Η διαχείριση είναι ανοιχτή από <b>localhost</b>, οπότε τα QR δείχνουν σε localhost και δεν ανοίγουν από κινητό.
@@ -357,6 +415,8 @@ async function renderTables() {
         <div class="grow"><b>${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</b>
           <a class="small" href="${esc(t.url)}" target="_blank" style="word-break:break-all">${esc(t.url)}</a></div>
         <label class="toggle" title="Ενεργή"><input type="checkbox" data-active="${t.id}" ${t.active ? 'checked' : ''}><span></span></label>
+        <a class="btn secondary sm" href="/staff/qr?ids=${t.id}" target="_blank" title="Εκτύπωση μόνο αυτού του QR">Εκτύπωση</a>
+        <a class="btn secondary sm" href="/api/admin/tables/${t.id}/qr.png?ecl=H" download title="Λήψη εικόνας PNG για τυπογραφείο">PNG</a>
         <button class="mini" data-rename="${t.id}" title="Επεξεργασία">${icon('edit', 15)}</button>
         <button class="mini" data-regen="${t.id}" title="Νέο QR (το παλιό σταματά να λειτουργεί)">${icon('refresh', 15)}</button>
         <button class="mini" data-del="${t.id}" title="Διαγραφή">${icon('trash', 15)}</button>
@@ -409,13 +469,19 @@ async function renderTables() {
 function renderStore() {
   const r = settings.restaurant;
   $('#app').innerHTML = `<div class="panel narrow">
+    <h3>Λογότυπο</h3>
+    <p class="muted small" style="margin-top:0">Εμφανίζεται στην αρχή του μενού, στις κάρτες QR που τυπώνετε και στην καρτέλα του browser.
+      Προτείνεται τετράγωνη εικόνα PNG με διάφανο ή λευκό φόντο.</p>
+    <div class="logo-row">
+      <div id="logo"></div>
+      <div class="menu-preview" id="preview"></div>
+    </div>
+
     <h3>Φωτογραφία εξωφύλλου</h3>
     <p class="muted small" style="margin-top:0">Εμφανίζεται στην κορυφή του μενού. Προτείνεται οριζόντια φωτογραφία του χώρου, της θέας ή ενός χαρακτηριστικού πιάτου.</p>
     <div id="cover"></div>
-    <div class="two" style="margin-top:1rem">
-      <label class="field"><span>Όνομα καταστήματος</span><input class="input" id="name" maxlength="80" value="${esc(r.name)}"></label>
-      <div class="field"><span class="lbl">Λογότυπο</span><div id="logo"></div></div>
-    </div>
+    <h3>Στοιχεία</h3>
+    <label class="field"><span>Όνομα καταστήματος</span><input class="input" id="name" maxlength="80" value="${esc(r.name)}"></label>
     ${i18nEditor([{ key: 'description', label: 'Σύντομη περιγραφή', textarea: true, max: 400 }, { key: 'hours', label: 'Ωράριο', max: 200 }], r)}
     <div class="two">
       <label class="field"><span>Διεύθυνση</span><input class="input" id="address" value="${esc(r.address)}"></label>
@@ -430,8 +496,19 @@ function renderStore() {
     <button class="btn" id="save">Αποθήκευση</button>
   </div>`;
   const read = bindI18n($('#app'));
+  const preview = () => {
+    const box = $('#preview');
+    if (!box) return;
+    const logoUrl = logo?.() ?? r.logoUrl;
+    box.innerHTML = `<div class="pv-label">Προεπισκόπηση στο μενού</div>
+      <div class="pv">${logoUrl ? `<img src="${esc(logoUrl)}" alt="">` : '<div class="pv-empty">Χωρίς λογότυπο</div>'}
+        <div><b>${esc($('#name')?.value || r.name)}</b><span>Τραπέζι 1</span></div></div>`;
+  };
+  let logo;
   const cover = photoField($('#app'), '#cover', r.coverUrl, { wide: true });
-  const logo = photoField($('#app'), '#logo', r.logoUrl);
+  logo = photoField($('#app'), '#logo', r.logoUrl, { contain: true, onChange: () => setTimeout(preview) });
+  $('#name').addEventListener('input', preview);
+  preview();
   $('#save').onclick = async () => {
     const fields = ['name', 'address', 'mapsUrl', 'phone', 'email', 'wifiName', 'wifiPassword', 'instagram', 'reviewUrl'];
     const restaurant = { ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read(), logoUrl: logo(), coverUrl: cover() };

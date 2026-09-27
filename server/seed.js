@@ -80,6 +80,28 @@ const ITEMS = [
     t('Εμφιαλωμένο νερό', 'Bottled water', 'Mineralwasser', 'Eau en bouteille', 'Acqua in bottiglia', 'Agua embotellada', 'Flessenwater', 'Woda butelkowana')],
 ];
 
+// Options / extras for some demo dishes, keyed by the dish's position in ITEMS.
+const choice = (name, price_cents = 0) => ({ name, price_cents });
+const OPTIONS = {
+  0: [{ name: t('Έξτρα', 'Extras', 'Extras', 'Suppléments', 'Extra', 'Extras', "Extra's", 'Dodatki'), required: false, multi: true, choices: [
+    choice(t('Έξτρα φέτα', 'Extra feta', 'Extra Feta', 'Supplément feta', 'Feta extra', 'Feta extra', 'Extra feta', 'Dodatkowa feta'), 150),
+    choice(t('Κάπαρη', 'Capers', 'Kapern', 'Câpres', 'Capperi', 'Alcaparras', 'Kappertjes', 'Kapary'), 50),
+  ] }],
+  8: [{ name: t('Συνοδευτικό', 'Side', 'Beilage', 'Accompagnement', 'Contorno', 'Guarnición', 'Bijgerecht', 'Dodatek'), required: true, multi: false, choices: [
+    choice(t('Πατάτες τηγανητές', 'Fries', 'Pommes frites', 'Frites', 'Patatine fritte', 'Patatas fritas', 'Friet', 'Frytki')),
+    choice(t('Σαλάτα', 'Salad', 'Salat', 'Salade', 'Insalata', 'Ensalada', 'Salade', 'Sałatka')),
+  ] }],
+  9: [{ name: t('Ψήσιμο', 'Cooking', 'Garstufe', 'Cuisson', 'Cottura', 'Punto de cocción', 'Garing', 'Stopień wysmażenia'), required: true, multi: false, choices: [
+    choice(t('Μέτριο', 'Medium', 'Medium', 'À point', 'Media cottura', 'Al punto', 'Medium', 'Średnio')),
+    choice(t('Καλοψημένο', 'Well done', 'Durchgebraten', 'Bien cuit', 'Ben cotto', 'Muy hecho', 'Doorbakken', 'Dobrze wysmażone')),
+  ] }],
+  16: [{ name: t('Κρασί', 'Wine', 'Wein', 'Vin', 'Vino', 'Vino', 'Wijn', 'Wino'), required: true, multi: false, choices: [
+    choice(t('Λευκό', 'White', 'Weiß', 'Blanc', 'Bianco', 'Blanco', 'Wit', 'Białe')),
+    choice(t('Κόκκινο', 'Red', 'Rot', 'Rouge', 'Rosso', 'Tinto', 'Rood', 'Czerwone')),
+    choice(t('Ροζέ', 'Rosé', 'Rosé', 'Rosé', 'Rosato', 'Rosado', 'Rosé', 'Różowe')),
+  ] }],
+};
+
 export const DEFAULT_RESTAURANT = {
   name: 'Ταβέρνα Ο Νίκος',
   description: t(
@@ -128,9 +150,9 @@ export async function seed(db, { newToken }) {
   }
 
   for (const [i, [cat, emoji, price, allergens, tags, name, desc]] of ITEMS.entries()) {
-    await db.insert(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, sort)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [catIds[cat], JSON.stringify(name), JSON.stringify(desc), price,
-      JSON.stringify(allergens), JSON.stringify(tags), emoji, i]);
+    await db.insert(`INSERT INTO items (category_id, name, description, price_cents, allergens, tags, emoji, sort, options)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [catIds[cat], JSON.stringify(name), JSON.stringify(desc), price,
+      JSON.stringify(allergens), JSON.stringify(tags), emoji, i, JSON.stringify(OPTIONS[i] || [])]);
   }
 
   const spots = [

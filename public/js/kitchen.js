@@ -1,5 +1,5 @@
 import { $, $$, esc, api, toast, beep } from './util.js';
-import { requireLogin, topBar, liveStaff, itemName, spotName } from './staff.js';
+import { requireLogin, topBar, liveStaff, itemName, optionNames, spotName } from './staff.js';
 
 const me = await requireLogin(['kitchen']);
 if (me) start();
@@ -40,7 +40,7 @@ function start() {
       <div class="ticket-body">
         <div class="meta">#${o.id}</div>
         <div class="items">${o.items.map((i) => `<div><span class="q">${i.qty}×</span>${esc(itemName(i.name))}
-          ${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</div>`).join('')}</div>
+          ${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</div>`).join('')}</div>
         ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
         <div class="row">${actions}</div>
       </div>
