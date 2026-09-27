@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kalimenu · Ψηφιακό μενού και παραγγελία με QR</title>
-  <meta name="description" content="Ψηφιακό μενού σε 8 γλώσσες, παραγγελία από το τραπέζι, κλήση σερβιτόρου και λογαριασμός με QR. Για εστιατόρια, ταβέρνες, beach bars και ξενοδοχεία. Από €7,90 τον μήνα.">
+  <meta name="description" content="Ψηφιακό μενού σε 8 γλώσσες, παραγγελία από το τραπέζι, κλήση σερβιτόρου και λογαριασμός με QR. Για εστιατόρια, ταβέρνες, beach bars και ξενοδοχεία. 14 ημέρες δωρεάν δοκιμή.">
   <link rel="stylesheet" href="/css/app.css">
   <style>
     :root { --brand: #1f3a5f; }
@@ -49,8 +49,7 @@
     .billing { display: inline-flex; border: 1px solid #d6d6d6; border-radius: var(--radius); overflow: hidden; margin-bottom: 1.5rem; }
     .billing button { border: 0; background: #fff; padding: .5rem 1rem; font-size: .9rem; color: var(--muted); }
     .billing button.active { background: var(--text); color: #fff; }
-    .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; align-items: stretch; }
-    @media (max-width: 980px) { .plans { grid-template-columns: repeat(2, 1fr); } }
+    .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: stretch; max-width: 780px; }
     @media (max-width: 560px) { .plans { grid-template-columns: 1fr; } }
     .plan { border: 1px solid var(--line); border-radius: 10px; padding: 1.3rem 1.2rem; display: flex; flex-direction: column; background: #fff; }
     .plan.best { border: 2px solid var(--brand); position: relative; }
@@ -111,7 +110,7 @@
           <a class="btn" href="/signup">Ξεκινήστε δωρεάν</a>
           <a class="btn secondary" href="/demo">Δείτε το demo</a>
         </div>
-        <p class="note">2 μήνες δωρεάν, χωρίς κάρτα και χωρίς εγκατάσταση. Φτιάχνετε λογαριασμό και σε 5 λεπτά έχετε το μενού σας online.</p>
+        <p class="note">14 ημέρες δωρεάν, χωρίς κάρτα και χωρίς εγκατάσταση. Φτιάχνετε λογαριασμό και σε 5 λεπτά δέχεστε παραγγελίες.</p>
       </div>
       <div class="phone"><img src="/img/app-menu.jpg" alt="Το μενού του πελάτη στο κινητό"></div>
     </div>
@@ -168,7 +167,6 @@
           <table class="cmp">
             <thead><tr><th>Λύση</th><th>Τιμή</th><th>Παραγγελία από το τραπέζι</th><th>Κλήση σερβιτόρου</th><th>Γλώσσες</th></tr></thead>
             <tbody>
-              <tr class="us"><td>Kalimenu Βασικό</td><td>€7,90/μήνα</td><td>Όχι</td><td>Ναι</td><td>8</td></tr>
               <tr class="us"><td>Kalimenu Pro</td><td>€14,90/μήνα</td><td>Ναι</td><td>Ναι</td><td>8</td></tr>
               <tr><td>Συνδρομητικά QR μενού (π.χ. doXmenu)</td><td>€9,99–12,99/μήνα</td><td>Όχι</td><td>Ναι</td><td>Πολλές</td></tr>
               <tr><td>Ελληνικά QR μενού με συνδρομή (π.χ. ilo)</td><td>από €18/μήνα</td><td>Όχι</td><td>—</td><td>—</td></tr>
@@ -185,10 +183,10 @@
       <div class="wrap" style="max-width:760px">
         <h2>Συχνές ερωτήσεις</h2>
         <details><summary>Χρειάζεται εγκατάσταση ή να έρθει κάποιος στο κατάστημα;</summary><p>Όχι. Κάνετε εγγραφή online, περνάτε το μενού από τον browser και τυπώνετε τα QR στον εκτυπωτή σας ή σε τυπογραφείο. Οι σερβιτόροι μπαίνουν από το κινητό τους με έναν σύνδεσμο και ένα PIN.</p></details>
-        <details><summary>Πώς λειτουργεί η δωρεάν δοκιμή;</summary><p>Έχετε 2 μήνες όλες τις δυνατότητες του πλάνου που διαλέξατε, χωρίς να δώσετε κάρτα. Αν δεν συνεχίσετε, ο λογαριασμός περνά στο Δωρεάν πλάνο και το μενού σας παραμένει online.</p></details>
+        <details><summary>Πώς λειτουργεί η δωρεάν δοκιμή;</summary><p>Για 14 ημέρες έχετε όλες τις δυνατότητες του πλάνου που διαλέξατε, χωρίς να δώσετε κάρτα. Αν δεν συνεχίσετε, το μενού σταματά να εμφανίζεται στους πελάτες, αλλά μενού, QR και ιστορικό μένουν αποθηκευμένα και ξαναδουλεύουν μόλις ενεργοποιήσετε συνδρομή.</p></details>
         <details><summary>Χρειάζεται ο πελάτης να κατεβάσει εφαρμογή;</summary><p>Όχι. Σκανάρει το QR με την κάμερα και το μενού ανοίγει στον browser.</p></details>
         <details><summary>Τι γίνεται με το myDATA και τις αποδείξεις;</summary><p>Από προεπιλογή κάθε παραγγελία περνάει από τον σερβιτόρο, που την καταχωρεί στην ταμειακή σας όπως κάνει σήμερα. Η απόδειξη λογαριασμού του Kalimenu δεν αντικαθιστά τη νόμιμη απόδειξη. Μπορείτε όμως να σημειώνετε πάνω της τον αριθμό ή το ΜΑΡΚ της νόμιμης απόδειξης.</p></details>
-        <details><summary>Είμαστε ανοιχτοί μόνο το καλοκαίρι. Πληρώνουμε όλο τον χρόνο;</summary><p>Όχι. Παγώνετε τη συνδρομή τους μήνες που είστε κλειστοί χωρίς χρέωση, και το μενού και τα QR σας μένουν όπως είναι.</p></details>
+        <details><summary>Είμαστε ανοιχτοί μόνο το καλοκαίρι. Πληρώνουμε όλο τον χρόνο;</summary><p>Όχι. Παγώνετε τη συνδρομή τους μήνες που είστε κλειστοί, χωρίς χρέωση. Μενού, QR και ιστορικό μένουν αποθηκευμένα και την επόμενη σεζόν συνεχίζετε με ένα κλικ.</p></details>
         <details><summary>Χρειάζομαι tablet ή εκτυπωτή;</summary><p>Όχι απαραίτητα. Ο σερβιτόρος δουλεύει από το κινητό του. Για την κουζίνα αρκεί οποιοδήποτε tablet ή υπολογιστής, και αν έχετε θερμικό εκτυπωτή 80 mm, τυπώνει και δελτία.</p></details>
         <details><summary>Μπορώ να αλλάζω τιμές και πιάτα μόνος μου;</summary><p>Ναι, από τη διαχείριση, όποτε θέλετε. Οι αλλαγές φαίνονται αμέσως χωρίς να ξανατυπώσετε τα QR.</p></details>
         <details><summary>Υπάρχει δέσμευση;</summary><p>Όχι. Πληρώνετε μηνιαία και σταματάτε όποτε θέλετε. Με την ετήσια πληρωμή κερδίζετε 2 μήνες.</p></details>
@@ -197,7 +195,7 @@
 
     <section class="alt contact" id="contact">
       <div class="wrap">
-        <h2>Ξεκινήστε σήμερα, δωρεάν για 2 μήνες</h2>
+        <h2>Ξεκινήστε σήμερα, δωρεάν για 14 ημέρες</h2>
         <p class="sub" style="margin-left:auto;margin-right:auto">Χωρίς κάρτα, χωρίς εγκατάσταση, χωρίς δέσμευση. Αν θέλετε βοήθεια, περνάμε εμείς το μενού σας.</p>
         <div class="ctas" id="contactCtas">
           <a class="btn" href="/signup">Δημιουργία λογαριασμού</a>
@@ -214,27 +212,23 @@
     const CONTACT = { phone: '', email: '' };
 
     const PLANS = [
-      { key: 'free', name: 'Δωρεάν', for: 'Για να ξεκινήσετε με ψηφιακό μενού', month: 0,
-        items: ['Ψηφιακό μενού σε 8 γλώσσες', 'Έως 40 πιάτα', 'QR για έως 10 τραπέζια', 'Αλλεργιογόνα και ωράριο', 'Με την ένδειξη «Kalimenu»'] },
-      { key: 'basic', name: 'Βασικό', for: 'Ψηφιακό μενού χωρίς παραγγελίες', month: 790,
-        items: ['Όλα του Δωρεάν, χωρίς όρια', 'Κλήση σερβιτόρου και λογαριασμού', 'Λογότυπο, εξώφυλλο, χρώμα καταστήματος', 'Φωτογραφίες σε κάθε πιάτο', 'Εκτύπωση QR σε 3 μεγέθη'] },
-      { key: 'pro', name: 'Pro', for: 'Πλήρης παραγγελία από το τραπέζι', month: 1490, best: true,
-        items: ['Όλα του Βασικού', 'Παραγγελία από το τραπέζι', 'Οθόνη σερβιτόρου και κουζίνας', 'Επιλογές και έξτρα στα πιάτα', 'Δελτία παραγγελίας και αποδείξεις', 'Ιστορικό, στατιστικά, Excel'] },
+      { key: 'pro', name: 'Pro', for: 'Εστιατόρια, ταβέρνες, καφέ και beach bars', month: 1490, best: true,
+        items: ['Παραγγελία από το τραπέζι', 'Μενού σε 8 γλώσσες με φωτογραφίες', 'Κλήση σερβιτόρου και λογαριασμού', 'Οθόνη σερβιτόρου και κουζίνας', 'Επιλογές και έξτρα στα πιάτα', 'Δελτία παραγγελίας και αποδείξεις', 'Απεριόριστα τραπέζια και πιάτα', 'Ιστορικό, στατιστικά, Excel'] },
       { key: 'hotel', name: 'Ξενοδοχείο', for: 'Εστιατόριο, room service και παραλία', month: 2490,
-        items: ['Όλα του Pro', 'Δωμάτια και ξαπλώστρες', 'Απεριόριστες θέσεις', 'Στήσιμο από εμάς χωρίς χρέωση', 'Προτεραιότητα στην υποστήριξη'], plus: 2 },
+        items: ['Όλα του Pro', 'Room service ανά δωμάτιο', 'Παραγγελία από ξαπλώστρα και pool bar', 'Στήσιμο από εμάς χωρίς χρέωση', 'Προτεραιότητα στην υποστήριξη'], plus: 2 },
     ];
     const eur = (c) => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
     let billing = 'month';
     function renderPlans() {
       document.getElementById('plans').innerHTML = PLANS.map((p) => {
         const yearly = p.month * 10;
-        const price = billing === 'year' && p.month ? `${eur(Math.round(yearly / 12))}<small>/μήνα</small>` : `${eur(p.month)}<small>${p.month ? '/μήνα' : ''}</small>`;
-        const per = !p.month ? 'Για πάντα' : billing === 'year' ? `${eur(yearly)} τον χρόνο` : 'Χωρίς συμβόλαιο';
+        const price = billing === 'year' ? `${eur(Math.round(yearly / 12))}<small>/μήνα</small>` : `${eur(p.month)}<small>/μήνα</small>`;
+        const per = billing === 'year' ? `${eur(yearly)} τον χρόνο` : 'Χωρίς συμβόλαιο';
         return `<div class="plan ${p.best ? 'best' : ''}">
           <h3>${p.name}</h3><div class="for">${p.for}</div>
           <div class="price">${price}</div><div class="per">${per}</div>
-          <ul>${p.items.map((it, i) => `<li class="${i === 0 && p.month ? 'plus' : ''}">${it}</li>`).join('')}</ul>
-          <a class="btn ${p.best ? '' : 'secondary'} block" href="/signup?plan=${p.key}&interval=${billing}">${p.month ? '2 μήνες δωρεάν' : 'Ξεκινήστε δωρεάν'}</a>
+          <ul>${p.items.map((it, i) => `<li class="${i === 0 && p.plus ? 'plus' : ''}">${it}</li>`).join('')}</ul>
+          <a class="btn ${p.best ? '' : 'secondary'} block" href="/signup?plan=${p.key}&interval=${billing}">14 ημέρες δωρεάν</a>
         </div>`;
       }).join('');
     }

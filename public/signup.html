@@ -17,8 +17,8 @@
 
   <main class="auth">
     <form class="card" id="form" novalidate>
-      <h1>Ξεκινήστε δωρεάν</h1>
-      <p class="lead">Σε 5 λεπτά έχετε μενού σε 8 γλώσσες και QR για κάθε τραπέζι. Χωρίς εγκατάσταση, από τον browser.</p>
+      <h1>Δοκιμάστε δωρεάν για 14 ημέρες</h1>
+      <p class="lead">Σε 5 λεπτά οι πελάτες σας παραγγέλνουν από το τραπέζι σε 8 γλώσσες. Χωρίς εγκατάσταση, από τον browser.</p>
       <div class="trial-note" id="trialNote"></div>
 
       <label class="field"><span>Όνομα καταστήματος</span>
@@ -57,12 +57,11 @@
     const { plans, trialDays } = await api('/api/plans');
     const interval = params.get('interval') === 'year' ? 'year' : 'month';
     const initial = plans[params.get('plan')] ? params.get('plan') : 'pro';
-    const SUB = { free: 'Μόνο μενού', basic: 'Μενού και κλήση σερβιτόρου', pro: 'Παραγγελία από το τραπέζι', hotel: 'Room service και ξαπλώστρες' };
-    const months = Math.round(trialDays / 30);
+    const SUB = { pro: 'Εστιατόρια, καφέ, beach bars', hotel: 'Με δωμάτια και ξαπλώστρες' };
 
-    document.getElementById('plans').innerHTML = ['free', 'basic', 'pro', 'hotel'].map((k) => {
+    document.getElementById('plans').innerHTML = Object.keys(plans).map((k) => {
       const p = plans[k];
-      const price = !p.month ? 'Δωρεάν για πάντα' : interval === 'year' ? `${eur(p.month * 10)}/έτος` : `${eur(p.month)}/μήνα`;
+      const price = interval === 'year' ? `${eur(p.month * 10)}/έτος` : `${eur(p.month)}/μήνα`;
       return `<label><input type="radio" name="plan" value="${k}" ${k === initial ? 'checked' : ''}><b>${p.name}</b><span>${SUB[k]} · ${price}</span></label>`;
     }).join('');
 
@@ -70,10 +69,9 @@
       const plan = form.plan.value;
       const hotel = plans[plan].kinds.length > 1;
       document.querySelectorAll('[data-hotel]').forEach((el) => { el.hidden = !hotel; });
-      form.tables.max = plans[plan].maxSpots || 100;
-      document.getElementById('trialNote').textContent = plan === 'free'
-        ? 'Το Δωρεάν πλάνο δεν λήγει ποτέ: μενού έως 40 πιάτα και 10 τραπέζια. Αναβαθμίζετε όποτε θέλετε.'
-        : `${months} μήνες δωρεάν δοκιμή του πλάνου ${plans[plan].name}, χωρίς κάρτα. Μετά ${plans[plan].month ? eur(plans[plan].month) : ''} τον μήνα + ΦΠΑ, μόνο αν το επιλέξετε.`;
+      const price = interval === 'year' ? `${eur(plans[plan].month * 10)} τον χρόνο` : `${eur(plans[plan].month)} τον μήνα`;
+      document.getElementById('trialNote').textContent =
+        `${trialDays} ημέρες δωρεάν δοκιμή με όλες τις δυνατότητες, χωρίς κάρτα. Μετά ${price} + ΦΠΑ, μόνο αν το επιλέξετε.`;
     }
     form.addEventListener('change', update);
     update();

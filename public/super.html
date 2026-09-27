@@ -89,7 +89,7 @@
           <div class="stat"><div class="l">Σε δοκιμή</div><div class="v">${t.trialing}</div></div>
           <div class="stat"><div class="l">Λήγει δοκιμή σε 7 ημ.</div><div class="v">${t.trialsEnding7}</div></div>
           <div class="stat"><div class="l">Νέα (30 ημέρες)</div><div class="v">${t.signups30}</div></div>
-          <div class="stat"><div class="l">Δωρεάν / πάγωμα</div><div class="v">${t.free} / ${t.paused}</div></div>
+          <div class="stat"><div class="l">Χωρίς συνδρομή / πάγωμα</div><div class="v">${t.inactive} / ${t.paused}</div></div>
         </div>
         ${data.stripe ? '' : '<div class="plan-banner warn"><span>Δεν έχουν οριστεί κλειδιά Stripe: οι ιδιοκτήτες δεν μπορούν ακόμα να πληρώσουν online.</span></div>'}
         <div class="sa-tools">
@@ -102,7 +102,7 @@
           <thead><tr><th>Κατάστημα</th><th>Πλάνο</th><th>Κατάσταση</th><th>Εγγραφή</th><th>Χρήση</th><th>Παραγγ. 30 ημ.</th><th>MRR</th><th></th></tr></thead>
           <tbody>${rows.map((v) => `<tr>
             <td class="name"><b>${esc(v.name)}${v.isDemo ? ' <span class="badge gray">demo</span>' : ''}</b><span>${esc(v.email || '—')} · ${esc(v.slug)}</span></td>
-            <td>${esc(data.plans[v.plan]?.name || v.plan)}${v.plan !== 'free' ? `<br><span class="muted small">${v.interval === 'year' ? 'ετήσιο' : 'μηνιαίο'}${v.stripe ? ' · Stripe' : ''}</span>` : ''}</td>
+            <td>${esc(data.plans[v.plan]?.name || v.plan)}<br><span class="muted small">${v.interval === 'year' ? 'ετήσιο' : 'μηνιαίο'}${v.stripe ? ' · Stripe' : ''}</span></td>
             <td><span class="st ${v.status}">${STATUS[v.status] || v.status}</span>
               ${v.status === 'trialing' ? `<br><span class="muted small">${left(v.trialEndsAt) > 0 ? `λήγει σε ${left(v.trialEndsAt)} ημ.` : 'έληξε'}</span>` : ''}</td>
             <td>${day(v.createdAt)}</td>

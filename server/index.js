@@ -28,6 +28,12 @@ const app = express();
 app.disable('x-powered-by');
 // Behind the hosting provider's proxy: trust X-Forwarded-Proto so secure cookies and links use https.
 if (PRODUCTION || process.env.TRUST_PROXY) app.set('trust proxy', 1);
+// Other domains of the service (e.g. kalimenu.com, www.kalimenu.gr) redirect permanently to APP_URL.
+const REDIRECT_HOSTS = new Set((process.env.REDIRECT_HOSTS || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean));
+if (APP_URL && REDIRECT_HOSTS.size) {
+  app.use((req, res, next) => (REDIRECT_HOSTS.has(String(req.hostname).toLowerCase())
+    ? res.redirect(301, APP_URL + req.originalUrl) : next()));
+}
 app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => stripeWebhook(req, res).catch(next));
 app.use(express.json({ limit: '6mb' }));
 
@@ -200,21 +206,21 @@ async function tableByToken(req, token = req.params.token) {
   if (!t || !t.active) fail(404, 'invalid_table');
   req.venue = await getVenue(t.venue_id);
   if (!req.venue || req.venue.status === 'suspended') fail(404, 'invalid_table');
+  // Without a trial or subscription the menu is not shown; the guest is asked to use the printed menu.
+  if (features(req.venue).inactive) { const e = new HttpError(403, 'venue_inactive'); e.code = 'venue_inactive'; throw e; }
   return t;
 }
 
 function publicRestaurant(venue) {
   const s = venue.settings;
   const r = s.restaurant || {};
-  const { branding } = features(venue);
   return {
     name: r.name, description: r.description || {}, hours: r.hours || {},
     address: r.address, phone: r.phone, email: r.email, mapsUrl: r.mapsUrl,
     wifiName: r.wifiName, wifiPassword: r.wifiPassword, instagram: r.instagram,
-    reviewUrl: r.reviewUrl, logoUrl: branding ? r.logoUrl || '' : '', coverUrl: branding ? r.coverUrl || '' : '',
-    brandColor: branding ? s.brandColor || '#1f3a5f' : '#1f3a5f',
+    reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
+    brandColor: s.brandColor || '#1f3a5f',
     legalName: r.legalName || '', vatNumber: r.vatNumber || '', taxOffice: r.taxOffice || '', receiptFooter: r.receiptFooter || '',
-    poweredBy: !branding,
   };
 }
 
@@ -299,7 +305,7 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
     categories: (await db.all('SELECT * FROM categories WHERE venue_id = ? AND active = 1 ORDER BY sort, id', [venue.id])).map(mapCategory),
     items: (await db.all(`SELECT i.* FROM items i JOIN categories c ON c.id = i.category_id
       WHERE i.venue_id = ? AND c.active = 1 ORDER BY i.sort, i.id`, [venue.id])).map(mapItem)
-      .map(({ sort, venue_id, ...i }) => (f.photos ? i : { ...i, image_url: '' })),
+      .map(({ sort, venue_id, ...i }) => i),
   });
 }));
 
@@ -429,7 +435,7 @@ function venueSummary(venue) {
   const plan = effectivePlan(venue);
   return {
     slug: venue.slug, name: venue.name, plan: venue.plan, status: venue.status, trialEndsAt: venue.trial_ends_at,
-    interval: venue.interval, effectivePlan: plan, features: PLANS[plan], isDemo: venue.isDemo,
+    interval: venue.interval, effectivePlan: plan, features: features(venue), isDemo: venue.isDemo,
   };
 }
 
@@ -742,11 +748,7 @@ async function itemInput(req) {
 admin.post('/items', wrap(async (req, res) => {
   const i = await itemInput(req);
   const v = req.venue.id;
-  const plan = features(req.venue);
-  const { n, s: sort } = await db.get('SELECT COUNT(*) AS n, COALESCE(MAX(sort), -1) + 1 AS s FROM items WHERE venue_id = ?', [v]);
-  if (plan.maxItems != null && Number(n) >= plan.maxItems) {
-    planLimit(`Το πλάνο «${plan.name}» επιτρέπει έως ${plan.maxItems} πιάτα. Αναβαθμίστε από το «Συνδρομή».`);
-  }
+  const { s: sort } = await db.get('SELECT COALESCE(MAX(sort), -1) + 1 AS s FROM items WHERE venue_id = ?', [v]);
   const id = await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, image_url, available, sort, options)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [v, i.category_id, i.name, i.description, i.price_cents, i.allergens, i.tags,
     i.emoji, i.image_url, i.available, sort, i.options]);
@@ -791,7 +793,8 @@ admin.get('/tables', wrap(async (req, res) => {
 }));
 
 function checkSpotKind(req, kind) {
-  const plan = features(req.venue);
+  // Spot types follow the chosen plan, also before paying, so nothing has to change on renewal.
+  const plan = PLANS[req.venue.plan] || PLANS.pro;
   if (!plan.kinds.includes(kind)) planLimit(`Δωμάτια και ξαπλώστρες υπάρχουν στο πλάνο «${PLANS.hotel.name}». Αναβαθμίστε από το «Συνδρομή».`);
 }
 
@@ -801,13 +804,8 @@ admin.post('/tables', wrap(async (req, res) => {
   const count = Math.min(Math.max(Math.trunc(Number(b.count) || 1), 1), 100);
   const kind = SPOT_KINDS.includes(b.kind) ? b.kind : 'table';
   checkSpotKind(req, kind);
-  const plan = features(req.venue);
   const ins = 'INSERT INTO tables (venue_id, label, token, kind) VALUES (?, ?, ?, ?)';
   await db.tx(async (t) => {
-    const { total } = await t.get('SELECT COUNT(*) AS total FROM tables WHERE venue_id = ?', [v]);
-    if (plan.maxSpots != null && Number(total) + count > plan.maxSpots) {
-      planLimit(`Το πλάνο «${plan.name}» επιτρέπει έως ${plan.maxSpots} θέσεις με QR. Αναβαθμίστε από το «Συνδρομή».`);
-    }
     if (count === 1 && cleanText(b.label, 20)) return t.insert(ins, [v, cleanText(b.label, 20), newToken(), kind]);
     const { n } = await t.get('SELECT COUNT(*) AS n FROM tables WHERE venue_id = ? AND kind = ?', [v, kind]);
     for (let i = 1; i <= count; i++) await t.insert(ins, [v, String(Number(n) + i), newToken(), kind]);
@@ -982,20 +980,19 @@ app.post('/api/account/signup', wrap(async (req, res) => {
   const f = PLANS[plan];
   const count = (v, max) => Math.min(Math.max(Math.trunc(Number(v) || 0), 0), max);
   const spots = {
-    table: Math.min(count(b.tables ?? 10, 100), f.maxSpots ?? 100),
+    table: count(b.tables ?? 10, 100),
     room: f.kinds.includes('room') ? count(b.rooms, 300) : 0,
     sunbed: f.kinds.includes('sunbed') ? count(b.sunbeds, 300) : 0,
   };
   if (await db.get('SELECT id FROM accounts WHERE email = ?', [email])) fail(409, 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Συνδεθείτε.');
 
   const hash = await hashPassword(password);
-  const trial = plan !== 'free';
   let venueId;
   try {
     venueId = await db.tx(async (t) => {
       const id = await createVenue(t, {
-        name: business, plan, interval, status: trial ? 'trialing' : 'active',
-        trialEndsAt: trial ? new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString() : '',
+        name: business, plan, interval, status: 'trialing',
+        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString(),
         sample: b.sample !== false, spots,
       });
       await t.insert('INSERT INTO accounts (venue_id, email, password_hash, created_at) VALUES (?, ?, ?, ?)', [id, email, hash, now()]);
@@ -1015,7 +1012,7 @@ app.post('/api/account/signup', wrap(async (req, res) => {
     subject: `Καλώς ήρθατε στο Kalimenu – ${business}`,
     text: `Ο λογαριασμός σας είναι έτοιμος.\n\nΔιαχείριση: ${base}/login\n`
       + `Σύνδεση προσωπικού (σερβιτόροι, κουζίνα): ${base}/staff?v=${venue.slug}\n`
-      + (trial ? `\nΗ δοκιμή του πλάνου «${f.name}» διαρκεί ${TRIAL_DAYS} ημέρες, χωρίς κάρτα.\n` : '')
+      + `\nΗ δωρεάν δοκιμή του πλάνου «${f.name}» διαρκεί ${TRIAL_DAYS} ημέρες, χωρίς κάρτα.\n`
       + '\nΤα PIN του προσωπικού θα τα βρείτε στη Διαχείριση → Ρυθμίσεις.\n',
   });
   if (process.env.NOTIFY_EMAIL) {
@@ -1150,7 +1147,7 @@ app.post('/api/account/portal', ...requireOwner, wrap(async (req, res) => {
   res.json({ url: session.url });
 }));
 
-// Seasonal pause: no charges while paused; the menu stays online on the free plan's features.
+// Seasonal pause: no charges and no menu for guests while paused; everything is kept for the next season.
 app.post('/api/account/pause', ...requireOwner, wrap(async (req, res) => {
   const venue = req.venue;
   const paused = !!req.body?.paused;
@@ -1158,8 +1155,6 @@ app.post('/api/account/pause', ...requireOwner, wrap(async (req, res) => {
   if (!paused && venue.status !== 'paused') fail(400, 'Η συνδρομή δεν είναι σε πάγωμα');
   if (venue.stripeSubscriptionId && stripeEnabled()) {
     await stripe(`subscriptions/${venue.stripeSubscriptionId}`, { pause_collection: paused ? { behavior: 'void' } : '' });
-  } else if (PRODUCTION && venue.plan !== 'free') {
-    fail(400, 'Δεν υπάρχει συνδρομή με κάρτα');
   }
   await updateVenue(venue.id, { status: paused ? 'paused' : 'active' });
   res.json({ ok: true, venue: venueSummary(await getVenue(venue.id)) });
@@ -1246,7 +1241,7 @@ superApi.use(requireSuper);
 superApi.get('/me', (req, res) => res.json({ email: req.admin.email }));
 
 // Monthly recurring revenue of a venue in cents (yearly plans spread over 12 months).
-const venueMrr = (v) => (['active', 'past_due'].includes(v.status) && v.plan !== 'free' && !v.isDemo
+const venueMrr = (v) => (['active', 'past_due'].includes(v.status) && PLANS[v.plan] && !v.isDemo
   ? Math.round(priceCents(v.plan, v.interval) / (v.interval === 'year' ? 12 : 1)) : 0);
 
 superApi.get('/overview', wrap(async (req, res) => {
@@ -1275,7 +1270,7 @@ superApi.get('/overview', wrap(async (req, res) => {
       venues: real.length,
       trialing: real.filter(trialActive).length,
       paying: real.filter((v) => v.mrr > 0).length,
-      free: real.filter((v) => v.effectivePlan === 'free' && v.status !== 'suspended').length,
+      inactive: real.filter((v) => !v.effectivePlan && !['paused', 'suspended'].includes(v.status)).length,
       paused: real.filter((v) => v.status === 'paused').length,
       suspended: real.filter((v) => v.status === 'suspended').length,
       mrr: real.reduce((s, v) => s + v.mrr, 0),
@@ -1304,7 +1299,6 @@ superApi.put('/venues/:id', wrap(async (req, res) => {
     const from = Math.max(Date.now(), new Date(venue.trial_ends_at).getTime() || 0);
     fields.trial_ends_at = new Date(from + days * 86400_000).toISOString();
     fields.status = 'trialing';
-    if (fields.plan === undefined && venue.plan === 'free') fields.plan = 'pro';
   }
   await updateVenue(venue.id, fields);
   res.json({ ok: true, venue: venueSummary(await getVenue(venue.id)) });

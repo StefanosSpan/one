@@ -16,7 +16,7 @@ if (process.env.DATABASE_URL) {
   await tmp.close();
 }
 const { app } = await import('../server/index.js');
-const { db, ensureSuperAdmin } = await import('../server/db.js');
+const { db, ensureSuperAdmin, forgetVenue } = await import('../server/db.js');
 
 let server, base;
 
@@ -58,7 +58,7 @@ test('an owner signs up online and gets a venue with a free trial', async () => 
   assert.equal(signup.data.venue.status, 'trialing');
   assert.equal(signup.data.venue.effectivePlan, 'pro');
   const days = (new Date(signup.data.venue.trialEndsAt) - Date.now()) / 86400_000;
-  assert.ok(days > 59 && days <= 60);
+  assert.ok(days > 13 && days <= 14);
 
   const me = await owner('/api/staff/me');
   assert.equal(me.data.role, 'admin');
@@ -122,35 +122,34 @@ test('staff log in with the venue code once there is more than one venue', async
   assert.equal((await b('/api/account')).status, 403); // billing needs the owner's e-mail login
 });
 
-test('the free plan limits dishes, spots and ordering', async () => {
+test('without a trial or subscription the menu is offline until the owner pays', async () => {
   const b = browser();
   await b('/api/account/signup', { method: 'POST', body: {
-    business: 'Καντίνα', email: 'free@example.com', password: 'secret-pass-2', acceptTerms: true, plan: 'free', tables: 50, sample: false,
+    business: 'Καντίνα', email: 'kantina@example.com', password: 'secret-pass-2', acceptTerms: true, plan: 'free', tables: 50, sample: false,
   } });
-  const acc = (await b('/api/account')).data;
-  assert.equal(acc.venue.effectivePlan, 'free');
-  assert.equal(acc.usage.spots, 10); // capped by the plan
-  assert.equal(acc.usage.items, 0);
+  let acc = (await b('/api/account')).data;
+  assert.equal(acc.venue.plan, 'pro'); // there is no menu-only plan
+  assert.equal(acc.venue.status, 'trialing');
+  assert.equal(acc.usage.spots, 50); // no limits on tables or dishes
+  assert.deepEqual(Object.keys(acc.plans), ['pro', 'hotel']);
 
-  const tables = (await b('/api/admin/tables')).data;
-  const pub = (await b(`/api/public/table/${tables[0].token}`)).data;
-  assert.deepEqual(pub.features, { ordering: false, calls: false });
-  assert.equal(pub.restaurant.poweredBy, true);
-  assert.equal((await b(`/api/public/table/${tables[0].token}/calls`, { method: 'POST', body: { type: 'waiter' } })).status, 403);
-
-  const more = await b('/api/admin/tables', { method: 'POST', body: { count: 1 } });
-  assert.equal(more.status, 403);
-  assert.equal(more.data.code, 'plan_limit');
+  const token = (await b('/api/admin/tables')).data[0].token;
+  const pub = (await b(`/api/public/table/${token}`)).data;
+  assert.deepEqual(pub.features, { ordering: true, calls: true });
+  // Rooms and sunbeds belong to the hotel plan.
   assert.equal((await b('/api/admin/tables', { method: 'POST', body: { count: 1, kind: 'room' } })).data.code, 'plan_limit');
 
+  // The trial ends without payment: guests see a notice instead of the menu, the owner can still work on it.
+  const { id } = await db.get("SELECT id FROM venues WHERE slug = 'kantina'");
+  await db.run('UPDATE venues SET trial_ends_at = ? WHERE id = ?', ['2020-01-01T00:00:00.000Z', id]);
+  forgetVenue(id);
+  const off = await b(`/api/public/table/${token}`);
+  assert.equal(off.status, 403);
+  assert.equal(off.data.error, 'venue_inactive');
+  acc = (await b('/api/account')).data;
+  assert.equal(acc.venue.effectivePlan, null);
   const cat = (await b('/api/admin/menu')).data.categories[0].id;
-  for (let i = 0; i < 40; i++) {
-    assert.equal((await b('/api/admin/items', { method: 'POST', body: { name: { el: `Πιάτο ${i}` }, price: 1, categoryId: cat } })).status, 201);
-  }
-  const over = await b('/api/admin/items', { method: 'POST', body: { name: { el: 'Ένα ακόμα' }, price: 1, categoryId: cat } });
-  assert.equal(over.data.code, 'plan_limit');
-  const items = (await b(`/api/public/table/${tables[0].token}`)).data.items;
-  assert.equal((await b(`/api/public/table/${tables[0].token}/orders`, { method: 'POST', body: { items: [{ id: items[0].id, qty: 1 }] } })).data.error, 'ordering_disabled');
+  assert.equal((await b('/api/admin/items', { method: 'POST', body: { name: { el: 'Τοστ' }, price: 3, categoryId: cat } })).status, 201);
 
   // Without Stripe keys (local testing) choosing a plan activates it straight away.
   const upgrade = await b('/api/account/checkout', { method: 'POST', body: { plan: 'pro', interval: 'year' } });
@@ -158,11 +157,14 @@ test('the free plan limits dishes, spots and ordering', async () => {
   const after = (await b('/api/account')).data.venue;
   assert.equal(after.effectivePlan, 'pro');
   assert.equal(after.interval, 'year');
-  assert.equal((await b('/api/admin/items', { method: 'POST', body: { name: { el: 'Ένα ακόμα' }, price: 1, categoryId: cat } })).status, 201);
-  // Seasonal pause: back to the free features, menu still online.
-  assert.equal((await b('/api/account/pause', { method: 'POST', body: { paused: true } })).data.venue.effectivePlan, 'free');
-  assert.equal((await b(`/api/public/table/${tables[0].token}`)).status, 200);
+  const items = (await b(`/api/public/table/${token}`)).data.items;
+  assert.equal((await b(`/api/public/table/${token}/orders`, { method: 'POST', body: { items: [{ id: items[0].id, qty: 1 }] } })).status, 201);
+
+  // Seasonal pause: no menu for guests, same QR codes work again after resuming.
+  assert.equal((await b('/api/account/pause', { method: 'POST', body: { paused: true } })).data.venue.effectivePlan, null);
+  assert.equal((await b(`/api/public/table/${token}`)).status, 403);
   assert.equal((await b('/api/account/pause', { method: 'POST', body: { paused: false } })).data.venue.effectivePlan, 'pro');
+  assert.equal((await b(`/api/public/table/${token}`)).status, 200);
 });
 
 test('Stripe webhooks are verified and update the subscription', async () => {
@@ -189,7 +191,7 @@ test('Stripe webhooks are verified and update the subscription', async () => {
   await send({ type: 'customer.subscription.deleted', data: { object: { id: 'sub_1', status: 'canceled', metadata: {} } } });
   me = (await owner('/api/account')).data;
   assert.equal(me.venue.status, 'canceled');
-  assert.equal(me.venue.effectivePlan, 'free');
+  assert.equal(me.venue.effectivePlan, null);
 });
 
 test('the super admin manages every venue', async () => {
@@ -234,11 +236,11 @@ test('the super admin manages every venue', async () => {
   assert.equal((await owner(`/api/public/table/${qr}`)).status, 200);
 
   // Delete needs the venue code typed in.
-  const free = data.venues.find((v) => v.slug === 'kantina');
-  assert.equal((await boss(`/api/super/venues/${free.id}`, { method: 'DELETE', body: { confirm: 'x' } })).status, 400);
-  assert.equal((await boss(`/api/super/venues/${free.id}`, { method: 'DELETE', body: { confirm: 'kantina' } })).status, 200);
+  const kantina = data.venues.find((v) => v.slug === 'kantina');
+  assert.equal((await boss(`/api/super/venues/${kantina.id}`, { method: 'DELETE', body: { confirm: 'x' } })).status, 400);
+  assert.equal((await boss(`/api/super/venues/${kantina.id}`, { method: 'DELETE', body: { confirm: 'kantina' } })).status, 200);
   assert.equal((await boss('/api/super/overview')).data.totals.venues, 1);
-  assert.equal((await browser()('/api/account/login', { method: 'POST', body: { email: 'free@example.com', password: 'secret-pass-2' } })).status, 401);
+  assert.equal((await browser()('/api/account/login', { method: 'POST', body: { email: 'kantina@example.com', password: 'secret-pass-2' } })).status, 401);
 });
 
 test('uploads are stored in the database', async () => {

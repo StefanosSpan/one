@@ -165,7 +165,7 @@ function planBanner() {
   const v = settings.venue;
   if (v.isDemo) return '';
   const name = v.features.name;
-  if (v.status === 'trialing' && v.effectivePlan !== 'free') {
+  if (v.status === 'trialing' && v.effectivePlan) {
     const d = daysLeft(v.trialEndsAt);
     return `<div class="plan-banner"><span>Δωρεάν δοκιμή του πλάνου <b>${esc(name)}</b>: απομένουν <b>${d} ${d === 1 ? 'ημέρα' : 'ημέρες'}</b>. Δεν χρειάζεται κάρτα μέχρι τότε.</span>
       <a class="btn sm" href="?tab=billing" data-go="billing">Επιλογή πλάνου</a></div>`;
@@ -174,10 +174,10 @@ function planBanner() {
     return `<div class="plan-banner warn"><span>Η τελευταία πληρωμή της συνδρομής απέτυχε. Ενημερώστε την κάρτα σας για να μη διακοπούν οι παραγγελίες.</span>
       <a class="btn sm" href="?tab=billing" data-go="billing">Συνδρομή</a></div>`;
   }
-  if (v.effectivePlan === 'free') {
-    const why = v.status === 'paused' ? 'Η συνδρομή είναι σε πάγωμα.' : v.status === 'trialing' ? 'Η δωρεάν δοκιμή έληξε.' : 'Είστε στο Δωρεάν πλάνο.';
-    return `<div class="plan-banner warn"><span>${why} Το μενού λειτουργεί, αλλά οι παραγγελίες και οι κλήσεις σερβιτόρου είναι κλειστές.</span>
-      <a class="btn sm" href="?tab=billing" data-go="billing">Δείτε τα πλάνα</a></div>`;
+  if (!v.effectivePlan) {
+    const why = v.status === 'paused' ? 'Η συνδρομή είναι σε πάγωμα.' : v.status === 'trialing' ? 'Η δωρεάν δοκιμή έληξε.' : 'Δεν υπάρχει ενεργή συνδρομή.';
+    return `<div class="plan-banner warn"><span>${why} Οι πελάτες δεν βλέπουν το μενού όταν σκανάρουν τα QR. Όλα τα δεδομένα σας είναι αποθηκευμένα και τα QR ξαναδουλεύουν μόλις ενεργοποιήσετε συνδρομή.</span>
+      <a class="btn sm" href="?tab=billing" data-go="billing">${v.status === 'paused' ? 'Επανενεργοποίηση' : 'Επιλογή πλάνου'}</a></div>`;
   }
   return '';
 }
@@ -205,7 +205,7 @@ function setupChecklist(spots, menu, stats) {
   </div>`;
 }
 
-const PLAN_ORDER = ['free', 'basic', 'pro', 'hotel'];
+const PLAN_ORDER = ['pro', 'hotel'];
 const STATUS_TEXT = { trialing: 'Δωρεάν δοκιμή', active: 'Ενεργή', past_due: 'Εκκρεμεί πληρωμή', paused: 'Σε πάγωμα', canceled: 'Ακυρώθηκε' };
 
 async function renderBilling() {
@@ -219,16 +219,15 @@ async function renderBilling() {
   const params = new URLSearchParams(location.search);
   if (params.get('checkout') === 'success') toast('Ευχαριστούμε! Η συνδρομή ενεργοποιείται σε λίγα δευτερόλεπτα.', 'ok');
   let interval = v.interval || 'month';
-  const limits = (p) => [p.maxItems ? `έως ${p.maxItems} πιάτα` : 'απεριόριστα πιάτα', p.maxSpots ? `έως ${p.maxSpots} θέσεις` : 'απεριόριστες θέσεις',
-    p.ordering ? 'παραγγελία από το τραπέζι' : 'χωρίς παραγγελίες', p.calls ? 'κλήση σερβιτόρου' : null,
-    p.kinds.length > 1 ? 'δωμάτια και ξαπλώστρες' : null, p.branding ? 'λογότυπο, φωτογραφίες, χρώμα' : 'με την ένδειξη Kalimenu'].filter(Boolean);
-  const paidNow = ['active', 'past_due'].includes(v.status) && v.plan !== 'free';
+  const limits = (p) => ['Παραγγελία από το τραπέζι', 'Οθόνες σερβιτόρου και κουζίνας', 'Κλήση σερβιτόρου και λογαριασμού',
+    p.kinds.length > 1 ? 'Τραπέζια, δωμάτια και ξαπλώστρες' : 'Απεριόριστα τραπέζια και πιάτα', 'Μενού σε 8 γλώσσες, φωτογραφίες, λογότυπο'];
+  const paidNow = ['active', 'past_due'].includes(v.status);
 
   const draw = () => {
     $('#app').innerHTML = `${planBanner()}
     <div class="panel">
       <h3>Η συνδρομή σας</h3>
-      <div class="kv"><span>Πλάνο</span><b>${esc(acc.plans[v.plan].name)}${v.effectivePlan !== v.plan ? ` <span class="muted">(ισχύει τώρα: ${esc(acc.plans[v.effectivePlan].name)})</span>` : ''}</b></div>
+      <div class="kv"><span>Πλάνο</span><b>${esc(acc.plans[v.plan]?.name || 'Pro')}${v.effectivePlan ? '' : ' <span class="muted">(ανενεργό)</span>'}</b></div>
       <div class="kv"><span>Κατάσταση</span><b>${STATUS_TEXT[v.status] || v.status}${v.status === 'trialing' ? ` · λήγει ${new Date(v.trialEndsAt).toLocaleDateString('el-GR')}` : ''}</b></div>
       ${paidNow ? `<div class="kv"><span>Χρέωση</span><b>${v.interval === 'year' ? 'Ετήσια' : 'Μηνιαία'}</b></div>` : ''}
       <div class="kv"><span>Χρήση</span><b>${acc.usage.items} πιάτα · ${acc.usage.spots} θέσεις</b></div>
@@ -246,13 +245,13 @@ async function renderBilling() {
     </div>
     <div class="plan-cards">${PLAN_ORDER.map((k) => {
       const p = acc.plans[k];
-      const price = k === 'free' ? '0 €' : interval === 'year' ? `${euro(p.month * 10)}<small>/έτος</small>` : `${euro(p.month)}<small>/μήνα</small>`;
-      const current = paidNow ? v.plan === k && v.interval === interval : v.effectivePlan === k && k === 'free';
+      const price = interval === 'year' ? `${euro(p.month * 10)}<small>/έτος</small>` : `${euro(p.month)}<small>/μήνα</small>`;
+      const current = paidNow && v.plan === k && v.interval === interval;
       return `<div class="plan-card ${current ? 'current' : ''}">
-        <h4>${esc(p.name)}</h4><div class="price">${price}</div><p class="muted small">${k === 'free' ? 'Για πάντα' : '+ ΦΠΑ 24%'}</p>
+        <h4>${esc(p.name)}</h4><div class="price">${price}</div><p class="muted small">+ ΦΠΑ 24%</p>
         <ul>${limits(p).map((l) => `<li>${l}</li>`).join('')}</ul>
-        ${k === 'free' ? '' : current ? '<span class="badge">Τρέχον πλάνο</span>'
-          : `<button class="btn sm block" data-plan="${k}">${paidNow ? 'Αλλαγή σε αυτό' : v.status === 'trialing' && v.effectivePlan !== 'free' ? 'Επιλογή (χρέωση μετά τη δοκιμή)' : 'Επιλογή'}</button>`}
+        ${current ? '<span class="badge">Τρέχον πλάνο</span>'
+          : `<button class="btn sm block" data-plan="${k}">${paidNow ? 'Αλλαγή σε αυτό' : v.status === 'trialing' && v.effectivePlan ? 'Επιλογή (χρέωση μετά τη δοκιμή)' : 'Επιλογή και πληρωμή'}</button>`}
       </div>`;
     }).join('')}</div>
     <p class="muted small">Η πληρωμή γίνεται με κάρτα μέσω Stripe. Μπορείτε να ακυρώσετε ή να παγώσετε όποτε θέλετε.</p>`;
@@ -271,7 +270,7 @@ async function renderBilling() {
       try { location.href = (await api('/api/account/portal', { method: 'POST' })).url; } catch (e) { toast(e.message, 'err'); }
     });
     const pause = (paused) => async () => {
-      if (paused && !confirm('Κατά το πάγωμα δεν χρεώνεστε. Το μενού και τα QR συνεχίζουν να λειτουργούν χωρίς παραγγελίες. Συνέχεια;')) return;
+      if (paused && !confirm('Κατά το πάγωμα δεν χρεώνεστε και οι πελάτες δεν βλέπουν το μενού. Μενού, QR και ιστορικό μένουν αποθηκευμένα για την επόμενη σεζόν. Συνέχεια;')) return;
       try { await api('/api/account/pause', { method: 'POST', body: { paused } }); toast(paused ? 'Η συνδρομή πάγωσε' : 'Η συνδρομή ενεργοποιήθηκε', 'ok'); render(); }
       catch (e) { toast(e.message, 'err'); }
     };

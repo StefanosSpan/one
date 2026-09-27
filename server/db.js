@@ -87,7 +87,7 @@ export function slugify(text) {
  * Creates a venue with its settings, starter menu and spots inside a transaction `t`.
  * Returns the new venue id.
  */
-export async function createVenue(t, { name, plan = 'free', status = 'active', trialEndsAt = '', interval = 'month', isDemo = false,
+export async function createVenue(t, { name, plan = 'pro', status = 'active', trialEndsAt = '', interval = 'month', isDemo = false,
   slug, ...seedOptions }) {
   let base = slug || slugify(name);
   let candidate = base;

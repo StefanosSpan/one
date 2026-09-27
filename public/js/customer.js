@@ -36,6 +36,7 @@ function errorText(e) {
   if (e.code === 'too_many_requests') return t('tooMany');
   if (e.code === 'item_unavailable') return t('itemUnavailable');
   if (e.code === 'invalid_table') return t('invalidTable');
+  if (e.code === 'venue_inactive') return t('venueInactive');
   if (e.code === 'option_required' || e.code === 'bad_option') return t('chooseRequired');
   return t('error');
 }
@@ -83,7 +84,7 @@ async function boot() {
   } catch (e) {
     const lang = (navigator.language || 'en').slice(0, 2);
     S.lang = STRINGS[lang] ? lang : 'en';
-    $('#app').innerHTML = `<div class="empty">${icon('qr', 36)}<p>${esc(e.code === 'invalid_table' ? t('invalidTable') : t('error'))}</p></div>`;
+    $('#app').innerHTML = `<div class="empty">${icon('qr', 36)}<p>${esc(e.code === 'invalid_table' || e.code === 'venue_inactive' ? errorText(e) : t('error'))}</p></div>`;
     return;
   }
   S.lang = chooseLanguage();
@@ -193,9 +194,6 @@ function renderAll(keepScroll = false) {
   $$('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
   const orderTab = $('.tabs button[data-tab="order"]');
   if (orderTab) orderTab.hidden = !canOrder();
-  if (r.poweredBy && !$('#powered')) {
-    $('#app').insertAdjacentHTML('afterend', '<p id="powered" class="powered"><a href="/" target="_blank" rel="noopener">Kalimenu</a></p>');
-  }
   renderMain();
   renderBottom();
   if (keepScroll) window.scrollTo({ top: y });

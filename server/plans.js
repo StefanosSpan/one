@@ -1,39 +1,28 @@
-// Subscription plans and what each one allows. Prices are in cents per month, excluding VAT.
-// Yearly billing costs 10 months (2 months free).
-// Two months free, no card needed: long enough to run a full month of the season before paying.
-export const TRIAL_DAYS = 60;
+// Subscription plans. Every plan includes ordering from the table; there is no menu-only plan.
+// Prices are in cents per month, excluding VAT. Yearly billing costs 10 months (2 months free).
+export const TRIAL_DAYS = 14;
 
 export const PLANS = {
-  free: {
-    name: 'Δωρεάν', month: 0, maxItems: 40, maxSpots: 10,
-    ordering: false, calls: false, branding: false, photos: false, kinds: ['table'],
-  },
-  basic: {
-    name: 'Βασικό', month: 790, maxItems: null, maxSpots: null,
-    ordering: false, calls: true, branding: true, photos: true, kinds: ['table'],
-  },
-  pro: {
-    name: 'Pro', month: 1490, maxItems: null, maxSpots: null,
-    ordering: true, calls: true, branding: true, photos: true, kinds: ['table'],
-  },
-  hotel: {
-    name: 'Ξενοδοχείο', month: 2490, maxItems: null, maxSpots: null,
-    ordering: true, calls: true, branding: true, photos: true, kinds: ['table', 'room', 'sunbed'],
-  },
+  pro: { name: 'Pro', month: 1490, ordering: true, calls: true, kinds: ['table'] },
+  hotel: { name: 'Ξενοδοχείο', month: 2490, ordering: true, calls: true, kinds: ['table', 'room', 'sunbed'] },
 };
 
-export const PAID_PLANS = ['basic', 'pro', 'hotel'];
+export const PAID_PLANS = Object.keys(PLANS);
+
+// No trial and no paid subscription: the menu is not shown to guests, the owner can still sign in,
+// prepare the menu and choose a plan. Nothing is deleted, so the printed QR codes work again on renewal.
+export const INACTIVE = { name: 'Χωρίς συνδρομή', month: 0, ordering: false, calls: false, kinds: ['table', 'room', 'sunbed'], inactive: true };
 
 export const priceCents = (plan, interval) => PLANS[plan].month * (interval === 'year' ? 10 : 1);
 
-// The plan whose features apply right now. A trial that ended without payment, a paused or a
-// cancelled subscription fall back to the free plan: the menu and the printed QR codes keep working.
-// A venue suspended by the platform administrator is offline altogether (see server/index.js).
+const planOf = (venue) => (PLANS[venue.plan] ? venue.plan : 'pro');
+
+/** The plan that applies right now, or null while the venue has no running trial or subscription. */
 export function effectivePlan(venue) {
-  if (!venue || !PLANS[venue.plan]) return 'free';
-  if (venue.status === 'trialing') return new Date(venue.trial_ends_at) > new Date() ? venue.plan : 'free';
-  if (venue.status === 'active' || venue.status === 'past_due') return venue.plan;
-  return 'free';
+  if (!venue) return null;
+  if (venue.status === 'trialing') return new Date(venue.trial_ends_at) > new Date() ? planOf(venue) : null;
+  if (venue.status === 'active' || venue.status === 'past_due') return planOf(venue);
+  return null; // paused, canceled, suspended
 }
 
-export const features = (venue) => PLANS[effectivePlan(venue)];
+export const features = (venue) => PLANS[effectivePlan(venue)] || INACTIVE;
