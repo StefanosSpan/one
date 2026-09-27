@@ -197,3 +197,4 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .pay-line .qty span, .pay-people .qty span { min-width: 44px; text-align: center; }
 .pay-tip { margin-top: .8rem; flex-wrap: wrap; }
 .pay-tip .chips { margin: 0; }
+.menu-only { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .88rem; margin: .8rem 0 0; }

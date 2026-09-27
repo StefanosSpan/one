@@ -4,6 +4,10 @@ import { applyTheme } from './theme.js';
 import { icon } from './icons.js';
 
 const token = location.pathname.split('/').filter(Boolean)[1];
+// /t/<spot token>: a table, room or sunbed. /m/<venue code>: the public menu link, with optional pick-up orders.
+const MODE = location.pathname.startsWith('/m/') ? 'menu' : 'table';
+const API = MODE === 'menu' ? `/api/public/menu/${token}` : `/api/public/table/${token}`;
+const PICKUP_KEY = `pickups:${token}`;
 const CART_KEY = `cart:${token}`;
 const LANG_KEY = 'lang';
 
@@ -40,7 +44,8 @@ const tf = (key, vars) => t(key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
 const tr = (obj) => pick(obj, S.lang, S.data?.defaultLanguage);
 const fmt = (c) => money(c, S.lang);
 const itemById = (id) => S.data.items.find((i) => i.id === id);
-const spot = () => `${t(S.data.table.kind || 'table')} ${S.data.table.label}`;
+const spot = () => (MODE === 'menu' ? (canOrderSafe() ? t('takeaway') : '') : `${t(S.data.table.kind || 'table')} ${S.data.table.label}`);
+const canOrderSafe = () => S.data?.features?.ordering !== false;
 const callLabel = () => (S.data.table.kind === 'table' ? t('callWaiter') : t('callService'));
 
 function errorText(e) {
@@ -91,7 +96,7 @@ const optionText = (item, picks = []) => picks
 // ---------------------------------------------------------------------------
 async function boot() {
   try {
-    S.data = await api(`/api/public/table/${token}`);
+    S.data = await api(API);
   } catch (e) {
     const lang = (navigator.language || 'en').slice(0, 2);
     S.lang = STRINGS[lang] ? lang : 'en';
@@ -119,7 +124,8 @@ async function boot() {
     if (payResult === 'ok') switchTab('order');
   }
 
-  stream(`/api/public/table/${token}/stream`, { state: onState, menu: refreshMenu, receipt: onReceipt }, (online) => {
+  if (MODE === 'menu') { loadPickups(); setInterval(loadPickups, 20_000); return; }
+  stream(`${API}/stream`, { state: onState, menu: refreshMenu, receipt: onReceipt }, (online) => {
     const el = $('#offline');
     el.hidden = online;
     el.textContent = t('offline');
@@ -140,7 +146,7 @@ function chooseLanguage() {
 
 async function refreshMenu() {
   try {
-    S.data = await api(`/api/public/table/${token}`);
+    S.data = await api(API);
     if (!S.data.languages.includes(S.lang)) S.lang = chooseLanguage();
     applyBrand(S.data.restaurant.brandColor);
   applyTheme(S.data.restaurant.theme);
@@ -263,7 +269,8 @@ function venueHeader() {
         <div class="meta"><span><b>${esc(spot())}</b></span>${tr(r.hours) ? `<span>${esc(tr(r.hours))}</span>` : ''}</div>
       </div>
     </section>
-    ${serviceRow()}`;
+    ${serviceRow()}
+    ${MODE === 'menu' && !canOrder() ? `<p class="menu-only">${icon('info', 15)} ${esc(t('menuOnly'))}</p>` : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +506,54 @@ function suggestionsHtml() {
       <i>${icon('plus', 14)}</i></button>`).join('')}</div></div>`;
 }
 
+// Pick-up orders placed from the public menu link: codes kept on this phone, statuses polled.
+function savedPickups() { try { return JSON.parse(localStorage.getItem(PICKUP_KEY) || '[]'); } catch { return []; } }
+async function loadPickups() {
+  const codes = savedPickups().slice(-5);
+  const orders = [];
+  for (const code of codes) {
+    try { orders.push({ ...(await api(`/api/public/pickup/${code}`)), note: '' }); } catch { /* expired */ }
+  }
+  onState({ orders, calls: [], bill: { total: 0, paid: 0, due: 0 } });
+}
+
+function openTakeaway(orderNote, done) {
+  const min = S.data.takeaway?.minMinutes || 20;
+  const slots = [];
+  const start = new Date(Date.now() + min * 60_000);
+  start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0);
+  for (let i = 0; i < 16; i++) slots.push(new Date(start.getTime() + i * 15 * 60_000));
+  const { el, close } = sheet(`
+    <div class="sheet-head"><h2>${esc(t('orderTakeaway'))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+    <label class="field"><span>${esc(t('yourName'))}</span><input class="input" id="tn" autocomplete="name" maxlength="60"></label>
+    <label class="field"><span>${esc(t('yourPhone'))}</span><input class="input" id="tp" type="tel" autocomplete="tel" maxlength="30"></label>
+    <label class="field"><span>${esc(t('pickupTime'))}</span><select class="input" id="tt">
+      <option value="">${esc(t('asap'))}</option>
+      ${slots.map((d) => `<option value="${d.toISOString()}">${d.toLocaleTimeString(S.lang, { hour: '2-digit', minute: '2-digit' })}</option>`).join('')}</select></label>
+    <button class="btn block" id="tsend">${esc(t('sendOrder'))}</button>`);
+  try { $('#tn', el).value = localStorage.getItem('pickupName') || ''; $('#tp', el).value = localStorage.getItem('pickupPhone') || ''; } catch { /* ignore */ }
+  $('#tsend', el).onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      const r = await api(`${API}/orders`, { method: 'POST', body: {
+        items: S.cart.map((l) => ({ id: l.id, qty: l.qty, note: l.note, options: l.options || [] })), note: orderNote, lang: S.lang,
+        guestId: guestId(), name: $('#tn', el).value, phone: $('#tp', el).value, pickupAt: $('#tt', el).value,
+      } });
+      try {
+        localStorage.setItem('pickupName', $('#tn', el).value); localStorage.setItem('pickupPhone', $('#tp', el).value);
+        localStorage.setItem(PICKUP_KEY, JSON.stringify([...savedPickups(), r.code].slice(-10)));
+      } catch { /* ignore */ }
+      close(); done();
+      toast(t('takeawaySent'), 'ok');
+      await loadPickups();
+      switchTab('order');
+    } catch (err) {
+      toast(err.code === 'bad_contact' ? `${t('yourName')} / ${t('yourPhone')}` : errorText(err), 'err');
+      e.target.disabled = false;
+    }
+  };
+}
+
 function openCart() {
   const { el, close } = sheet('<div id="cartBody"></div>', {
     onClose: () => { if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); } },
@@ -541,9 +596,13 @@ function openCart() {
       const l = S.cart[b.dataset.inc]; l.qty = Math.min(50, l.qty + 1); saveCart(); renderBottom(); render();
     });
     $('#send', el)?.addEventListener('click', async (e) => {
+      if (MODE === 'menu') {
+        openTakeaway(orderNote, () => { S.cart = []; saveCart(); renderBottom(); close(); });
+        return;
+      }
       e.target.disabled = true;
       try {
-        await api(`/api/public/table/${token}/orders`, {
+        await api(`${API}/orders`, {
           method: 'POST',
           body: { items: S.cart.map((l) => ({ id: l.id, qty: l.qty, note: l.note, options: l.options || [] })), note: orderNote, lang: S.lang, guestId: guestId() },
         });
@@ -593,7 +652,7 @@ function renderOrder() {
       </div>`;
     }).join('')}
     <div class="bill">
-      <div class="total-row" style="margin:0"><span>${esc(t('total'))}</span><span>${fmt(bill.total)}</span></div>
+      ${MODE === 'menu' ? '' : `<div class="total-row" style="margin:0"><span>${esc(t('total'))}</span><span>${fmt(bill.total)}</span></div>`}
       ${bill.paid ? `<div class="line"><span>${esc(t('paidLabel'))}</span><span>− ${fmt(bill.paid)}</span></div>
         <div class="line"><b>${esc(t('due'))}</b><b>${fmt(bill.due)}</b></div>` : ''}
       ${bill.total > 0 && bill.due === 0 ? `<p class="paid-note">${icon('check', 16)} ${esc(t('paid'))}</p>` : ''}
@@ -609,7 +668,7 @@ function renderOrder() {
 async function callWaiter() {
   if (S.state.calls.some((c) => c.type === 'waiter')) { toast(t('waiterCalled')); return; }
   try {
-    await api(`/api/public/table/${token}/calls`, { method: 'POST', body: { type: 'waiter' } });
+    await api(`${API}/calls`, { method: 'POST', body: { type: 'waiter' } });
     toast(t('waiterCalled'), 'ok');
   } catch (e) { toast(errorText(e), 'err'); }
 }
@@ -633,13 +692,13 @@ function openBill() {
   $('#payOnline', el)?.addEventListener('click', () => { close(); openPay(); });
   $('#payRoom', el)?.addEventListener('click', async () => {
     try {
-      await api(`/api/public/table/${token}/pay`, { method: 'POST', body: { method: 'room', guestId: guestId() } });
+      await api(`${API}/pay`, { method: 'POST', body: { method: 'room', guestId: guestId() } });
       close(); toast(t('roomCharged'), 'ok');
     } catch (e) { toast(errorText(e), 'err'); }
   });
   $$('.pay-option', el).forEach((b) => b.onclick = async () => {
     try {
-      await api(`/api/public/table/${token}/calls`, { method: 'POST', body: { type: 'bill', paymentMethod: b.dataset.m } });
+      await api(`${API}/calls`, { method: 'POST', body: { type: 'bill', paymentMethod: b.dataset.m } });
       close();
       toast(t('billRequested'), 'ok');
     } catch (e) { toast(errorText(e), 'err'); }
@@ -694,7 +753,7 @@ function openPay() {
     $('#doPay', el).onclick = async (e) => {
       e.target.disabled = true;
       try {
-        const r = await api(`/api/public/table/${token}/pay`, { method: 'POST', body: {
+        const r = await api(`${API}/pay`, { method: 'POST', body: {
           mode: st.mode, items: [...st.picks], people: st.people, tipPercent: st.tip, guestId: guestId(), lang: S.lang,
         } });
         if (r.url) { location.href = r.url; return; }

@@ -981,6 +981,16 @@ function renderSettings() {
     <div class="copy-row"><input class="input" id="staffUrl" readonly value="${esc(s.staffUrl)}"><button class="btn secondary sm" id="copyStaff" type="button">Αντιγραφή</button></div>
     <p class="muted small">Κωδικός καταστήματος: <b>${esc(s.venue.slug)}</b></p>
 
+    <h3>Σύνδεσμος μενού και παραλαβή</h3>
+    <p class="muted small" style="margin-top:0">Το μενού σας χωρίς τραπέζι, για Instagram, Google Maps, το site σας και QR στην είσοδο.
+      Αν ενεργοποιήσετε την παραλαβή, οι πελάτες παραγγέλνουν από εκεί και περνούν να την πάρουν.</p>
+    <div class="copy-row"><input class="input" id="menuUrl" readonly value="${esc(s.menuUrl)}"><button class="btn secondary sm" id="copyMenu" type="button">Αντιγραφή</button>
+      <a class="btn secondary sm" href="/api/admin/menu-qr.png" download>QR</a></div>
+    <div class="two" style="margin-top:.6rem">
+      <label class="switch"><input type="checkbox" id="takeaway" ${s.takeaway?.enabled ? 'checked' : ''}> Παραγγελίες για παραλαβή</label>
+      <label class="field"><span>Ελάχιστος χρόνος ετοιμασίας (λεπτά)</span><input class="input" id="takeMin" type="number" min="5" max="240" value="${esc(s.takeaway?.minMinutes || 20)}"></label>
+    </div>
+
     <h3>Προσωπικό με όνομα</h3>
     <p class="muted small" style="margin-top:0">Κάθε άτομο με δικό του PIN. Οι σερβιτόροι με ζώνες βλέπουν πρώτα τα δικά τους τραπέζια
       (π.χ. Γιάννης: Βεράντα, Μαρία: Παραλία). Οι ζώνες ορίζονται στις «Θέσεις & QR».</p>
@@ -1057,6 +1067,9 @@ function renderSettings() {
   const syncViva = () => { $('#vivaBox').hidden = $('#payProvider').value !== 'viva'; };
   $('#payProvider').onchange = syncViva;
   syncViva();
+  $('#copyMenu').onclick = async () => {
+    try { await navigator.clipboard.writeText(s.menuUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#menuUrl').select(); }
+  };
   $('#copyStaff').onclick = async () => {
     try { await navigator.clipboard.writeText(s.staffUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#staffUrl').select(); }
   };
@@ -1073,6 +1086,7 @@ function renderSettings() {
       pins: { admin: $('#pinAdmin').value.trim(), waiter: $('#pinWaiter').value.trim(), kitchen: $('#pinKitchen').value.trim() },
       publicBaseUrl: $('#baseUrl').value.trim(),
       staff: readMembers(), stations: readStations(), defaultPrepMinutes: $('#defPrep').value,
+      takeaway: { enabled: $('#takeaway').checked, minMinutes: $('#takeMin').value },
     };
     try { await api('/api/admin/settings', { method: 'PUT', body }); toast('Οι ρυθμίσεις αποθηκεύτηκαν', 'ok'); render(); }
     catch (err) { toast(err.message, 'err'); }

@@ -398,7 +398,12 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
   const { venue } = req;
   if (!features(venue).ordering) fail(403, 'ordering_disabled');
   if (!rateLimit(`order:${table.id}`, 6, 60_000)) fail(429, 'too_many_requests');
-  const lines = Array.isArray(req.body?.items) ? req.body.items : [];
+  res.status(201).json(await placeOrder(venue, table, req.body || {}));
+}));
+
+// Validates and stores an order (prices from the server, stock, stations). `extra` holds takeaway details.
+async function placeOrder(venue, table, body, extra = null) {
+  const lines = Array.isArray(body.items) ? body.items : [];
   if (!lines.length || lines.length > 40) fail(400, 'empty_order');
 
   const { categories, ctx } = await menuFor(venue, table);
@@ -420,13 +425,16 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
   }
   const total = prepared.reduce((s, p) => s + p.unit * p.qty, 0);
   const status = venue.settings.requireApproval ? 'pending' : 'accepted';
-  const lang = LANGS.includes(req.body?.lang) ? req.body.lang : 'el';
+  const lang = LANGS.includes(body.lang) ? body.lang : 'el';
+  let stockChanged = false;
 
   const orderId = await db.tx(async (t) => {
     const ts = now();
-    const guestId = /^[\w-]{8,40}$/.test(req.body?.guestId || '') ? req.body.guestId : '';
-    const id = await t.insert(`INSERT INTO orders (venue_id, table_id, status, note, lang, total_cents, created_at, updated_at, guest_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(req.body?.note, 300), lang, total, ts, ts, guestId]);
+    const guestId = /^[\w-]{8,40}$/.test(body.guestId || '') ? body.guestId : '';
+    const id = await t.insert(`INSERT INTO orders (venue_id, table_id, status, note, lang, total_cents, created_at, updated_at, guest_id,
+      channel, customer_name, customer_phone, pickup_at, pickup_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(body.note, 300), lang, total, ts, ts, guestId,
+      extra ? 'takeaway' : 'table', extra?.name || '', extra?.phone || '', extra?.pickupAt || '', extra?.code || '']);
     for (const p of prepared) {
       await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note, options, station) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.unit, p.note, JSON.stringify(p.chosen), p.station]);
@@ -436,17 +444,104 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
       const r = await t.run('UPDATE items SET stock = stock - ? WHERE id = ? AND stock IS NOT NULL AND stock >= ?', [qty, itemId, qty]);
       const row = await t.get('SELECT stock FROM items WHERE id = ?', [itemId]);
       if (row.stock != null && !r.changes) throw new HttpError(409, 'item_unavailable');
+      if (row.stock != null) stockChanged = true;
       if (row.stock === 0) await t.run('UPDATE items SET available = 0 WHERE id = ?', [itemId]);
     }
     return id;
   });
-  if ([...wanted.keys()].length) broadcastMenuUpdate(venue);
+  if (stockChanged) broadcastMenuUpdate(venue);
 
   if (status === 'accepted') await startClock(venue, orderId);
   const order = await loadOrder(venue.id, orderId);
   emit(staffChannel(venue), 'order:new', order);
-  await notifyTable(table.id);
-  res.status(201).json(order);
+  if (!extra) await notifyTable(table.id);
+  return order;
+}
+
+// ---------------------------------------------------------------------------
+// Public menu link (/m/<venue code>) for Instagram, Google Maps and websites, with optional pick-up orders.
+// Pick-up orders go to a hidden spot of kind "takeaway" so the kitchen and waiter screens handle them as usual.
+// ---------------------------------------------------------------------------
+async function takeawaySpot(venue) {
+  let t = await db.get("SELECT * FROM tables WHERE venue_id = ? AND kind = 'takeaway' ORDER BY id LIMIT 1", [venue.id]);
+  if (!t) {
+    await db.insert("INSERT INTO tables (venue_id, label, token, kind) VALUES (?, 'Παραλαβή', ?, 'takeaway')", [venue.id, newToken()]);
+    t = await db.get("SELECT * FROM tables WHERE venue_id = ? AND kind = 'takeaway' ORDER BY id LIMIT 1", [venue.id]);
+  }
+  return mapTable(t);
+}
+
+async function venueBySlugPublic(req) {
+  const venue = await venueBySlug(req.params.slug);
+  if (!venue || venue.status === 'suspended') fail(404, 'invalid_table');
+  if (features(venue).inactive) { const e = new HttpError(403, 'venue_inactive'); e.code = 'venue_inactive'; throw e; }
+  req.venue = venue;
+  return venue;
+}
+const takeawayOn = (venue) => !!venue.settings.takeaway?.enabled && features(venue).ordering;
+
+app.get('/api/public/menu/:slug', wrap(async (req, res) => {
+  const venue = await venueBySlugPublic(req);
+  const s = venue.settings;
+  const { categories, items, happy } = await menuFor(venue, { zone: '', all_inclusive: false });
+  const ann = s.announcement;
+  res.json({
+    mode: 'menu', restaurant: publicRestaurant(venue), languages: s.languages, defaultLanguage: s.defaultLanguage,
+    requireApproval: s.requireApproval, currency: s.currency,
+    features: { ordering: takeawayOn(venue), calls: false },
+    takeaway: takeawayOn(venue) ? { minMinutes: Number(s.takeaway.minMinutes) || 20 } : null,
+    payments: { provider: 'off', tips: [], roomCharge: false },
+    table: { label: '', kind: 'takeaway', zone: '', allInclusive: false },
+    happyHour: happy ? { label: s.happyHour?.label || {}, to: s.happyHour?.to || '' } : null,
+    announcement: ann?.active && (ann.text?.el || ann.text?.en || ann.itemId) ? { text: ann.text || {}, itemId: ann.itemId || null } : null,
+    categories: categories.map(({ schedule, zones, station, venue_id, ...c }) => c),
+    items,
+  });
+}));
+
+app.post('/api/public/menu/:slug/orders', wrap(async (req, res) => {
+  const venue = await venueBySlugPublic(req);
+  if (!takeawayOn(venue)) fail(403, 'ordering_disabled');
+  if (!rateLimit(`takeaway:${venue.id}:${req.ip}`, 5, 10 * 60_000)) fail(429, 'too_many_requests');
+  const b = req.body || {};
+  const name = cleanText(b.name, 60);
+  const phone = cleanText(b.phone, 30);
+  if (name.length < 2 || !/^\+?[\d\s()-]{6,20}$/.test(phone)) fail(400, 'bad_contact');
+  let pickupAt = '';
+  if (b.pickupAt) {
+    const when = new Date(b.pickupAt);
+    const min = Date.now() + (Number(venue.settings.takeaway.minMinutes) || 20) * 60_000 - 60_000;
+    if (Number.isNaN(when.getTime()) || when < min || when > Date.now() + 7 * 86400_000) fail(400, 'bad_pickup_time');
+    pickupAt = when.toISOString();
+  }
+  const code = newToken();
+  const order = await placeOrder(venue, await takeawaySpot(venue), b, { name, phone, pickupAt, code });
+  res.status(201).json({ id: order.id, code, status: order.status, total: order.total });
+}));
+
+// The guest follows a pick-up order with the code they received.
+app.get('/api/public/pickup/:code', wrap(async (req, res) => {
+  const row = await db.get("SELECT venue_id, id FROM orders WHERE pickup_code = ? AND channel = 'takeaway'", [String(req.params.code)]);
+  if (!row) fail(404, 'not_found');
+  const o = await loadOrder(row.venue_id, row.id);
+  res.json({ id: o.id, status: o.status, total: o.total, etaAt: o.etaAt, pickupAt: o.customer?.pickupAt || '', createdAt: o.createdAt,
+    items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: i.price, options: i.options })) });
+}));
+
+// Handing over a pick-up order: it gets its own receipt (it is not part of a table's bill).
+app.post('/api/staff/orders/:id/handover', requireStaff('waiter'), wrap(async (req, res) => {
+  const order = await loadOrder(req.venue.id, Number(req.params.id) || 0);
+  if (!order || order.channel !== 'takeaway') fail(404, 'Η παραγγελία δεν βρέθηκε');
+  if (order.closed) fail(409, 'Έχει ήδη παραδοθεί');
+  const table = mapTable(await db.get('SELECT * FROM tables WHERE id = ?', [order.tableId]));
+  const payment = PAYMENTS.includes(req.body?.paymentMethod) ? req.body.paymentMethod : 'cash';
+  const receipt = await db.tx(async (t) => {
+    const r = await issueReceipt(t, { ...table, label: `${table.label} · ${order.customer.name}` }, [order], { payment, fiscalRef: cleanText(req.body?.fiscalRef, 80) });
+    await t.run("UPDATE orders SET closed = 1, paid = 1, status = 'served', updated_at = ? WHERE id = ?", [now(), order.id]);
+    return r;
+  });
+  emit(staffChannel(req.venue), 'order:update', await loadOrder(req.venue.id, order.id));
+  res.json({ ok: true, receipt });
 }));
 
 app.post('/api/public/table/:token/calls', wrap(async (req, res) => {
@@ -638,7 +733,7 @@ app.get('/api/staff/stream', requireStaff(), (req, res) => subscribe(staffChanne
 
 app.get('/api/staff/overview', requireStaff(), wrap(async (req, res) => {
   const v = req.venue.id;
-  const tables = (await db.all('SELECT * FROM tables WHERE venue_id = ? ORDER BY id', [v])).map(mapTable);
+  const tables = (await db.all("SELECT * FROM tables WHERE venue_id = ? AND kind != 'takeaway' ORDER BY id", [v])).map(mapTable);
   const orders = await loadOrders(v, 'o.closed = 0');
   const paidBy = new Map((await db.all(`SELECT table_id, SUM(amount_cents) AS paid FROM payments
     WHERE venue_id = ? AND closed = 0 AND status = 'paid' GROUP BY table_id`, [v])).map((r) => [r.table_id, Number(r.paid)]));
@@ -855,7 +950,7 @@ const adminSettings = async (req) => {
   s.payments = { ...(payments || {}), ...pay, clientSecret: '', hasSecret: !!clientSecret, returnUrl: `${baseUrl(req)}/pay/viva/return` };
   delete s.payments.clientSecret;
   return { ...s, zones: await zonesOf(req.venue.id), defaultPrepMinutes: s.defaultPrepMinutes || 15, staff: s.staff || [], stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
-    staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
+    staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, menuUrl: `${baseUrl(req)}/m/${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
 };
 
 // The demo "online payment" marks bills as paid without taking money, so real venues cannot switch it on in production.
@@ -924,6 +1019,9 @@ admin.put('/settings', wrap(async (req, res) => {
       tips: [...new Set((Array.isArray(p.tips) ? p.tips : [0, 5, 10, 15]).map(Number).filter((x) => x >= 0 && x <= 30))].slice(0, 5).sort((a, c) => a - c),
       roomCharge: !!p.roomCharge,
     });
+  }
+  if (b.takeaway && typeof b.takeaway === 'object') {
+    await set('takeaway', { enabled: !!b.takeaway.enabled, minMinutes: Math.min(Math.max(Math.trunc(Number(b.takeaway.minMinutes)) || 20, 5), 240) });
   }
   if (Array.isArray(b.staff)) {
     demoGuard(req);
@@ -1093,7 +1191,7 @@ admin.post('/upload', wrap(async (req, res) => {
 
 admin.get('/tables', wrap(async (req, res) => {
   const base = baseUrl(req);
-  res.json((await db.all('SELECT * FROM tables WHERE venue_id = ? ORDER BY id', [req.venue.id])).map(mapTable)
+  res.json((await db.all("SELECT * FROM tables WHERE venue_id = ? AND kind != 'takeaway' ORDER BY id", [req.venue.id])).map(mapTable)
     .map(({ venue_id, ...t }) => ({ ...t, url: `${base}/t/${t.token}` })));
 }));
 
@@ -1108,7 +1206,7 @@ admin.post('/tables', wrap(async (req, res) => {
   const plan = PLANS[planOf(req.venue)];
   const ins = 'INSERT INTO tables (venue_id, label, token, kind) VALUES (?, ?, ?, ?)';
   await db.tx(async (t) => {
-    const { total } = await t.get('SELECT COUNT(*) AS total FROM tables WHERE venue_id = ?', [v]);
+    const { total } = await t.get("SELECT COUNT(*) AS total FROM tables WHERE venue_id = ? AND kind != 'takeaway'", [v]);
     if (plan.maxSpots != null && Number(total) + count > plan.maxSpots) {
       planLimit(`Το ${plan.name} περιλαμβάνει έως ${plan.maxSpots} θέσεις με QR. Για περισσότερες περάστε στο ${PLANS.plus.name} από το «Συνδρομή».`);
     }
@@ -1161,6 +1259,13 @@ async function qrTable(req) {
   const errorCorrectionLevel = req.query.ecl === 'H' ? 'H' : 'M';
   return { t, url: `${baseUrl(req)}/t/${t.token}`, errorCorrectionLevel };
 }
+
+// QR of the public menu link (for the entrance, flyers, Instagram).
+admin.get('/menu-qr.png', wrap(async (req, res) => {
+  const png = await QRCode.toBuffer(`${baseUrl(req)}/m/${req.venue.slug}`, { type: 'png', width: 1200, margin: 2, errorCorrectionLevel: 'M' });
+  res.setHeader('Content-Disposition', `attachment; filename="qr-menu-${req.venue.slug}.png"`);
+  res.type('image/png').send(png);
+}));
 
 admin.get('/tables/:id/qr.svg', wrap(async (req, res) => {
   const { url, errorCorrectionLevel } = await qrTable(req);
@@ -1388,7 +1493,7 @@ app.get('/api/account', ...requireOwner, wrap(async (req, res) => {
   const v = req.venue.id;
   const account = await db.get('SELECT email FROM accounts WHERE id = ?', [req.accountId]);
   const { items } = await db.get('SELECT COUNT(*) AS items FROM items WHERE venue_id = ?', [v]);
-  const { spots } = await db.get('SELECT COUNT(*) AS spots FROM tables WHERE venue_id = ?', [v]);
+  const { spots } = await db.get("SELECT COUNT(*) AS spots FROM tables WHERE venue_id = ? AND kind != 'takeaway'", [v]);
   res.json({
     email: account?.email, venue: venueSummary(req.venue), plans: PLANS, trialDays: TRIAL_DAYS,
     usage: { items: Number(items), spots: Number(spots) },
@@ -1415,7 +1520,7 @@ app.post('/api/account/checkout', ...requireOwner, wrap(async (req, res) => {
   const venue = req.venue;
   const maxSpots = PLANS[plan].maxSpots;
   if (maxSpots != null) {
-    const { n } = await db.get('SELECT COUNT(*) AS n FROM tables WHERE venue_id = ?', [venue.id]);
+    const { n } = await db.get("SELECT COUNT(*) AS n FROM tables WHERE venue_id = ? AND kind != 'takeaway'", [venue.id]);
     if (Number(n) > maxSpots) fail(400, `Έχετε ${n} θέσεις με QR. Το ${PLANS[plan].name} περιλαμβάνει έως ${maxSpots}· επιλέξτε ${PLANS.plus.name}.`);
   }
   if (!stripeEnabled()) {
@@ -1609,7 +1714,7 @@ superApi.get('/overview', wrap(async (req, res) => {
   const count = async (sql, params = []) => new Map((await db.all(sql, params)).map((r) => [r.venue_id, r]));
   const owners = await count('SELECT venue_id, MIN(email) AS email FROM accounts GROUP BY venue_id');
   const items = await count('SELECT venue_id, COUNT(*) AS n FROM items GROUP BY venue_id');
-  const spots = await count('SELECT venue_id, COUNT(*) AS n FROM tables GROUP BY venue_id');
+  const spots = await count("SELECT venue_id, COUNT(*) AS n FROM tables WHERE kind != 'takeaway' GROUP BY venue_id");
   const orders = await count(`SELECT venue_id, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS revenue, MAX(created_at) AS last
     FROM orders WHERE created_at >= ? AND status != 'rejected' GROUP BY venue_id`, [since]);
   const venues = [];
@@ -1697,6 +1802,7 @@ app.use('/api/super', superApi);
 // ---------------------------------------------------------------------------
 const page = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, file));
 app.get('/t/:token', page('customer.html'));
+app.get('/m/:slug', page('customer.html'));
 app.get('/staff', page('staff/login.html'));
 app.get('/staff/waiter', page('staff/waiter.html'));
 app.get('/staff/kitchen', page('staff/kitchen.html'));
@@ -1723,7 +1829,7 @@ app.get('/api/demo', wrap(async (req, res) => {
     || (await db.get('SELECT id FROM venues ORDER BY id LIMIT 1'));
   const venue = row && await getVenue(row.id);
   if (!venue) return res.json({ tables: [], pins: null });
-  const t = await db.all('SELECT label, token, kind FROM tables WHERE venue_id = ? AND active = 1 ORDER BY id LIMIT 3', [venue.id]);
+  const t = await db.all("SELECT label, token, kind FROM tables WHERE venue_id = ? AND active = 1 AND kind != 'takeaway' ORDER BY id LIMIT 3", [venue.id]);
   const { pins } = venue.settings;
   // Only reveal PINs while the demo defaults are still in use.
   const isDemo = ['admin', 'waiter', 'kitchen'].every((r) => pins[r] === DEMO_PINS[r]);

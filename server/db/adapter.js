@@ -48,6 +48,7 @@ const ADDED_COLUMNS = [['accounts', 'terms_version', "TEXT DEFAULT ''"], ['accou
   ['order_items', 'station', "TEXT DEFAULT 'kitchen'"],
   ['order_items', 'ready', "INTEGER DEFAULT 0"],
   ['order_items', 'paid_qty', "INTEGER DEFAULT 0"],
+  ['orders', 'pickup_code', "TEXT DEFAULT ''"],
   ['receipts', 'guest_ids', "TEXT DEFAULT '[]'"],
   ['receipts', 'tip_cents', "INTEGER DEFAULT 0"]];
 async function addColumns(api, columns) {

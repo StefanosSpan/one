@@ -52,15 +52,32 @@ function start() {
   function orderPanel(o, buttons) {
     const cls = o.status === 'pending' ? 'warn' : o.status === 'ready' ? 'good' : '';
     return `<div class="panel ${cls}">
-      <div class="panel-head"><span class="tbl">${esc(spotName(o.tableKind, o.tableLabel))}</span>
+      <div class="panel-head"><span class="tbl">${esc(spotName(o.tableKind, o.tableLabel))}${o.customer ? ` · ${esc(o.customer.name)}` : ''}</span>
         <span class="meta">#${o.id} · <span class="lang">${LANG_CODES[o.lang] || ''}</span> · ${timeAgo(o.createdAt)}</span></div>
       ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
         <span class="muted">${euro(i.qty * i.price)}</span></div>`).join('')}
       ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
+      ${o.customer ? `<div class="onote">Παραλαβή${o.customer.pickupAt ? ` στις ${new Date(o.customer.pickupAt).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}` : ' το συντομότερο'}
+        · <a href="tel:${esc(o.customer.phone)}">${esc(o.customer.phone)}</a></div>` : ''}
       <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span>
         <span class="foot-right"><a class="print-link" href="/staff/print/order/${o.id}" target="_blank">Εκτύπωση δελτίου</a><b>${euro(o.total)}</b></span></div>
       ${buttons ? `<div class="row">${buttons}</div>` : ''}
     </div>`;
+  }
+
+  // Pick-up order handed over: choose how it was paid; it gets its own receipt.
+  function handover(id) {
+    const { el, close } = sheet(`
+      <div class="sheet-head"><h2>Παράδοση παραγγελίας #${id}</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
+      <div class="seg">${[['cash', 'Μετρητά'], ['card', 'Κάρτα'], ['online', 'Online']].map(([k, l], i) => `<button type="button" data-m="${k}" class="${i ? '' : 'active'}">${l}</button>`).join('')}</div>
+      <label class="field"><span>Αρ. νόμιμης απόδειξης / ΜΑΡΚ (προαιρετικό)</span><input class="input" id="fr"></label>
+      <button class="btn block" id="ok">Παραδόθηκε</button>`);
+    $$('[data-m]', el).forEach((b) => b.onclick = () => $$('[data-m]', el).forEach((x) => x.classList.toggle('active', x === b)));
+    $('#ok', el).onclick = () => act(async () => {
+      const r = await api(`/api/staff/orders/${id}/handover`, { method: 'POST', body: { paymentMethod: $('[data-m].active', el).dataset.m, fiscalRef: $('#fr', el).value } });
+      close();
+      if (r.receipt) window.open(`/staff/print/receipt/${r.receipt.id}`, '_blank');
+    }, 'Η παραγγελία παραδόθηκε');
   }
 
   function render() {
@@ -95,7 +112,9 @@ function start() {
 
         <section class="col">
           <h2>Έτοιμα για σερβίρισμα <span class="n">${ready.length}</span></h2>
-          ${ready.length ? ready.map((o) => orderPanel(o, `<button class="btn success sm" data-status="served" data-id="${o.id}">Σερβιρίστηκε</button>`)).join('')
+          ${ready.length ? ready.map((o) => orderPanel(o, o.channel === 'takeaway'
+            ? `<button class="btn success sm" data-handover="${o.id}">Παράδοση και πληρωμή</button>`
+            : `<button class="btn success sm" data-status="served" data-id="${o.id}">Σερβιρίστηκε</button>`)).join('')
             : '<div class="nothing">Τίποτα έτοιμο ακόμη</div>'}
           <h2 class="mt">Στην κουζίνα <span class="n">${inKitchen.length}</span></h2>
           ${inKitchen.length ? inKitchen.map((o) => orderPanel(o)).join('') : '<div class="nothing">Καμία παραγγελία στην κουζίνα</div>'}
@@ -116,6 +135,7 @@ function start() {
       </div>`;
 
     $$('[data-call]').forEach((b) => b.onclick = () => act(() => api(`/api/staff/calls/${b.dataset.call}/done`, { method: 'POST' })));
+    $$('[data-handover]').forEach((b) => b.onclick = () => handover(Number(b.dataset.handover)));
     $$('[data-status]').forEach((b) => b.onclick = () => setStatus(b.dataset.id, b.dataset.status));
     $$('[data-table]').forEach((b) => b.onclick = () => openTable(Number(b.dataset.table)));
     $('#soldOut').onclick = openSoldOut;

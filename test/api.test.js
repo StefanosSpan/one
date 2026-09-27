@@ -359,3 +359,33 @@ test('guests pay from the phone: own dishes, equal shares, tip, room charge', as
   const back = await fetch(`${base}/pay/viva/return?s=999&t=x`, { redirect: 'manual' });
   assert.equal(back.status, 302);
 });
+
+test('public menu link and pick-up orders', async () => {
+  const menu = await call('/api/public/menu/demo');
+  assert.equal(menu.status, 200);
+  assert.equal(menu.data.features.ordering, false); // pick-up is off by default
+  assert.equal((await call('/api/public/menu/nope')).status, 404);
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { takeaway: { enabled: true, minMinutes: 15 } } });
+  const on = (await call('/api/public/menu/demo')).data;
+  assert.equal(on.features.ordering, true);
+  const dish = on.items.find((i) => i.available && !i.options.some((g) => g.required));
+  const post = (body) => call('/api/public/menu/demo/orders', { method: 'POST', body: { items: [{ id: dish.id, qty: 1 }], ...body } });
+  assert.equal((await post({ name: 'Μ', phone: '69' })).data.error, 'bad_contact');
+  assert.equal((await post({ name: 'Μαρία', phone: '6912345678', pickupAt: new Date(Date.now() + 60_000).toISOString() })).data.error, 'bad_pickup_time');
+  const o = await post({ name: 'Μαρία', phone: '6912345678' });
+  assert.equal(o.status, 201);
+  const track = (await call(`/api/public/pickup/${o.data.code}`)).data;
+  assert.equal(track.id, o.data.id);
+  // Staff see it with the customer; the hidden pick-up spot is not a table.
+  const overview = (await call('/api/staff/overview', { as: 'waiter' })).data;
+  const staffOrder = overview.orders.find((x) => x.id === o.data.id);
+  assert.equal(staffOrder.channel, 'takeaway');
+  assert.equal(staffOrder.customer.phone, '6912345678');
+  assert.ok(!overview.tables.some((t) => t.kind === 'takeaway'));
+  assert.ok(!(await call('/api/admin/tables', { as: 'admin' })).data.some((t) => t.kind === 'takeaway'));
+  // Handover: own receipt, order closed.
+  const h = await call(`/api/staff/orders/${o.data.id}/handover`, { method: 'POST', as: 'waiter', body: { paymentMethod: 'card' } });
+  assert.equal(h.data.receipt.total, o.data.total);
+  assert.equal((await call(`/api/staff/orders/${o.data.id}/handover`, { method: 'POST', as: 'waiter', body: {} })).status, 409);
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { takeaway: { enabled: false } } });
+});
