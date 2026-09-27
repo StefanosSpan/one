@@ -23,6 +23,9 @@
     .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
     header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 10; }
     header.site .wrap { display: flex; align-items: center; gap: 1.5rem; min-height: 60px; }
+    footer .foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; line-height: 1.6; }
+    footer .foot nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+    footer .foot a { color: inherit; }
     .wordmark { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; }
     .wordmark img { display: block; height: 26px; width: auto; }
     header.site nav { display: flex; gap: 1.2rem; margin-left: auto; align-items: center; }
@@ -216,11 +219,17 @@
     </section>
   </main>
 
-  <footer><div class="wrap">© <span id="year"></span> Kalimenu · Ψηφιακό μενού και παραγγελία με QR</div></footer>
+  <footer><div class="wrap foot">
+    <div>© <span id="year"></span> Kalimenu · <span data-company="name"></span> · ΑΦΜ <span data-company="vat"></span> · ΓΕΜΗ <span data-company="gemi"></span><br>
+      <span data-company="address"></span> · <span data-company="email"></span> · <span data-company="phone"></span></div>
+    <nav><a href="/terms">Όροι χρήσης</a><a href="/privacy">Απόρρητο</a><a href="/dpa">Επεξεργασία δεδομένων</a><a href="/login">Σύνδεση</a></nav>
+  </div></footer>
 
   <script type="module">
-    // Contact details shown on the page – fill these in before publishing.
-    const CONTACT = { phone: '', email: '' };
+    import { fillCompany } from '/js/legal.js';
+    // Contact details come from the COMPANY_*/CONTACT_* settings on the hosting.
+    const company = await fillCompany();
+    const CONTACT = { phone: company.phone || '', email: company.email || '' };
 
     const PLANS = [
       { key: 'pro', name: 'Pro', for: 'Εστιατόρια, ταβέρνες, καφέ και beach bars', month: 1490, best: true,

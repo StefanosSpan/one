@@ -1,0 +1,8 @@
+/* Terms, privacy and data processing pages */
+.legal h2 { font-size: 1.05rem; margin: 1.5rem 0 .45rem; }
+.legal p, .legal li, .legal td, .legal th { font-size: .94rem; line-height: 1.6; }
+.legal ul { padding-left: 1.2rem; }
+.legal table.lt { width: 100%; border-collapse: collapse; margin: .4rem 0 .8rem; }
+.legal table.lt th, .legal table.lt td { text-align: left; vertical-align: top; border: 1px solid var(--line); padding: .45rem .6rem; }
+.legal table.lt th { background: #fafafa; font-weight: 600; }
+@media (max-width: 560px) { .legal table.lt { display: block; overflow-x: auto; } }

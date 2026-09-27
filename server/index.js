@@ -21,6 +21,14 @@ const PRODUCTION = process.env.NODE_ENV === 'production';
 // Public address of the service, e.g. https://kalimenu.gr (used in e-mails, payment redirects and QR codes).
 const APP_URL = (process.env.APP_URL || '').replace(/\/+$/, '');
 const scrypt = promisify(scryptCb);
+// Version of the terms of use / privacy policy / data processing terms that owners accept at sign-up.
+const TERMS_VERSION = '2026-09-27';
+// Details of the business that runs the service, shown in the footer and the legal pages (set on the hosting).
+const COMPANY = {
+  name: process.env.COMPANY_NAME || '', vat: process.env.COMPANY_VAT || '', taxOffice: process.env.COMPANY_TAX_OFFICE || '',
+  gemi: process.env.COMPANY_GEMI || '', address: process.env.COMPANY_ADDRESS || '',
+  email: process.env.CONTACT_EMAIL || '', phone: process.env.CONTACT_PHONE || '',
+};
 
 await ready;
 
@@ -34,6 +42,17 @@ if (APP_URL && REDIRECT_HOSTS.size) {
   app.use((req, res, next) => (REDIRECT_HOSTS.has(String(req.hostname).toLowerCase())
     ? res.redirect(301, APP_URL + req.originalUrl) : next()));
 }
+// Basic security headers (the pages load no third-party scripts).
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Staff, admin and account pages must not be shown inside other sites (clickjacking).
+  if (!req.path.startsWith('/t/')) res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  next();
+});
+
 app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => stripeWebhook(req, res).catch(next));
 app.use(express.json({ limit: '6mb' }));
 
@@ -995,7 +1014,8 @@ app.post('/api/account/signup', wrap(async (req, res) => {
         trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString(),
         sample: b.sample !== false, spots,
       });
-      await t.insert('INSERT INTO accounts (venue_id, email, password_hash, created_at) VALUES (?, ?, ?, ?)', [id, email, hash, now()]);
+      await t.insert(`INSERT INTO accounts (venue_id, email, password_hash, terms_version, terms_accepted_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)`, [id, email, hash, TERMS_VERSION, now(), now()]);
       return id;
     });
   } catch (e) {
@@ -1158,6 +1178,43 @@ app.post('/api/account/pause', ...requireOwner, wrap(async (req, res) => {
   }
   await updateVenue(venue.id, { status: paused ? 'paused' : 'active' });
   res.json({ ok: true, venue: venueSummary(await getVenue(venue.id)) });
+}));
+
+// Data export (GDPR portability): everything stored for the venue, as JSON.
+app.get('/api/account/export', ...requireOwner, wrap(async (req, res) => {
+  const v = req.venue.id;
+  const { secret, ...settings } = req.venue.settings;
+  const all = (sql) => db.all(sql, [v]);
+  const orders = await all('SELECT * FROM orders WHERE venue_id = ? ORDER BY id');
+  const ids = orders.map((o) => o.id);
+  const orderItems = ids.length ? await db.all(`SELECT * FROM order_items WHERE order_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`, ids) : [];
+  const data = {
+    exportedAt: now(), venue: venueSummary(req.venue), settings,
+    account: await db.get('SELECT email, terms_version, terms_accepted_at, created_at FROM accounts WHERE id = ?', [req.accountId]),
+    categories: (await all('SELECT * FROM categories WHERE venue_id = ? ORDER BY sort, id')).map(mapCategory),
+    items: (await all('SELECT * FROM items WHERE venue_id = ? ORDER BY sort, id')).map(mapItem),
+    spots: (await all('SELECT id, label, kind, active, token FROM tables WHERE venue_id = ? ORDER BY id')),
+    orders, orderItems,
+    calls: await all('SELECT * FROM calls WHERE venue_id = ? ORDER BY id'),
+    receipts: (await all('SELECT * FROM receipts WHERE venue_id = ? ORDER BY id')).map(mapReceipt),
+  };
+  res.setHeader('Content-Disposition', `attachment; filename="kalimenu-${req.venue.slug}-${now().slice(0, 10)}.json"`);
+  res.type('application/json').send(JSON.stringify(data, null, 2));
+}));
+
+// Account deletion by the owner (GDPR erasure): cancels the subscription and removes every row of the venue.
+app.delete('/api/account', ...requireOwner, wrap(async (req, res) => {
+  const venue = req.venue;
+  const account = await db.get('SELECT password_hash FROM accounts WHERE id = ?', [req.accountId]);
+  if (!(await checkPassword(req.body?.password, account?.password_hash))) fail(401, 'Λάθος κωδικός');
+  if (venue.isDemo) fail(403, 'Το demo δεν διαγράφεται');
+  if (venue.stripeSubscriptionId && stripeEnabled() && venue.status !== 'canceled') {
+    await stripe(`subscriptions/${venue.stripeSubscriptionId}`, null, 'DELETE');
+  }
+  await deleteVenue(venue.id);
+  if (process.env.NOTIFY_EMAIL) sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Διαγραφή λογαριασμού: ${venue.name}`, text: `${venue.name} (${venue.slug})` });
+  res.setHeader('Set-Cookie', 'staff=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.json({ ok: true });
 }));
 
 // Stripe → us. Registered before the JSON body parser because the signature is computed over the raw body.
@@ -1349,6 +1406,10 @@ app.get('/signup', page('signup.html'));
 app.get('/login', page('login.html'));
 app.get('/reset', page('login.html'));
 app.get('/terms', page('terms.html'));
+app.get('/privacy', page('privacy.html'));
+app.get('/dpa', page('dpa.html'));
+// Company details for the footer and the legal pages.
+app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS }));
 app.get('/super', page('super.html'));
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.get('/api/plans', (req, res) => res.json({ plans: PLANS, trialDays: TRIAL_DAYS }));

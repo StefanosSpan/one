@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   password_hash TEXT NOT NULL,
   reset_hash    TEXT DEFAULT '',
   reset_expires TEXT DEFAULT '',
+  terms_version TEXT DEFAULT '',        -- version of the terms accepted at sign-up
+  terms_accepted_at TEXT DEFAULT '',
   created_at    TEXT NOT NULL
 );
 

@@ -254,7 +254,17 @@ async function renderBilling() {
           : `<button class="btn sm block" data-plan="${k}">${paidNow ? 'Αλλαγή σε αυτό' : v.status === 'trialing' && v.effectivePlan ? 'Επιλογή (χρέωση μετά τη δοκιμή)' : 'Επιλογή και πληρωμή'}</button>`}
       </div>`;
     }).join('')}</div>
-    <p class="muted small">Η πληρωμή γίνεται με κάρτα μέσω Stripe. Μπορείτε να ακυρώσετε ή να παγώσετε όποτε θέλετε.</p>`;
+    <p class="muted small">Η πληρωμή γίνεται με κάρτα μέσω Stripe. Μπορείτε να ακυρώσετε ή να παγώσετε όποτε θέλετε.</p>
+    <div class="panel" style="margin-top:1rem">
+      <h3>Τα δεδομένα σας</h3>
+      <p class="muted small" style="margin-top:0">Κατεβάστε όλα τα δεδομένα του καταστήματος (μενού, θέσεις, παραγγελίες, αποδείξεις) σε αρχείο JSON,
+        ή διαγράψτε οριστικά τον λογαριασμό. <a href="/terms" target="_blank">Όροι</a> · <a href="/privacy" target="_blank">Απόρρητο</a> ·
+        <a href="/dpa" target="_blank">Επεξεργασία δεδομένων</a></p>
+      <div class="links">
+        <a class="btn secondary sm" href="/api/account/export">Λήψη δεδομένων</a>
+        <button class="btn danger sm" id="deleteAccount">Διαγραφή λογαριασμού</button>
+      </div>
+    </div>`;
 
     $$('[data-int]').forEach((b) => b.onclick = () => { interval = b.dataset.int; draw(); });
     $$('[data-plan]').forEach((b) => b.onclick = async () => {
@@ -273,6 +283,16 @@ async function renderBilling() {
       if (paused && !confirm('Κατά το πάγωμα δεν χρεώνεστε και οι πελάτες δεν βλέπουν το μενού. Μενού, QR και ιστορικό μένουν αποθηκευμένα για την επόμενη σεζόν. Συνέχεια;')) return;
       try { await api('/api/account/pause', { method: 'POST', body: { paused } }); toast(paused ? 'Η συνδρομή πάγωσε' : 'Η συνδρομή ενεργοποιήθηκε', 'ok'); render(); }
       catch (e) { toast(e.message, 'err'); }
+    };
+    $('#deleteAccount').onclick = async () => {
+      if (!confirm('Θα διαγραφούν οριστικά το μενού, οι θέσεις, οι παραγγελίες και οι αποδείξεις, και θα ακυρωθεί η συνδρομή. Τα QR θα σταματήσουν να λειτουργούν. Συνέχεια;')) return;
+      const password = prompt('Για επιβεβαίωση γράψτε τον κωδικό σας:');
+      if (!password) return;
+      try {
+        await api('/api/account', { method: 'DELETE', body: { password } });
+        alert('Ο λογαριασμός διαγράφηκε.');
+        location.href = '/';
+      } catch (e) { toast(e.message, 'err'); }
     };
     $('#pause')?.addEventListener('click', pause(true));
     $('#resume')?.addEventListener('click', pause(false));

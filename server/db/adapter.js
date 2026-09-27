@@ -27,6 +27,14 @@ const LEGACY = {
 };
 const LEGACY_INDEXES = ['idx_receipts_created', 'idx_orders_table', 'idx_orders_created', 'idx_order_items', 'idx_calls_status'];
 // Columns added to the single-venue schema over time; old databases may miss them.
+// Columns added after the multi-venue schema was first released (databases already online get them on start).
+const ADDED_COLUMNS = [['accounts', 'terms_version', "TEXT DEFAULT ''"], ['accounts', 'terms_accepted_at', "TEXT DEFAULT ''"]];
+async function addColumns(api, columns) {
+  for (const [table, column, ddl] of ADDED_COLUMNS) {
+    if (!(await columns(table)).includes(column)) await api.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
+}
+
 const LEGACY_COLUMNS = [['tables', 'kind', "TEXT NOT NULL DEFAULT 'table'"], ['items', 'options', "TEXT DEFAULT '[]'"],
   ['order_items', 'options', "TEXT DEFAULT '[]'"]];
 
@@ -105,6 +113,7 @@ async function openSqlite(file) {
   const columns = async (table) => (await api.all(`PRAGMA table_info(${table})`)).map((c) => c.name);
   const migrated = await migrateLegacy(api, { columns, tableExists: async (t) => (await columns(t)).length > 0 });
   if (!migrated) await api.exec(schema('sqlite'));
+  await addColumns(api, columns);
   return api;
 }
 
@@ -152,6 +161,7 @@ async function openPostgres(url) {
     .map((c) => c.column_name);
   const migrated = await migrateLegacy(api, { columns, tableExists: async (t) => (await columns(t)).length > 0 });
   if (!migrated) await api.exec(schema('postgres'));
+  await addColumns(api, columns);
   return api;
 }
 

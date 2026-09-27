@@ -38,3 +38,18 @@ services:
         value: Kalimenu <hello@kalimenu.gr>
       - key: NOTIFY_EMAIL        # where new sign-ups are announced
         sync: false
+      # Your business details, shown in the footer, terms and privacy policy
+      - key: COMPANY_NAME        # your full name (sole trader) or company name
+        sync: false
+      - key: COMPANY_VAT         # ΑΦΜ
+        sync: false
+      - key: COMPANY_TAX_OFFICE  # ΔΟΥ
+        sync: false
+      - key: COMPANY_GEMI        # αριθμός ΓΕΜΗ
+        sync: false
+      - key: COMPANY_ADDRESS
+        sync: false
+      - key: CONTACT_EMAIL       # e.g. hello@kalimenu.gr
+        sync: false
+      - key: CONTACT_PHONE
+        sync: false

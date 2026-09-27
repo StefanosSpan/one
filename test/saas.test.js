@@ -243,6 +243,39 @@ test('the super admin manages every venue', async () => {
   assert.equal((await browser()('/api/account/login', { method: 'POST', body: { email: 'kantina@example.com', password: 'secret-pass-2' } })).status, 401);
 });
 
+test('owners can export their data and delete their account', async () => {
+  const b = browser();
+  await b('/api/account/signup', { method: 'POST', body: {
+    business: 'Beach Bar Άμμος', email: 'ammos@example.com', password: 'ammos-pass-1', acceptTerms: true, tables: 3,
+  } });
+  const terms = await db.get('SELECT terms_version, terms_accepted_at FROM accounts WHERE email = ?', ['ammos@example.com']);
+  assert.match(terms.terms_version, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(terms.terms_accepted_at);
+
+  assert.equal((await fetch(`${base}/api/account/export`)).status, 401); // needs the owner's session
+  const exp = await b('/api/account/export');
+  assert.equal(exp.status, 200);
+  assert.equal(exp.data.account.email, 'ammos@example.com');
+  assert.equal(exp.data.spots.length, 3);
+  assert.equal(exp.data.items.length, 21);
+  assert.equal(exp.data.settings.secret, undefined);
+
+  const token = exp.data.spots[0].token;
+  assert.equal((await b('/api/account', { method: 'DELETE', body: { password: 'wrong-one' } })).status, 401);
+  assert.equal((await b('/api/account', { method: 'DELETE', body: { password: 'ammos-pass-1' } })).status, 200);
+  assert.equal((await b(`/api/public/table/${token}`)).status, 404);
+  assert.equal((await b('/api/account/login', { method: 'POST', body: { email: 'ammos@example.com', password: 'ammos-pass-1' } })).status, 401);
+  assert.equal(await db.get("SELECT id FROM venues WHERE slug LIKE 'beach-bar-ammos%'"), undefined);
+});
+
+test('pages send basic security headers', async () => {
+  const res = await fetch(`${base}/login`);
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN');
+  const site = await (await fetch(`${base}/api/site`)).json();
+  assert.ok('company' in site);
+});
+
 test('uploads are stored in the database', async () => {
   const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
   const up = await owner('/api/admin/upload', { method: 'POST', body: { dataUrl: `data:image/png;base64,${png}` } });
