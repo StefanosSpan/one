@@ -302,3 +302,60 @@ test('stations, estimated time and named staff with zones', async () => {
   await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { staff: [] } });
   assert.equal((await call('/api/staff/me', { as: 'giannis' })).status, 401);
 });
+
+test('guests pay from the phone: own dishes, equal shares, tip, room charge', async () => {
+  const tables = (await call('/api/admin/tables', { as: 'admin' })).data;
+  const spot = tables[7];
+  const url = `/api/public/table/${spot.token}`;
+  const pub = (await call(url)).data;
+  assert.equal(pub.payments.provider, 'demo'); // demo venue, local testing
+  const items = pub.items.filter((i) => i.available && !i.options.some((g) => g.required)).slice(0, 2);
+  const o = await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: items[0].id, qty: 2 }, { id: items[1].id, qty: 1 }], guestId: 'guest-aaaa-1111' } });
+  const total = o.data.total;
+
+  // One portion of the first dish, with 10% tip.
+  const line = o.data.items[0];
+  const mine = await call(`${url}/pay`, { method: 'POST', body: { mode: 'items', items: [[line.id, 1]], tipPercent: 10 } });
+  assert.equal(mine.data.amount, line.price);
+  assert.equal(mine.data.tip, Math.round(line.price * 0.1));
+  let state = (await call(`${url}/state`)).data;
+  assert.equal(state.bill.paid, line.price);
+  assert.equal(state.orders[0].items[0].paidQty, 1);
+  assert.equal((await call(`${url}/pay`, { method: 'POST', body: { mode: 'items', items: [[line.id, 2]] } })).status, 400); // only 1 left
+
+  // Equal share for 2 people, then the rest.
+  const share = await call(`${url}/pay`, { method: 'POST', body: { mode: 'share', people: 2 } });
+  assert.equal(share.data.amount, Math.min(Math.ceil(total / 2), total - line.price));
+  const rest = await call(`${url}/pay`, { method: 'POST', body: { mode: 'all' } });
+  state = (await call(`${url}/state`)).data;
+  assert.equal(state.bill.due, 0);
+  assert.equal(line.price + share.data.amount + rest.data.amount, total);
+  assert.equal((await call(`${url}/pay`, { method: 'POST', body: {} })).data.error, 'nothing_to_pay');
+
+  // Closing the spot: receipt paid online, tips kept, guest remembered.
+  const closed = (await call(`/api/staff/tables/${spot.id}/close`, { method: 'POST', as: 'waiter', body: {} })).data.receipt;
+  assert.equal(closed.payment, 'online');
+  assert.equal(closed.tip, mine.data.tip);
+  assert.equal((await call(`${url}/state`)).data.bill.paid, 0);
+
+  // Room charge only for rooms, when the venue allows it.
+  const room = tables.find((t) => t.kind === 'room');
+  const rurl = `/api/public/table/${room.token}`;
+  await call(`${rurl}/orders`, { method: 'POST', body: { items: [{ id: items[1].id, qty: 1 }] } });
+  assert.equal((await call(`${rurl}/pay`, { method: 'POST', body: { method: 'room' } })).status, 400);
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { payments: { provider: 'demo', roomCharge: true } } });
+  assert.equal((await call(rurl)).data.payments.roomCharge, true);
+  assert.equal((await call(`${url}`)).data.payments.roomCharge, false); // not for tables
+  assert.equal((await call(`${rurl}/pay`, { method: 'POST', body: { method: 'room', tipPercent: 10 } })).data.tip, 0);
+  const rr = (await call(`/api/staff/tables/${room.id}/close`, { method: 'POST', as: 'waiter', body: {} })).data.receipt;
+  assert.equal(rr.payment, 'room');
+
+  // The Viva secret is never sent back to the browser.
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { payments: { provider: 'viva', clientId: 'id', clientSecret: 'topsecret', sourceCode: '1234' } } });
+  const settings = (await call('/api/admin/settings', { as: 'admin' })).data;
+  assert.equal(settings.payments.hasSecret, true);
+  assert.ok(!JSON.stringify(settings).includes('topsecret'));
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { payments: { provider: 'demo' } } });
+  const back = await fetch(`${base}/pay/viva/return?s=999&t=x`, { redirect: 'manual' });
+  assert.equal(back.status, 302);
+});

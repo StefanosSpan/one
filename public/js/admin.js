@@ -375,7 +375,7 @@ async function renderHistory() {
 // ---------------------------------------------------------------------------
 // Receipts (stored bills) – reprint, guest copy, link to the legal receipt number
 // ---------------------------------------------------------------------------
-const PAY_LABEL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online' };
+const PAY_LABEL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' };
 const rec = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(new Date()) };
 
 async function renderReceipts() {
@@ -940,12 +940,34 @@ function renderSettings() {
       «Δελτίο Παραγγελίας Εστίασης» από πιστοποιημένη ταμειακή ή πάροχο. Με ενεργή την έγκριση, το προσωπικό καταχωρεί την παραγγελία
       στο ταμείο σας. Συμβουλευτείτε τον λογιστή σας πριν την απενεργοποιήσετε.</div>
 
-    <h3>Online πληρωμές πελατών</h3>
-    <select class="input" id="payments" style="max-width:380px">
-      <option value="off" ${s.onlinePayments === 'off' ? 'selected' : ''}>Απενεργοποιημένες (μετρητά ή κάρτα στη θέση)</option>
-      ${s.demoPaymentsAllowed ? `<option value="demo" ${s.onlinePayments === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (demo)</option>` : ''}
+    <h3>Πληρωμή από το κινητό του πελάτη</h3>
+    <p class="muted small" style="margin-top:0">Ο πελάτης πληρώνει όλο τον λογαριασμό, μόνο τα δικά του πιάτα ή ίσο μερίδιο, με φιλοδώρημα.
+      Τα χρήματα πάνε κατευθείαν στον δικό σας λογαριασμό Viva Wallet.</p>
+    <select class="input" id="payProvider" style="max-width:380px">
+      <option value="off" ${s.payments.provider === 'off' ? 'selected' : ''}>Απενεργοποιημένη (μετρητά ή κάρτα στη θέση)</option>
+      <option value="viva" ${s.payments.provider === 'viva' || (s.payments.provider === 'off' && s.payments.clientId) ? 'selected' : ''}>Viva Wallet</option>
+      ${s.demoPaymentsAllowed ? `<option value="demo" ${s.payments.provider === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (χωρίς χρέωση)</option>` : ''}
     </select>
-    <p class="muted small">Η πληρωμή του λογαριασμού από το κινητό του πελάτη (Viva Wallet) θα προστεθεί σε επόμενη έκδοση.</p>
+    <div id="vivaBox" class="note-box" style="margin-top:.7rem">
+      <b>Σύνδεση Viva Wallet</b>
+      <ol class="small" style="margin:.4rem 0 .6rem;padding-left:1.1rem">
+        <li>Στο Viva: Settings → API Access → «Smart Checkout Credentials»: Client ID και Client Secret.</li>
+        <li>Sales → Online Payments → Websites/Apps → νέα πηγή πληρωμών. Success URL και Failure URL:
+          <code>${esc(s.payments.returnUrl)}</code>. Κρατήστε τον 4ψήφιο κωδικό της πηγής (Source Code).</li>
+      </ol>
+      <div class="two">
+        <label class="field"><span>Client ID</span><input class="input" id="vivaId" value="${esc(s.payments.clientId || '')}" autocomplete="off"></label>
+        <label class="field"><span>Client Secret ${s.payments.hasSecret ? '(αποθηκευμένο)' : ''}</span><input class="input" id="vivaSecret" type="password" placeholder="${s.payments.hasSecret ? '••••••••' : ''}" autocomplete="new-password"></label>
+        <label class="field"><span>Source Code</span><input class="input" id="vivaSource" value="${esc(s.payments.sourceCode || '')}" inputmode="numeric"></label>
+        <label class="field"><span>Περιβάλλον</span><select class="input" id="vivaEnv">
+          <option value="demo" ${s.payments.environment !== 'live' ? 'selected' : ''}>Δοκιμαστικό (demo.vivapayments.com)</option>
+          <option value="live" ${s.payments.environment === 'live' ? 'selected' : ''}>Πραγματικό</option></select></label>
+      </div>
+    </div>
+    <div class="two" style="margin-top:.6rem">
+      <label class="field"><span>Επιλογές φιλοδωρήματος (%)</span><input class="input" id="tips" value="${esc((s.payments.tips || [0, 5, 10, 15]).join(', '))}"></label>
+      <label class="switch" style="align-self:end"><input type="checkbox" id="roomCharge" ${s.payments.roomCharge ? 'checked' : ''}> Χρέωση στο δωμάτιο (ξενοδοχεία)</label>
+    </div>
 
     <h3>Γλώσσες μενού</h3>
     <div class="checks">${s.allLanguages.map((l) => `<label><input type="checkbox" data-lang-on="${l}" ${s.languages.includes(l) ? 'checked' : ''}>${LANGUAGES[l].name}</label>`).join('')}</div>
@@ -1032,13 +1054,20 @@ function renderSettings() {
     stations.push({ id: id.slice(0, 20), name }); drawStations();
   };
   drawStations();
+  const syncViva = () => { $('#vivaBox').hidden = $('#payProvider').value !== 'viva'; };
+  $('#payProvider').onchange = syncViva;
+  syncViva();
   $('#copyStaff').onclick = async () => {
     try { await navigator.clipboard.writeText(s.staffUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#staffUrl').select(); }
   };
   $('#save').onclick = async () => {
     const body = {
       requireApproval: $('#approval').checked,
-      onlinePayments: $('#payments').value,
+      payments: {
+        provider: $('#payProvider').value, clientId: $('#vivaId').value.trim(), clientSecret: $('#vivaSecret').value.trim(),
+        sourceCode: $('#vivaSource').value.trim(), environment: $('#vivaEnv').value, roomCharge: $('#roomCharge').checked,
+        tips: $('#tips').value.split(/[,\s]+/).filter(Boolean).map(Number),
+      },
       languages: $$('[data-lang-on]').filter((c) => c.checked).map((c) => c.dataset.langOn),
       defaultLanguage: $('#defLang').value,
       pins: { admin: $('#pinAdmin').value.trim(), waiter: $('#pinWaiter').value.trim(), kitchen: $('#pinKitchen').value.trim() },

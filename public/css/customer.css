@@ -186,3 +186,14 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .suggest-card i { position: absolute; right: .4rem; bottom: .4rem; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
   background: var(--brand); color: var(--brand-ink); }
 .order-block .eta { display: flex; align-items: center; gap: .35rem; margin: .4rem 0 0; color: var(--muted); font-size: .88rem; }
+
+/* Paying from the phone */
+.pay-seg { display: flex; width: 100%; margin: 0 0 .8rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.pay-seg button { flex: 1; border: 0; background: var(--surface); padding: .55rem .3rem; font-size: .85rem; color: var(--muted); }
+.pay-seg button.active { background: var(--text); color: var(--bg); font-weight: 600; }
+.pay-lines { display: flex; flex-direction: column; gap: .4rem; max-height: 40vh; overflow: auto; }
+.pay-line, .pay-people, .pay-tip { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.pay-line span small { display: block; color: var(--muted); }
+.pay-line .qty span, .pay-people .qty span { min-width: 44px; text-align: center; }
+.pay-tip { margin-top: .8rem; flex-wrap: wrap; }
+.pay-tip .chips { margin: 0; }

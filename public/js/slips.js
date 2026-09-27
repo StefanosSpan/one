@@ -58,7 +58,8 @@ export function receiptSlip(receipt, restaurant, { lang = 'el', t = (k, el) => e
     </table>
     <hr>
     <div class="total"><span>${esc(t('total', 'Σύνολο'))}</span><span>${eur(receipt.total)}</span></div>
-    <div class="row" style="margin-top:1.5mm"><span>${esc(t('payment', 'Πληρωμή'))}</span><span>${esc(t(`pay_${receipt.payment}`, { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online' }[receipt.payment]))}</span></div>
+    ${receipt.tip ? `<div class="row"><span>${esc(t('tip', 'Φιλοδώρημα'))}</span><span>${euro(receipt.tip)}</span></div>` : ''}
+    <div class="row" style="margin-top:1.5mm"><span>${esc(t('payment', 'Πληρωμή'))}</span><span>${esc(t(`pay_${receipt.payment}`, { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' }[receipt.payment]))}</span></div>
     ${receipt.fiscalRef ? `<div class="row"><span>${esc(t('fiscalRef', 'Αρ. νόμιμης απόδειξης'))}</span><span>${esc(receipt.fiscalRef)}</span></div>` : ''}
     ${restaurant.receiptFooter ? `<div class="foot">${esc(restaurant.receiptFooter)}</div>` : ''}
     <div class="foot">${esc(t('thankYou', 'Ευχαριστούμε για την επίσκεψη!'))}</div>

@@ -13,6 +13,7 @@ import {
 import { LANGS } from './seed.js';
 import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
+import { vivaCreateOrder, vivaVerify } from './payments.js';
 import { sendMail } from './mail.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
@@ -313,11 +314,17 @@ async function loadCalls(venueId, where = "c.status = 'open'", params = []) {
       paymentMethod: c.payment_method, status: c.status, createdAt: c.created_at }));
 }
 
+// Paid so far from guests' phones or charged to the room, for the spot's open bill (tips not included).
+async function paidFor(tableId) {
+  const { paid } = await db.get("SELECT COALESCE(SUM(amount_cents), 0) AS paid FROM payments WHERE table_id = ? AND closed = 0 AND status = 'paid'", [tableId]);
+  return Number(paid);
+}
+
 async function tableState(table) {
   const orders = await loadOrders(table.venue_id, 'o.table_id = ? AND o.closed = 0', [table.id]);
   const billable = orders.filter((o) => o.status !== 'rejected');
   const total = billable.reduce((s, o) => s + o.total, 0);
-  const paid = billable.filter((o) => o.paid).reduce((s, o) => s + o.total, 0);
+  const paid = Math.min(await paidFor(table.id), total);
   const calls = await loadCalls(table.venue_id, "c.status = 'open' AND c.table_id = ?", [table.id]);
   return { orders, calls, bill: { total, paid, due: total - paid } };
 }
@@ -362,7 +369,8 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
     restaurant: publicRestaurant(venue),
     languages: s.languages,
     defaultLanguage: s.defaultLanguage,
-    onlinePayments: f.ordering ? s.onlinePayments : 'off',
+    onlinePayments: publicPayments(venue, table).provider,
+    payments: publicPayments(venue, table),
     requireApproval: s.requireApproval,
     currency: s.currency,
     features: { ordering: f.ordering, calls: f.calls },
@@ -416,8 +424,9 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
 
   const orderId = await db.tx(async (t) => {
     const ts = now();
-    const id = await t.insert(`INSERT INTO orders (venue_id, table_id, status, note, lang, total_cents, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(req.body?.note, 300), lang, total, ts, ts]);
+    const guestId = /^[\w-]{8,40}$/.test(req.body?.guestId || '') ? req.body.guestId : '';
+    const id = await t.insert(`INSERT INTO orders (venue_id, table_id, status, note, lang, total_cents, created_at, updated_at, guest_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(req.body?.note, 300), lang, total, ts, ts, guestId]);
     for (const p of prepared) {
       await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note, options, station) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.unit, p.note, JSON.stringify(p.chosen), p.station]);
@@ -463,20 +472,116 @@ app.post('/api/public/table/:token/calls', wrap(async (req, res) => {
   res.status(201).json(call);
 }));
 
-// Demo online payment: marks the table's open bill as paid. Only for the demo venue and local testing;
-// real guest payments (Viva Wallet / Stripe) are not connected yet.
+// ---------------------------------------------------------------------------
+// Guest payments from the phone: whole bill, own dishes or an equal share, with tip; or charge to the room.
+// ---------------------------------------------------------------------------
+function paymentSettings(venue) {
+  const p = venue.settings.payments || {};
+  let provider = p.provider || (venue.settings.onlinePayments === 'demo' ? 'demo' : 'off');
+  if (provider === 'demo' && !canUseDemoPayments(venue)) provider = 'off';
+  if (provider === 'viva' && !(p.clientId && p.clientSecret)) provider = 'off';
+  return { ...p, provider, tips: Array.isArray(p.tips) ? p.tips : [0, 5, 10, 15], roomCharge: !!p.roomCharge };
+}
+
+const publicPayments = (venue, table) => {
+  const p = paymentSettings(venue);
+  if (!features(venue).ordering) return { provider: 'off', tips: [], roomCharge: false };
+  return { provider: p.provider, tips: p.tips, roomCharge: p.roomCharge && table.kind === 'room' };
+};
+
+// Marks a payment paid: dishes it covered, orders fully paid, staff and guests notified.
+async function settlePayment(payment, venue) {
+  const done = await db.tx(async (t) => {
+    const r = await t.run("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status = 'pending'", [now(), payment.id]);
+    if (!r.changes) return false;
+    for (const [orderItemId, qty] of JSON.parse(payment.lines || '[]')) {
+      await t.run('UPDATE order_items SET paid_qty = MIN(qty, paid_qty + ?) WHERE id = ?'.replace('MIN(', t.dialect === 'postgres' ? 'LEAST(' : 'MIN('), [qty, orderItemId]);
+    }
+    return true;
+  });
+  if (!done) return;
+  const table = mapTable(await db.get('SELECT * FROM tables WHERE id = ?', [payment.table_id]));
+  const { bill } = await tableState(table);
+  if (bill.due <= 0) await db.run("UPDATE orders SET paid = 1 WHERE table_id = ? AND closed = 0 AND status != 'rejected'", [table.id]);
+  emit(staffChannel(venue), 'table:paid', { tableId: table.id, tableLabel: table.label, amount: payment.amount_cents,
+    tip: payment.tip_cents, method: payment.method, due: bill.due });
+  await notifyTable(table.id);
+}
+
 app.post('/api/public/table/:token/pay', wrap(async (req, res) => {
   const table = await tableByToken(req);
   const { venue } = req;
-  if (venue.settings.onlinePayments !== 'demo' || !features(venue).ordering) fail(400, 'payments_disabled');
-  const { bill } = await tableState(table);
-  if (bill.due <= 0) fail(400, 'nothing_to_pay');
-  await db.run("UPDATE orders SET paid = 1, updated_at = ? WHERE table_id = ? AND closed = 0 AND status != 'rejected'",
-    [now(), table.id]);
-  emit(staffChannel(venue), 'table:paid', { tableId: table.id, tableLabel: table.label, amount: bill.due });
-  await notifyTable(table.id);
-  res.json({ ok: true, amount: bill.due });
+  const cfg = publicPayments(venue, table);
+  const method = req.body?.method === 'room' ? 'room' : 'online';
+  if (method === 'room' ? !cfg.roomCharge : cfg.provider === 'off') fail(400, 'payments_disabled');
+  if (!rateLimit(`pay:${table.id}`, 10, 60_000)) fail(429, 'too_many_requests');
+  const state = await tableState(table);
+  if (state.bill.due <= 0) fail(400, 'nothing_to_pay');
+
+  // How much: everything, chosen dishes, or one equal share of the bill.
+  const mode = ['items', 'share'].includes(req.body?.mode) ? req.body.mode : 'all';
+  let amount = state.bill.due;
+  let lines = [];
+  if (mode === 'items') {
+    const open = new Map(state.orders.filter((o) => o.status !== 'rejected').flatMap((o) => o.items).map((i) => [i.id, i]));
+    lines = (Array.isArray(req.body.items) ? req.body.items : []).slice(0, 100).map(([id, qty]) => {
+      const it = open.get(Number(id));
+      const n = Math.trunc(Number(qty));
+      if (!it || !(n >= 1) || n > it.qty - it.paidQty) fail(400, 'bad_items');
+      return [it.id, n, it.price];
+    });
+    if (!lines.length) fail(400, 'bad_items');
+    amount = Math.min(lines.reduce((sum, [, n, price]) => sum + n * price, 0), state.bill.due);
+    lines = lines.map(([id, n]) => [id, n]);
+  } else if (mode === 'share') {
+    const people = Math.min(Math.max(Math.trunc(Number(req.body.people)) || 2, 2), 30);
+    amount = Math.min(Math.ceil(state.bill.total / people), state.bill.due);
+  }
+  if (amount <= 0) fail(400, 'nothing_to_pay');
+  const tipPct = Number(req.body?.tipPercent) || 0;
+  const tip = method === 'room' ? 0 : Math.min(Math.max(Math.round(amount * tipPct / 100), 0), Math.round(amount / 2));
+  const guestId = /^[\w-]{8,40}$/.test(req.body?.guestId || '') ? req.body.guestId : '';
+  const provider = method === 'room' ? 'room' : cfg.provider;
+  const id = await db.insert(`INSERT INTO payments (venue_id, table_id, provider, amount_cents, tip_cents, lines, method, status, guest_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`, [venue.id, table.id, provider, amount, tip, JSON.stringify(lines), method, guestId, now()]);
+  const payment = await db.get('SELECT * FROM payments WHERE id = ?', [id]);
+
+  if (provider === 'viva') {
+    const p = paymentSettings(venue);
+    const order = await vivaCreateOrder(p, {
+      amount, tip, lang: req.body?.lang, reference: `KM-${venue.id}-${id}`,
+      description: `${venue.name} · ${table.label}`.slice(0, 100),
+    });
+    await db.run('UPDATE payments SET ref = ? WHERE id = ?', [order.orderCode, id]);
+    return res.json({ ok: true, url: order.url });
+  }
+  // Room charge (settled on check-out) and the demo provider are confirmed straight away.
+  await settlePayment(payment, venue);
+  res.json({ ok: true, amount, tip, method });
 }));
+
+// Viva sends the guest back here (set this as Success and Failure URL of the venue's Viva payment source).
+app.get('/pay/viva/return', wrap(async (req, res) => {
+  const orderCode = String(req.query.s || '');
+  const payment = orderCode && await db.get("SELECT * FROM payments WHERE ref = ? AND provider = 'viva'", [orderCode]);
+  if (!payment) return res.redirect('/');
+  const venue = await getVenue(payment.venue_id);
+  const table = await db.get('SELECT token FROM tables WHERE id = ?', [payment.table_id]);
+  let ok = false;
+  if (venue && req.query.t) {
+    const check = await vivaVerify(paymentSettings(venue), String(req.query.t)).catch(() => ({ ok: false }));
+    ok = check.ok && check.orderCode === orderCode && check.amount >= payment.amount_cents + payment.tip_cents;
+    if (ok) {
+      await db.run('UPDATE payments SET transaction_id = ? WHERE id = ?', [String(req.query.t).slice(0, 80), payment.id]);
+      await settlePayment(payment, venue);
+    } else {
+      await db.run("UPDATE payments SET status = 'failed' WHERE id = ? AND status = 'pending'", [payment.id]);
+    }
+  }
+  res.redirect(`/t/${table?.token || ''}?pay=${ok ? 'ok' : 'fail'}`);
+}));
+
+
 
 // ---------------------------------------------------------------------------
 // Staff API
@@ -535,11 +640,13 @@ app.get('/api/staff/overview', requireStaff(), wrap(async (req, res) => {
   const v = req.venue.id;
   const tables = (await db.all('SELECT * FROM tables WHERE venue_id = ? ORDER BY id', [v])).map(mapTable);
   const orders = await loadOrders(v, 'o.closed = 0');
+  const paidBy = new Map((await db.all(`SELECT table_id, SUM(amount_cents) AS paid FROM payments
+    WHERE venue_id = ? AND closed = 0 AND status = 'paid' GROUP BY table_id`, [v])).map((r) => [r.table_id, Number(r.paid)]));
   const calls = await loadCalls(v);
   const tableSummaries = tables.map((t) => {
     const mine = orders.filter((o) => o.tableId === t.id && o.status !== 'rejected');
     const total = mine.reduce((a, o) => a + o.total, 0);
-    const paid = mine.filter((o) => o.paid).reduce((a, o) => a + o.total, 0);
+    const paid = Math.min(paidBy.get(t.id) || 0, total);
     return { id: t.id, label: t.label, kind: t.kind, zone: t.zone, active: t.active, orders: mine.length, total, paid,
       calls: calls.filter((c) => c.tableId === t.id).map((c) => c.type) };
   });
@@ -621,12 +728,12 @@ app.post('/api/staff/calls/:id/done', requireStaff('waiter'), wrap(async (req, r
 // ---------------------------------------------------------------------------
 // Receipts (bills). Stored permanently; NOT fiscal documents – the legal receipt comes from the cash register.
 // ---------------------------------------------------------------------------
-const PAYMENTS = ['cash', 'card', 'online'];
+const PAYMENTS = ['cash', 'card', 'online', 'room'];
 
 const mapReceipt = (r) => r && {
   id: r.id, number: r.number, token: r.token, tableId: r.table_id, tableLabel: r.table_label, tableKind: r.table_kind,
   orderIds: JSON.parse(r.order_ids || '[]'), lines: JSON.parse(r.lines || '[]'), total: r.total_cents,
-  payment: r.payment, fiscalRef: r.fiscal_ref || '', lang: r.lang, createdAt: r.created_at,
+  payment: r.payment, fiscalRef: r.fiscal_ref || '', lang: r.lang, createdAt: r.created_at, tip: Number(r.tip_cents) || 0,
 };
 
 // Merges identical dishes (same dish, options and price) from all of a spot's orders into bill lines.
@@ -644,16 +751,16 @@ function billLines(orders) {
   return [...lines.values()];
 }
 
-async function issueReceipt(t, table, orders, { payment, fiscalRef }) {
+async function issueReceipt(t, table, orders, { payment, fiscalRef, tip = 0, guestIds = [] }) {
   const year = new Date().getFullYear();
   const lang = orders.at(-1)?.lang || 'el';
   const lines = billLines(orders);
   const total = lines.reduce((sum, l) => sum + l.total_cents, 0);
   const { n } = await t.get('SELECT COUNT(*) AS n FROM receipts WHERE venue_id = ? AND number LIKE ?', [table.venue_id, `${year}-%`]);
   const number = `${year}-${String(Number(n) + 1).padStart(5, '0')}`;
-  const id = await t.insert(`INSERT INTO receipts (venue_id, number, token, table_id, table_label, table_kind, order_ids, lines, total_cents, payment, fiscal_ref, lang, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [table.venue_id, number, newToken(), table.id, table.label, table.kind,
-    JSON.stringify(orders.map((o) => o.id)), JSON.stringify(lines), total, payment, fiscalRef, lang, now()]);
+  const id = await t.insert(`INSERT INTO receipts (venue_id, number, token, table_id, table_label, table_kind, order_ids, lines, total_cents, payment, fiscal_ref, lang, created_at, tip_cents, guest_ids)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [table.venue_id, number, newToken(), table.id, table.label, table.kind,
+    JSON.stringify(orders.map((o) => o.id)), JSON.stringify(lines), total, payment, fiscalRef, lang, now(), tip, JSON.stringify(guestIds)]);
   return mapReceipt(await t.get('SELECT * FROM receipts WHERE id = ?', [id]));
 }
 
@@ -663,11 +770,17 @@ app.post('/api/staff/tables/:id/close', requireStaff('waiter'), wrap(async (req,
   const table = mapTable(await db.get('SELECT * FROM tables WHERE id = ? AND venue_id = ?', [id, v]));
   if (!table) fail(404, 'Το τραπέζι δεν βρέθηκε');
   const orders = (await loadOrders(v, 'o.table_id = ? AND o.closed = 0', [id])).filter((o) => o.status !== 'rejected');
-  const allPaidOnline = orders.length && orders.every((o) => o.paid);
-  const payment = PAYMENTS.includes(req.body?.paymentMethod) ? req.body.paymentMethod : allPaidOnline ? 'online' : 'cash';
+  const pays = await db.all("SELECT method, amount_cents, tip_cents FROM payments WHERE table_id = ? AND closed = 0 AND status = 'paid'", [id]);
+  const total = orders.reduce((sum, o) => sum + o.total, 0);
+  const paidOnPhone = pays.reduce((sum, p) => sum + p.amount_cents, 0);
+  const fromPhone = orders.length && paidOnPhone >= total ? (pays.some((p) => p.method === 'room') ? 'room' : 'online') : null;
+  const payment = PAYMENTS.includes(req.body?.paymentMethod) ? req.body.paymentMethod : fromPhone || 'cash';
+  const tip = pays.reduce((sum, p) => sum + (p.tip_cents || 0), 0);
+  const guestIds = [...new Set((await db.all("SELECT DISTINCT guest_id FROM orders WHERE table_id = ? AND closed = 0 AND guest_id != ''", [id])).map((r) => r.guest_id))];
   const fiscalRef = cleanText(req.body?.fiscalRef, 80);
   const receipt = await db.tx(async (t) => {
-    const r = orders.length ? await issueReceipt(t, table, orders, { payment, fiscalRef }) : null;
+    const r = orders.length ? await issueReceipt(t, table, orders, { payment, fiscalRef, tip, guestIds }) : null;
+    await t.run('UPDATE payments SET closed = 1 WHERE table_id = ? AND closed = 0', [id]);
     await t.run('UPDATE orders SET closed = 1, paid = 1, updated_at = ? WHERE table_id = ? AND closed = 0', [now(), id]);
     await t.run("UPDATE calls SET status = 'done' WHERE table_id = ? AND status = 'open'", [id]);
     return r;
@@ -737,7 +850,10 @@ const admin = express.Router();
 admin.use(requireStaff('admin'));
 
 const adminSettings = async (req) => {
-  const { secret, ...s } = req.venue.settings;
+  const { secret, payments, ...s } = req.venue.settings;
+  const { clientSecret, ...pay } = paymentSettings(req.venue);
+  s.payments = { ...(payments || {}), ...pay, clientSecret: '', hasSecret: !!clientSecret, returnUrl: `${baseUrl(req)}/pay/viva/return` };
+  delete s.payments.clientSecret;
   return { ...s, zones: await zonesOf(req.venue.id), defaultPrepMinutes: s.defaultPrepMinutes || 15, staff: s.staff || [], stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
     staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
 };
@@ -795,6 +911,19 @@ admin.put('/settings', wrap(async (req, res) => {
   if (typeof b.brandColor === 'string') {
     if (!/^#[0-9a-fA-F]{6}$/.test(b.brandColor)) fail(400, 'Μη έγκυρο χρώμα');
     await set('brandColor', b.brandColor.toLowerCase());
+  }
+  if (b.payments && typeof b.payments === 'object') {
+    const p = b.payments;
+    const prev = cur.payments || {};
+    const provider = ['off', 'viva'].includes(p.provider) || (p.provider === 'demo' && canUseDemoPayments(req.venue)) ? p.provider : 'off';
+    await set('payments', {
+      provider, environment: p.environment === 'live' ? 'live' : 'demo',
+      clientId: cleanText(p.clientId ?? prev.clientId, 200), sourceCode: cleanText(p.sourceCode ?? prev.sourceCode, 20),
+      // The secret is write-only: an empty field keeps the stored one.
+      clientSecret: p.clientSecret ? cleanText(p.clientSecret, 200) : prev.clientSecret || '',
+      tips: [...new Set((Array.isArray(p.tips) ? p.tips : [0, 5, 10, 15]).map(Number).filter((x) => x >= 0 && x <= 30))].slice(0, 5).sort((a, c) => a - c),
+      roomCharge: !!p.roomCharge,
+    });
   }
   if (Array.isArray(b.staff)) {
     demoGuard(req);
@@ -1134,7 +1263,7 @@ admin.get('/receipts.csv', wrap(async (req, res) => {
   const receipts = (await db.all('SELECT * FROM receipts WHERE venue_id = ? AND created_at >= ? AND created_at < ? ORDER BY id',
     [req.venue.id, from, to])).map(mapReceipt);
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const PAY_EL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online' };
+  const PAY_EL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' };
   const rows = [['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Τρόπος πληρωμής', 'Αρ. απόδειξης ταμειακής / ΜΑΡΚ', 'Σύνολο (€)']];
   for (const r of receipts) {
     const d = new Date(r.createdAt);

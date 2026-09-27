@@ -135,7 +135,7 @@ function start() {
         <div class="close-box">
           <div class="field"><span class="lbl">Τρόπος πληρωμής</span>
             <div class="seg" id="pay">
-              ${[['cash', 'Μετρητά'], ['card', 'Κάρτα'], ['online', 'Online']].map(([k, l]) => `<button type="button" data-pay="${k}"
+              ${[['cash', 'Μετρητά'], ['card', 'Κάρτα'], ['online', 'Online'], ...(t.kind === 'room' ? [['room', 'Δωμάτιο']] : [])].map(([k, l]) => `<button type="button" data-pay="${k}"
                 class="${(t.paid >= t.total ? 'online' : billCall?.paymentMethod || 'cash') === k ? 'active' : ''}">${l}</button>`).join('')}
             </div>
           </div>

@@ -28,6 +28,14 @@ function saveCart() {
 
 const t = (key) => STRINGS[S.lang]?.[key] ?? STRINGS.en[key] ?? key;
 // Text with placeholders, e.g. tf('readyIn', { n: 15 }).
+// Random id of this phone (for loyalty); no personal data.
+function guestId() {
+  try {
+    let id = localStorage.getItem('guestId');
+    if (!id) { id = crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`; localStorage.setItem('guestId', id); }
+    return id;
+  } catch { return ''; }
+}
 const tf = (key, vars) => t(key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
 const tr = (obj) => pick(obj, S.lang, S.data?.defaultLanguage);
 const fmt = (c) => money(c, S.lang);
@@ -103,6 +111,13 @@ async function boot() {
   document.addEventListener('click', () => requestAnimationFrame(syncTop));
   syncTop();
   renderAll();
+  // Back from the payment page (Viva Wallet).
+  const payResult = new URLSearchParams(location.search).get('pay');
+  if (payResult) {
+    toast(t(payResult === 'ok' ? 'paymentOk' : 'paymentFailed'), payResult === 'ok' ? 'ok' : 'err');
+    history.replaceState(null, '', location.pathname);
+    if (payResult === 'ok') switchTab('order');
+  }
 
   stream(`/api/public/table/${token}/stream`, { state: onState, menu: refreshMenu, receipt: onReceipt }, (online) => {
     const el = $('#offline');
@@ -530,7 +545,7 @@ function openCart() {
       try {
         await api(`/api/public/table/${token}/orders`, {
           method: 'POST',
-          body: { items: S.cart.map((l) => ({ id: l.id, qty: l.qty, note: l.note, options: l.options || [] })), note: orderNote, lang: S.lang },
+          body: { items: S.cart.map((l) => ({ id: l.id, qty: l.qty, note: l.note, options: l.options || [] })), note: orderNote, lang: S.lang, guestId: guestId() },
         });
         S.cart = [];
         saveCart();
@@ -601,44 +616,93 @@ async function callWaiter() {
 
 function openBill() {
   const { bill } = S.state;
-  const online = S.data.onlinePayments === 'demo' && bill.due > 0;
+  const pay = S.data.payments || {};
+  const online = pay.provider && pay.provider !== 'off' && bill.due > 0;
+  const room = pay.roomCharge && bill.due > 0;
   const { el, close } = sheet(`
     <div class="sheet-head"><h2>${esc(t('yourBill'))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
     ${bill.total ? `<div class="total-row" style="margin-top:0"><span>${esc(t('due'))}</span><span>${fmt(bill.due)}</span></div>` : ''}
-    <p class="muted" style="margin-top:0">${esc(t('howPay'))}</p>
+    ${online ? `<button class="btn block" id="payOnline">${icon('card', 18)} ${esc(t('payNow'))}</button>` : ''}
+    ${room ? `<button class="btn secondary block" id="payRoom" style="margin-top:.5rem">${icon('bed', 18)} ${esc(t('payRoom'))}</button>` : ''}
+    <p class="muted" style="margin-top:1rem">${esc(t('howPay'))}</p>
     <div class="pay-options">
       <button class="pay-option" data-m="cash">${icon('cash', 20)}${esc(t('payCash'))}</button>
       <button class="pay-option" data-m="card">${icon('card', 20)}${esc(t('payCard'))}</button>
-      ${online ? `<button class="pay-option" data-m="online">${icon('phonePay', 20)}${esc(t('payOnline'))}</button>` : ''}
     </div>
   `);
-  $$('.pay-option', el).forEach((b) => b.onclick = async () => {
-    const m = b.dataset.m;
-    if (m === 'online') { close(); openOnlinePay(); return; }
+  $('#payOnline', el)?.addEventListener('click', () => { close(); openPay(); });
+  $('#payRoom', el)?.addEventListener('click', async () => {
     try {
-      await api(`/api/public/table/${token}/calls`, { method: 'POST', body: { type: 'bill', paymentMethod: m } });
+      await api(`/api/public/table/${token}/pay`, { method: 'POST', body: { method: 'room', guestId: guestId() } });
+      close(); toast(t('roomCharged'), 'ok');
+    } catch (e) { toast(errorText(e), 'err'); }
+  });
+  $$('.pay-option', el).forEach((b) => b.onclick = async () => {
+    try {
+      await api(`/api/public/table/${token}/calls`, { method: 'POST', body: { type: 'bill', paymentMethod: b.dataset.m } });
       close();
       toast(t('billRequested'), 'ok');
     } catch (e) { toast(errorText(e), 'err'); }
   });
 }
 
-function openOnlinePay() {
-  const { bill } = S.state;
-  const { el, close } = sheet(`
-    <div class="sheet-head"><h2>${esc(t('payOnline'))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
-    <div class="total-row"><span>${esc(t('due'))}</span><span>${fmt(bill.due)}</span></div>
-    <p class="demo-note">${esc(t('paymentDemoNote'))}</p>
-    <button class="btn block" id="doPay" style="margin-top:1rem">${esc(t('confirmPay'))} ${fmt(bill.due)}</button>
-  `);
-  $('#doPay', el).onclick = async (e) => {
-    e.target.disabled = true;
-    try {
-      await api(`/api/public/table/${token}/pay`, { method: 'POST', body: {} });
-      close();
-      toast(t('paid'), 'ok');
-    } catch (err) { toast(errorText(err), 'err'); e.target.disabled = false; }
+// Pay from the phone: whole bill, only my dishes, or an equal share; with an optional tip.
+function openPay() {
+  const pay = S.data.payments || {};
+  const lines = S.state.orders.filter((o) => o.status !== 'rejected').flatMap((o) => o.items)
+    .map((i) => ({ ...i, left: i.qty - (i.paidQty || 0) })).filter((i) => i.left > 0);
+  const st = { mode: 'all', picks: new Map(), people: 2, tip: 0 };
+  const { el, close } = sheet('<div id="payBody"></div>');
+  const amount = () => {
+    const { bill } = S.state;
+    if (st.mode === 'items') return Math.min([...st.picks].reduce((s, [id, n]) => s + n * lines.find((l) => l.id === id).price, 0), bill.due);
+    if (st.mode === 'share') return Math.min(Math.ceil(bill.total / st.people), bill.due);
+    return bill.due;
   };
+  const draw = () => {
+    const a = amount();
+    const tip = Math.min(Math.round(a * st.tip / 100), Math.round(a / 2));
+    $('#payBody', el).innerHTML = `
+      <div class="sheet-head"><h2>${esc(t('payNow'))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+      <div class="seg pay-seg">
+        <button data-mode="all" class="${st.mode === 'all' ? 'active' : ''}">${esc(t('payWhole'))}</button>
+        <button data-mode="items" class="${st.mode === 'items' ? 'active' : ''}">${esc(t('payMine'))}</button>
+        <button data-mode="share" class="${st.mode === 'share' ? 'active' : ''}">${esc(t('paySplit'))}</button>
+      </div>
+      ${st.mode === 'items' ? `<div class="pay-lines">${lines.map((l) => `<div class="pay-line">
+        <span>${esc(tr(l.name))}<small>${fmt(l.price)}</small></span>
+        <div class="qty"><button data-dec="${l.id}">${icon('minus', 14)}</button><span>${st.picks.get(l.id) || 0}/${l.left}</span><button data-inc="${l.id}">${icon('plus', 14)}</button></div>
+      </div>`).join('')}</div>` : ''}
+      ${st.mode === 'share' ? `<div class="pay-people"><span>${esc(t('people'))}</span>
+        <div class="qty"><button data-pp="-1">${icon('minus', 14)}</button><span>${st.people}</span><button data-pp="1">${icon('plus', 14)}</button></div></div>` : ''}
+      ${(pay.tips || []).length ? `<div class="pay-tip"><span>${esc(t('tip'))}</span><div class="chips">
+        ${pay.tips.map((p) => `<button class="chip ${st.tip === p ? 'active' : ''}" data-tip="${p}">${p ? `${p}%` : esc(t('noTip'))}</button>`).join('')}</div></div>` : ''}
+      <div class="total-row"><span>${esc(t('toPay'))}</span><span>${fmt(a + tip)}</span></div>
+      <button class="btn block" id="doPay" ${a > 0 ? '' : 'disabled'}>${esc(t('payNow'))} · ${fmt(a + tip)}</button>
+      ${pay.provider === 'demo' ? `<p class="demo-note">${esc(t('paymentDemoNote'))}</p>` : ''}`;
+    $$('[data-mode]', el).forEach((b) => b.onclick = () => { st.mode = b.dataset.mode; draw(); });
+    $$('[data-inc]', el).forEach((b) => b.onclick = () => {
+      const l = lines.find((x) => x.id === Number(b.dataset.inc));
+      st.picks.set(l.id, Math.min(l.left, (st.picks.get(l.id) || 0) + 1)); draw();
+    });
+    $$('[data-dec]', el).forEach((b) => b.onclick = () => {
+      const id = Number(b.dataset.dec); const n = (st.picks.get(id) || 0) - 1;
+      if (n > 0) st.picks.set(id, n); else st.picks.delete(id); draw();
+    });
+    $$('[data-pp]', el).forEach((b) => b.onclick = () => { st.people = Math.min(30, Math.max(2, st.people + Number(b.dataset.pp))); draw(); });
+    $$('[data-tip]', el).forEach((b) => b.onclick = () => { st.tip = Number(b.dataset.tip); draw(); });
+    $('#doPay', el).onclick = async (e) => {
+      e.target.disabled = true;
+      try {
+        const r = await api(`/api/public/table/${token}/pay`, { method: 'POST', body: {
+          mode: st.mode, items: [...st.picks], people: st.people, tipPercent: st.tip, guestId: guestId(), lang: S.lang,
+        } });
+        if (r.url) { location.href = r.url; return; }
+        close(); toast(t('paymentOk'), 'ok');
+      } catch (err) { toast(errorText(err), 'err'); e.target.disabled = false; }
+    };
+  };
+  draw();
 }
 
 // ---------------------------------------------------------------------------
