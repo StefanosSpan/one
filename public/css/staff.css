@@ -294,3 +294,12 @@ details.advanced summary { cursor: pointer; font-weight: 600; }
 .check-all { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
 .list-item .sel { flex: none; }
 .list-item .badge { margin-left: .35rem; }
+
+/* Stations, ETA, zones */
+.station-select { width: auto; padding: .35rem .6rem; font-size: .88rem; }
+.ticket-head .eta { margin-left: auto; margin-right: .6rem; font-weight: 700; font-size: .9rem; opacity: .85; }
+.ticket-head .eta.late { color: #fff; background: var(--red); border-radius: 4px; padding: 0 .35rem; opacity: 1; }
+.linklike { border: 0; background: none; padding: 0; color: var(--brand); font: inherit; text-decoration: underline; cursor: pointer; }
+.zone-toggle { font-size: .85rem; }
+.staff-list .member { display: grid; grid-template-columns: 1.4fr 1fr .8fr 2fr auto; gap: .5rem; align-items: start; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 760px) { .staff-list .member { grid-template-columns: 1fr 1fr; } }

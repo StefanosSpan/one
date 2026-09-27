@@ -265,3 +265,40 @@ test('menu rules: schedules, zones, happy hour, stock and all-inclusive', async 
   assert.ok(ai.items.every((i) => i.price_cents === 0 && i.included));
   await call(`/api/admin/tables/${t4.id}`, { method: 'PUT', as: 'admin', body: { label: t4.label, kind: t4.kind, allInclusive: false } });
 });
+
+test('stations, estimated time and named staff with zones', async () => {
+  const tables = (await call('/api/admin/tables', { as: 'admin' })).data;
+  const spot = tables[6];
+  await call(`/api/admin/tables/${spot.id}`, { method: 'PUT', as: 'admin', body: { label: spot.label, kind: spot.kind, zone: 'Βεράντα' } });
+  // Named waiter with a zone, alongside the shared role PINs.
+  const r = await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: {
+    staff: [{ name: 'Γιάννης', role: 'waiter', pin: '4455', zones: ['Βεράντα', 'Άγνωστη'] }], pins: { admin: '', waiter: '', kitchen: '' } } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.staff[0].zones, ['Βεράντα']);
+  assert.equal((await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: {
+    staff: [{ name: 'Α', role: 'waiter', pin: '1111' }] } })).status, 400); // same as the waiter role PIN
+  const login = await call('/api/staff/login', { method: 'POST', body: { pin: '4455' } });
+  assert.equal(login.data.name, 'Γιάννης');
+  cookies.giannis = login.setCookie.split(';')[0];
+  const me = (await call('/api/staff/me', { as: 'giannis' })).data;
+  assert.deepEqual(me.member, { name: 'Γιάννης', zones: ['Βεράντα'] });
+
+  // Drinks go to the bar, food to the kitchen; each marks its own part ready.
+  const menu = (await call('/api/admin/menu', { as: 'admin' })).data;
+  const drinks = menu.categories.at(-1);
+  await call(`/api/admin/categories/${drinks.id}`, { method: 'PUT', as: 'admin', body: { name: drinks.name, active: true, station: 'bar' } });
+  const drink = menu.items.find((i) => i.category_id === drinks.id && !i.options.some((g) => g.required));
+  const food = menu.items.find((i) => i.category_id !== drinks.id && !i.options.some((g) => g.required));
+  const o = await call(`/api/public/table/${spot.token}/orders`, { method: 'POST', body: { items: [{ id: drink.id, qty: 1 }, { id: food.id, qty: 1 }] } });
+  assert.deepEqual(o.data.items.map((i) => i.station).sort(), ['bar', 'kitchen']);
+  await call(`/api/staff/orders/${o.data.id}/status`, { method: 'POST', as: 'giannis', body: { status: 'accepted' } });
+  let order = (await call(`/api/staff/orders/${o.data.id}`, { as: 'kitchen' })).data.order;
+  assert.ok(new Date(order.etaAt) > new Date()); // estimate starts when it reaches the kitchen
+  order = (await call(`/api/staff/orders/${o.data.id}/station-ready`, { method: 'POST', as: 'kitchen', body: { station: 'bar' } })).data;
+  assert.equal(order.status, 'preparing');
+  order = (await call(`/api/staff/orders/${o.data.id}/station-ready`, { method: 'POST', as: 'kitchen', body: { station: 'kitchen' } })).data;
+  assert.equal(order.status, 'ready');
+  // Removing the member ends their session.
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { staff: [] } });
+  assert.equal((await call('/api/staff/me', { as: 'giannis' })).status, 401);
+});

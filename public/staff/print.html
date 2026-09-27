@@ -48,8 +48,11 @@
 
     try {
       if (kind === 'order') {
-        const { order, restaurant } = await api(`/api/staff/orders/${id}`);
-        document.title = `Δελτίο παραγγελίας #${order.id}`;
+        const { order: full, restaurant } = await api(`/api/staff/orders/${id}`);
+        // ?station=bar prints only the dishes of that station (separate printers for kitchen and bar).
+        const station = new URLSearchParams(location.search).get('station');
+        const order = station ? { ...full, items: full.items.filter((i) => i.station === station) } : full;
+        document.title = `Δελτίο παραγγελίας #${order.id}${station ? ` · ${station}` : ''}`;
         $('#what').textContent = document.title;
         $('#out').innerHTML = orderSlip(order, restaurant);
       } else {

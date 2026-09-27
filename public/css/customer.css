@@ -185,3 +185,4 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .suggest-card span { color: var(--muted); }
 .suggest-card i { position: absolute; right: .4rem; bottom: .4rem; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
   background: var(--brand); color: var(--brand-ink); }
+.order-block .eta { display: flex; align-items: center; gap: .35rem; margin: .4rem 0 0; color: var(--muted); font-size: .88rem; }

@@ -110,9 +110,10 @@ function readCookie(req, name) {
   return null;
 }
 
-function setSession(req, res, venue, role, accountId = 0) {
-  const hours = accountId ? OWNER_SESSION_HOURS : SESSION_HOURS;
-  const value = `${venue.id}.${role}.${Date.now() + hours * 3600_000}.${accountId}`;
+// `who` is the owner's account id, `s<id>` for a named staff member, or 0 for a shared role PIN.
+function setSession(req, res, venue, role, who = 0) {
+  const hours = typeof who === 'number' && who ? OWNER_SESSION_HOURS : SESSION_HOURS;
+  const value = `${venue.id}.${role}.${Date.now() + hours * 3600_000}.${who}`;
   res.setHeader('Set-Cookie', `staff=${value}.${sign(venue, value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${hours * 3600}${req.secure ? '; Secure' : ''}`);
 }
 
@@ -126,7 +127,10 @@ async function staffSession(req) {
   const expected = Buffer.from(sign(venue, `${venueId}.${role}.${exp}.${accountId}`));
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
-  return { venue, role, accountId: Number(accountId) || 0 };
+  const memberId = accountId?.startsWith('s') ? accountId.slice(1) : '';
+  const member = memberId ? (venue.settings.staff || []).find((m) => m.id === memberId) : null;
+  if (memberId && (!member || member.role !== role)) return null; // removed or changed since login
+  return { venue, role, accountId: memberId ? 0 : Number(accountId) || 0, member };
 }
 
 const requireStaff = (...roles) => (req, res, next) => {
@@ -138,6 +142,7 @@ const requireStaff = (...roles) => (req, res, next) => {
     req.venue = session.venue;
     req.role = session.role;
     req.accountId = session.accountId;
+    req.member = session.member;
     next();
   }, next);
 };
@@ -281,7 +286,7 @@ function publicRestaurant(venue) {
 
 async function loadOrders(venueId, where, params = [], { order = 'o.id', limit } = {}) {
   const orders = await db.all(`
-    SELECT o.*, t.label AS table_label, t.kind AS table_kind FROM orders o JOIN tables t ON t.id = o.table_id
+    SELECT o.*, t.label AS table_label, t.kind AS table_kind, t.zone AS table_zone FROM orders o JOIN tables t ON t.id = o.table_id
     WHERE o.venue_id = ? AND ${where} ORDER BY ${order}${limit ? ` LIMIT ${Number(limit)}` : ''}`, [venueId, ...params]);
   if (!orders.length) return [];
   const ids = orders.map((o) => o.id);
@@ -292,16 +297,19 @@ async function loadOrders(venueId, where, params = [], { order = 'o.id', limit }
     id: o.id, tableId: o.table_id, tableLabel: o.table_label, tableKind: o.table_kind, status: o.status, note: o.note,
     lang: o.lang, total: o.total_cents, paid: !!o.paid, closed: !!o.closed,
     createdAt: o.created_at, updatedAt: o.updated_at,
-    items: byOrder.get(o.id).map((i) => ({ itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note, options: i.options })),
+    tableZone: o.table_zone || '', etaAt: o.eta_at || '', channel: o.channel || 'table',
+    customer: o.channel === 'takeaway' ? { name: o.customer_name, phone: o.customer_phone, pickupAt: o.pickup_at } : null,
+    items: byOrder.get(o.id).map((i) => ({ id: i.id, itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note, options: i.options,
+      station: i.station || 'kitchen', ready: !!i.ready, paidQty: Number(i.paid_qty) || 0 })),
   }));
 }
 
 const loadOrder = async (venueId, id) => (await loadOrders(venueId, 'o.id = ?', [id]))[0];
 
 async function loadCalls(venueId, where = "c.status = 'open'", params = []) {
-  return (await db.all(`SELECT c.*, t.label AS table_label, t.kind AS table_kind FROM calls c JOIN tables t ON t.id = c.table_id
+  return (await db.all(`SELECT c.*, t.label AS table_label, t.kind AS table_kind, t.zone AS table_zone FROM calls c JOIN tables t ON t.id = c.table_id
     WHERE c.venue_id = ? AND ${where} ORDER BY c.id`, [venueId, ...params]))
-    .map((c) => ({ id: c.id, tableId: c.table_id, tableLabel: c.table_label, tableKind: c.table_kind, type: c.type,
+    .map((c) => ({ id: c.id, tableId: c.table_id, tableLabel: c.table_label, tableKind: c.table_kind, tableZone: c.table_zone || '', type: c.type,
       paymentMethod: c.payment_method, status: c.status, createdAt: c.created_at }));
 }
 
@@ -425,6 +433,7 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
   });
   if ([...wanted.keys()].length) broadcastMenuUpdate(venue);
 
+  if (status === 'accepted') await startClock(venue, orderId);
   const order = await loadOrder(venue.id, orderId);
   emit(staffChannel(venue), 'order:new', order);
   await notifyTable(table.id);
@@ -488,14 +497,15 @@ app.post('/api/staff/login', wrap(async (req, res) => {
   const pin = String(req.body?.pin ?? '');
   const pins = venue.settings.pins || {};
   if (venue.status === 'suspended') fail(403, 'Ο λογαριασμός του καταστήματος έχει ανασταλεί');
-  const role = ROLES.find((r) => pins[r] && pins[r] === pin);
+  const member = (venue.settings.staff || []).find((m) => m.pin === pin);
+  const role = member?.role || ROLES.find((r) => pins[r] && pins[r] === pin);
   if (!role) {
     // Limits PIN guessing against one venue from many addresses.
     if (!rateLimit(`pinfail:${venue.id}`, 30, 10 * 60_000)) fail(429, 'Πολλές λάθος προσπάθειες. Δοκιμάστε σε λίγα λεπτά.');
     fail(401, 'Λάθος PIN');
   }
-  setSession(req, res, venue, role);
-  res.json({ role, venue: venue.slug });
+  setSession(req, res, venue, role, member ? `s${member.id}` : 0);
+  res.json({ role, venue: venue.slug, name: member?.name || '' });
 }));
 
 app.post('/api/staff/logout', (req, res) => {
@@ -515,7 +525,8 @@ app.get('/api/staff/me', wrap(async (req, res) => {
   const session = await staffSession(req);
   if (!session) return res.status(401).json({ error: 'Απαιτείται σύνδεση' });
   res.json({ role: session.role, owner: !!session.accountId, restaurant: session.venue.settings.restaurant?.name,
-    venue: venueSummary(session.venue) });
+    venue: venueSummary(session.venue), member: session.member ? { name: session.member.name, zones: session.member.zones || [] } : null,
+    stations: stationsOf(session.venue) });
 }));
 
 app.get('/api/staff/stream', requireStaff(), (req, res) => subscribe(staffChannel(req.venue), req, res));
@@ -529,7 +540,7 @@ app.get('/api/staff/overview', requireStaff(), wrap(async (req, res) => {
     const mine = orders.filter((o) => o.tableId === t.id && o.status !== 'rejected');
     const total = mine.reduce((a, o) => a + o.total, 0);
     const paid = mine.filter((o) => o.paid).reduce((a, o) => a + o.total, 0);
-    return { id: t.id, label: t.label, kind: t.kind, active: t.active, orders: mine.length, total, paid,
+    return { id: t.id, label: t.label, kind: t.kind, zone: t.zone, active: t.active, orders: mine.length, total, paid,
       calls: calls.filter((c) => c.tableId === t.id).map((c) => c.type) };
   });
   res.json({ role: req.role, requireApproval: req.venue.settings.requireApproval, tables: tableSummaries, orders, calls });
@@ -553,10 +564,49 @@ app.post('/api/staff/orders/:id/status', requireStaff(), wrap(async (req, res) =
     fail(403, 'Δεν επιτρέπεται από την κουζίνα');
   }
   await db.run('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?', [next, now(), order.id]);
-  const updated = await loadOrder(req.venue.id, order.id);
-  emit(staffChannel(req.venue), 'order:update', updated);
-  await notifyTable(order.tableId);
-  res.json(updated);
+  if (next === 'accepted' && order.status === 'pending') await startClock(req.venue, order.id);
+  if (next === 'ready') await db.run('UPDATE order_items SET ready = 1 WHERE order_id = ?', [order.id]);
+  if (next === 'preparing' || next === 'accepted') await db.run('UPDATE order_items SET ready = 0 WHERE order_id = ? AND ? = 1', [order.id, order.status === 'ready' ? 1 : 0]);
+  res.json(await orderChanged(req.venue, order.id));
+}));
+
+async function orderChanged(venue, orderId) {
+  const updated = await loadOrder(venue.id, orderId);
+  emit(staffChannel(venue), 'order:update', updated);
+  await notifyTable(updated.tableId);
+  return updated;
+}
+
+// Estimated ready time: the slowest dish of the order (or the venue default), from when it reaches the kitchen.
+async function startClock(venue, orderId) {
+  const { m } = await db.get(`SELECT MAX(COALESCE(i.prep_minutes, 0)) AS m FROM order_items oi LEFT JOIN items i ON i.id = oi.item_id
+    WHERE oi.order_id = ?`, [orderId]);
+  const minutes = Number(m) || Number(venue.settings.defaultPrepMinutes) || 15;
+  const ts = now();
+  await db.run('UPDATE orders SET accepted_at = ?, eta_at = ? WHERE id = ?', [ts, new Date(Date.now() + minutes * 60_000).toISOString(), orderId]);
+}
+
+// A station (kitchen, bar…) marks its part of an order ready; the order is ready when every station is.
+app.post('/api/staff/orders/:id/station-ready', requireStaff('kitchen'), wrap(async (req, res) => {
+  const order = await loadOrder(req.venue.id, Number(req.params.id) || 0);
+  if (!order) fail(404, 'Η παραγγελία δεν βρέθηκε');
+  if (!['accepted', 'preparing'].includes(order.status)) fail(409, 'Μη επιτρεπτή αλλαγή κατάστασης');
+  const station = String(req.body?.station || 'kitchen');
+  await db.run('UPDATE order_items SET ready = 1 WHERE order_id = ? AND station = ?', [order.id, station]);
+  const { left } = await db.get('SELECT COUNT(*) AS left FROM order_items WHERE order_id = ? AND ready = 0', [order.id]);
+  const status = Number(left) === 0 ? 'ready' : 'preparing';
+  await db.run('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?', [status, now(), order.id]);
+  res.json(await orderChanged(req.venue, order.id));
+}));
+
+// The kitchen can push the estimate back when it is busy.
+app.post('/api/staff/orders/:id/eta', requireStaff('kitchen'), wrap(async (req, res) => {
+  const order = await loadOrder(req.venue.id, Number(req.params.id) || 0);
+  if (!order) fail(404, 'Η παραγγελία δεν βρέθηκε');
+  const add = Math.min(Math.max(Math.trunc(Number(req.body?.add)) || 0, -60), 120);
+  const base = Math.max(Date.now(), new Date(order.etaAt || Date.now()).getTime());
+  await db.run('UPDATE orders SET eta_at = ? WHERE id = ?', [new Date(base + add * 60_000).toISOString(), order.id]);
+  res.json(await orderChanged(req.venue, order.id));
 }));
 
 app.post('/api/staff/calls/:id/done', requireStaff('waiter'), wrap(async (req, res) => {
@@ -686,9 +736,9 @@ function broadcastMenuUpdate(venue) {
 const admin = express.Router();
 admin.use(requireStaff('admin'));
 
-const adminSettings = (req) => {
+const adminSettings = async (req) => {
   const { secret, ...s } = req.venue.settings;
-  return { ...s, stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
+  return { ...s, zones: await zonesOf(req.venue.id), defaultPrepMinutes: s.defaultPrepMinutes || 15, staff: s.staff || [], stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
     staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
 };
 
@@ -697,7 +747,7 @@ const canUseDemoPayments = (venue) => venue.isDemo || !PRODUCTION;
 // Visitors of the public demo cannot upload files or lock others out by changing the PINs.
 const demoGuard = (req) => { if (PRODUCTION && req.venue.isDemo) fail(403, 'Δεν επιτρέπεται στο demo. Δημιουργήστε δωρεάν λογαριασμό.'); };
 
-admin.get('/settings', (req, res) => res.json(adminSettings(req)));
+admin.get('/settings', wrap(async (req, res) => res.json(await adminSettings(req))));
 
 admin.put('/settings', wrap(async (req, res) => {
   const b = req.body || {};
@@ -746,6 +796,21 @@ admin.put('/settings', wrap(async (req, res) => {
     if (!/^#[0-9a-fA-F]{6}$/.test(b.brandColor)) fail(400, 'Μη έγκυρο χρώμα');
     await set('brandColor', b.brandColor.toLowerCase());
   }
+  if (Array.isArray(b.staff)) {
+    demoGuard(req);
+    const zones = await zonesOf(v);
+    const members = b.staff.slice(0, 50).map((m) => ({
+      id: /^[a-z0-9]{4,12}$/.test(m?.id || '') ? m.id : randomBytes(4).toString('hex'),
+      name: cleanText(m?.name, 40), role: ROLES.includes(m?.role) ? m.role : 'waiter', pin: String(m?.pin ?? ''),
+      zones: cleanZones(m?.zones).filter((z) => zones.includes(z)),
+    })).filter((m) => m.name);
+    const rolePins = { ...cur.pins, ...Object.fromEntries(Object.entries(b.pins || {}).filter(([, p]) => p)) };
+    const all = [...members.map((m) => m.pin), ...Object.values(rolePins)];
+    if (members.some((m) => !/^\d{4,8}$/.test(m.pin))) fail(400, 'Τα PIN πρέπει να έχουν 4-8 ψηφία');
+    if (new Set(all).size !== all.length) fail(400, 'Κάθε άτομο χρειάζεται διαφορετικό PIN');
+    await set('staff', members);
+  }
+  if (typeof b.defaultPrepMinutes !== 'undefined') await set('defaultPrepMinutes', Math.min(Math.max(Math.trunc(Number(b.defaultPrepMinutes)) || 15, 1), 180));
   if (b.pins && ROLES.some((r) => b.pins[r] && b.pins[r] !== cur.pins?.[r])) {
     demoGuard(req);
     const pins = { ...cur.pins };
@@ -760,7 +825,7 @@ admin.put('/settings', wrap(async (req, res) => {
   }
   req.venue = await getVenue(v);
   broadcastMenuUpdate(req.venue);
-  res.json(adminSettings(req));
+  res.json(await adminSettings(req));
 }));
 
 admin.get('/menu', wrap(async (req, res) => {

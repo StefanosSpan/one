@@ -959,7 +959,21 @@ function renderSettings() {
     <div class="copy-row"><input class="input" id="staffUrl" readonly value="${esc(s.staffUrl)}"><button class="btn secondary sm" id="copyStaff" type="button">Αντιγραφή</button></div>
     <p class="muted small">Κωδικός καταστήματος: <b>${esc(s.venue.slug)}</b></p>
 
-    <h3>PIN προσωπικού</h3>
+    <h3>Προσωπικό με όνομα</h3>
+    <p class="muted small" style="margin-top:0">Κάθε άτομο με δικό του PIN. Οι σερβιτόροι με ζώνες βλέπουν πρώτα τα δικά τους τραπέζια
+      (π.χ. Γιάννης: Βεράντα, Μαρία: Παραλία). Οι ζώνες ορίζονται στις «Θέσεις & QR».</p>
+    <div class="staff-list" id="staffList"></div>
+    <button type="button" class="btn secondary sm" id="addMember">Προσθήκη ατόμου</button>
+
+    <h3>Πόστα προετοιμασίας</h3>
+    <p class="muted small" style="margin-top:0">Κάθε πόστο έχει δική του οθόνη και εκτυπωτή (Κουζίνα → επιλογή πόστου). Στις κατηγορίες του μενού
+      ορίζετε ποιο πόστο τις ετοιμάζει.</p>
+    <div id="stationList"></div>
+    <button type="button" class="btn secondary sm" id="addStation">Προσθήκη πόστου</button>
+    <label class="field" style="max-width:320px;margin-top:.8rem"><span>Προεπιλεγμένος χρόνος προετοιμασίας (λεπτά)</span>
+      <input class="input" id="defPrep" type="number" min="1" max="180" value="${esc(s.defaultPrepMinutes)}"></label>
+
+    <h3>PIN ρόλων (κοινά)</h3>
     <div class="two">
       <label class="field"><span>Διαχειριστής (τρέχον: ${esc(s.pins.admin)})</span><input class="input" id="pinAdmin" inputmode="numeric" placeholder="Νέο PIN, 4-8 ψηφία"></label>
       <label class="field"><span>Σερβιτόρος (τρέχον: ${esc(s.pins.waiter)})</span><input class="input" id="pinWaiter" inputmode="numeric" placeholder="Νέο PIN"></label>
@@ -974,6 +988,50 @@ function renderSettings() {
 
     <div style="margin-top:1.2rem"><button class="btn" id="save">Αποθήκευση ρυθμίσεων</button></div>
   </div>`;
+  // Named staff members
+  let members = (s.staff || []).map((m) => ({ ...m }));
+  const ROLE_EL = { waiter: 'Σερβιτόρος', kitchen: 'Κουζίνα / μπαρ', admin: 'Διαχείριση' };
+  const drawMembers = () => {
+    $('#staffList').innerHTML = members.map((m, i) => `<div class="member" data-i="${i}">
+      <input class="input" data-f="name" placeholder="Όνομα" value="${esc(m.name || '')}">
+      <select class="input" data-f="role">${Object.entries(ROLE_EL).map(([k, l]) => `<option value="${k}" ${m.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <input class="input" data-f="pin" inputmode="numeric" placeholder="PIN" value="${esc(m.pin || '')}">
+      <div class="checks">${s.zones.length ? s.zones.map((z) => `<label><input type="checkbox" data-zone="${esc(z)}" ${(m.zones || []).includes(z) ? 'checked' : ''}>${esc(z)}</label>`).join('') : '<span class="muted small">Χωρίς ζώνες</span>'}</div>
+      <button type="button" class="mini" data-rm="${i}" title="Αφαίρεση">${icon('trash', 15)}</button>
+    </div>`).join('') || '<p class="muted small">Δεν υπάρχουν άτομα. Μπορείτε να χρησιμοποιείτε μόνο τα κοινά PIN ρόλων.</p>';
+    $$('#staffList [data-rm]').forEach((b) => b.onclick = () => { readMembers(); members.splice(Number(b.dataset.rm), 1); drawMembers(); });
+  };
+  const readMembers = () => {
+    members = $$('#staffList .member').map((row, i) => ({
+      id: members[i].id, name: $('[data-f=name]', row).value.trim(), role: $('[data-f=role]', row).value, pin: $('[data-f=pin]', row).value.trim(),
+      zones: $$('[data-zone]', row).filter((c) => c.checked).map((c) => c.dataset.zone),
+    }));
+    return members;
+  };
+  $('#addMember').onclick = () => { readMembers(); members.push({ name: '', role: 'waiter', pin: '', zones: [] }); drawMembers(); };
+  drawMembers();
+  // Stations
+  let stations = (s.stations || []).map((x) => ({ ...x }));
+  const drawStations = () => {
+    $('#stationList').innerHTML = stations.map((st, i) => `<div class="toolbar" data-st="${i}">
+      <input class="input" data-f="name" value="${esc(st.name)}" style="max-width:260px">
+      <span class="muted small">κωδικός: ${esc(st.id || '(νέο)')}</span>
+      ${st.id === 'kitchen' ? '' : `<button type="button" class="mini" data-rmst="${i}">${icon('trash', 15)}</button>`}</div>`).join('');
+    $$('[data-rmst]').forEach((b) => b.onclick = () => { readStations(); stations.splice(Number(b.dataset.rmst), 1); drawStations(); });
+  };
+  const readStations = () => {
+    stations = $$('#stationList [data-st]').map((row, i) => ({ id: stations[i].id, name: $('[data-f=name]', row).value.trim() }));
+    return stations;
+  };
+  $('#addStation').onclick = () => {
+    readStations();
+    const name = prompt('Όνομα πόστου (π.χ. Pool bar, Ζαχαροπλαστείο):');
+    if (!name) return;
+    const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'station';
+    let id = base; for (let n = 2; stations.some((x) => x.id === id); n++) id = `${base}${n}`;
+    stations.push({ id: id.slice(0, 20), name }); drawStations();
+  };
+  drawStations();
   $('#copyStaff').onclick = async () => {
     try { await navigator.clipboard.writeText(s.staffUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#staffUrl').select(); }
   };
@@ -985,6 +1043,7 @@ function renderSettings() {
       defaultLanguage: $('#defLang').value,
       pins: { admin: $('#pinAdmin').value.trim(), waiter: $('#pinWaiter').value.trim(), kitchen: $('#pinKitchen').value.trim() },
       publicBaseUrl: $('#baseUrl').value.trim(),
+      staff: readMembers(), stations: readStations(), defaultPrepMinutes: $('#defPrep').value,
     };
     try { await api('/api/admin/settings', { method: 'PUT', body }); toast('Οι ρυθμίσεις αποθηκεύτηκαν', 'ok'); render(); }
     catch (err) { toast(err.message, 'err'); }

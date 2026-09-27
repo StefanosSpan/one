@@ -22,7 +22,7 @@ export function topBar(me, current, title) {
   const bar = document.createElement('header');
   bar.className = 'bar';
   bar.innerHTML = `<div class="bar-inner">
-    <div class="title"><span class="conn" id="conn"></span>${esc(title)}<span class="venue">${esc(me.restaurant || '')}</span></div>
+    <div class="title"><span class="conn" id="conn"></span>${esc(title)}<span class="venue">${esc(me.restaurant || '')}${me.member ? ` · ${esc(me.member.name)}` : ''}</span></div>
     ${links.map(([k, , l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${l}</a>`).join('')}
     <button id="soundBtn" title="Ήχος ειδοποιήσεων"></button>
     <button id="logout" title="Έξοδος"><span>Έξοδος</span></button>

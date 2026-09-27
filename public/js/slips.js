@@ -27,6 +27,7 @@ export function orderSlip(order, restaurant) {
     <div class="c title">Δελτίο παραγγελίας</div>
     <div class="c spot">${esc(KIND_EL[order.tableKind] || 'Τραπέζι')} ${esc(order.tableLabel)}</div>
     <div class="c meta">Παραγγελία #${order.id} · ${when(order.createdAt)} · ${esc(order.lang.toUpperCase())}</div>
+    ${order.customer ? `<div class="c meta">Παραλαβή: ${esc(order.customer.name)} · ${esc(order.customer.phone)}${order.customer.pickupAt ? ` · ${when(order.customer.pickupAt)}` : ''}</div>` : ''}
     <hr>
     <table class="kitchen-items">
       ${order.items.map((i) => `<tr><td class="q">${i.qty}×</td><td>${esc(nameIn(i.name))}

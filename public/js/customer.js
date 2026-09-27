@@ -570,6 +570,8 @@ function renderOrder() {
         <div class="order-head"><b>${esc(t('order'))} #${o.id} <span class="muted small" style="font-weight:400">· ${clock(o.createdAt)}</span></b>
           <span class="status s-${o.status}">${esc(t(`status_${o.status}`))}</span></div>
         ${o.status !== 'rejected' ? `<div class="progress">${STEPS.map((_, i) => `<i class="${i <= step ? 'on' : ''}"></i>`).join('')}</div>` : ''}
+        ${o.etaAt && ['accepted', 'preparing'].includes(o.status) && new Date(o.etaAt) > Date.now()
+          ? `<p class="eta">${icon('clock', 14)} ${esc(tf('readyIn', { n: Math.max(1, Math.round((new Date(o.etaAt) - Date.now()) / 60000)) }))}</p>` : ''}
         ${o.items.map((i) => `<div class="line"><span>${i.qty} × ${esc(tr(i.name))}${(i.options || []).length ? `<br><span class="muted small">${esc(i.options.map((x) => tr(x.choice)).join(', '))}</span>` : ''}${i.note ? `<br><span class="muted small">${esc(i.note)}</span>` : ''}</span>
           <span>${fmt(i.price * i.qty)}</span></div>`).join('')}
         ${o.note ? `<p class="muted small" style="margin:.4rem 0 0">${esc(o.note)}</p>` : ''}

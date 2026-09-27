@@ -14,6 +14,18 @@ function start() {
   const bar = topBar(me, 'waiter', 'Σερβιτόρος');
   let data = null;
   let known = null;
+  // A waiter with zones sees only their own tables by default; "all" shows the whole venue.
+  const myZones = me.member?.zones || [];
+  let onlyMine = myZones.length > 0;
+  if (myZones.length) {
+    const zb = document.createElement('button');
+    zb.className = 'zone-toggle';
+    const draw = () => { zb.innerHTML = `<span>${onlyMine ? `Ζώνες: ${esc(myZones.join(', '))}` : 'Όλες οι ζώνες'}</span>`; };
+    zb.onclick = () => { onlyMine = !onlyMine; draw(); render(); };
+    draw();
+    document.querySelector('#soundBtn').before(zb);
+  }
+  const inZone = (zone) => !onlyMine || myZones.includes(zone || '');
 
   async function load(evt) {
     try { data = await api('/api/staff/overview'); } catch { return; }
@@ -52,7 +64,9 @@ function start() {
   }
 
   function render() {
-    const { calls, orders, tables } = data;
+    const calls = data.calls.filter((c) => inZone(c.tableZone));
+    const orders = data.orders.filter((o) => o.channel === 'takeaway' || inZone(o.tableZone));
+    const tables = data.tables.filter((t) => inZone(t.zone));
     const pending = orders.filter((o) => o.status === 'pending');
     const ready = orders.filter((o) => o.status === 'ready');
     const inKitchen = orders.filter((o) => o.status === 'accepted' || o.status === 'preparing');

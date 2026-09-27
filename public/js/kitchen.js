@@ -19,6 +19,18 @@ function start() {
   let autoPrint = false;
   try { autoPrint = localStorage.getItem(AUTO_KEY) === '1'; } catch { /* ignore */ }
   const printed = new Set();
+  // Station: each prep station (kitchen, bar…) can have its own screen; "all" shows everything.
+  const STATION_KEY = 'station';
+  let station = 'all';
+  try { station = localStorage.getItem(STATION_KEY) || 'all'; } catch { /* ignore */ }
+  if (station !== 'all' && !me.stations.some((st) => st.id === station)) station = 'all';
+  const stSel = document.createElement('select');
+  stSel.className = 'input station-select';
+  stSel.innerHTML = `<option value="all">Όλα τα πόστα</option>${me.stations.map((st) => `<option value="${esc(st.id)}">${esc(st.name)}</option>`).join('')}`;
+  stSel.value = station;
+  stSel.onchange = () => { station = stSel.value; try { localStorage.setItem(STATION_KEY, station); } catch { /* ignore */ } known = null; load(); };
+  document.querySelector('#soundBtn').before(stSel);
+  const mine = (o) => (station === 'all' ? o.items : o.items.filter((i) => i.station === station));
   const apBtn = document.createElement('button');
   const drawAp = () => { apBtn.innerHTML = `<span>Αυτόματη εκτύπωση: ${autoPrint ? 'ναι' : 'όχι'}</span>`; };
   apBtn.onclick = () => { autoPrint = !autoPrint; try { localStorage.setItem(AUTO_KEY, autoPrint ? '1' : '0'); } catch { /* ignore */ } drawAp(); };
@@ -31,7 +43,7 @@ function start() {
     const f = document.createElement('iframe');
     f.id = 'printFrame';
     f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
-    f.src = `/staff/print/order/${id}?embed=1`;
+    f.src = `/staff/print/order/${id}?embed=1${station !== 'all' ? `&station=${encodeURIComponent(station)}` : ''}`;
     let finished = false;
     const done = () => { if (finished) return; finished = true; f.remove(); printQueue.shift(); printNext(); };
     f.onload = () => f.contentWindow.addEventListener('afterprint', () => setTimeout(done, 300));
@@ -43,6 +55,7 @@ function start() {
 
   async function load() {
     try { ({ orders } = await api('/api/staff/overview')); } catch { return; }
+    orders = orders.filter((o) => mine(o).length);
     const incoming = new Set(orders.filter((o) => o.status === 'accepted').map((o) => o.id));
     if (known && autoPrint) {
       for (const id of incoming) if (!known.has(id) && !printed.has(id)) { printed.add(id); printQueue.push(id); }
@@ -56,19 +69,29 @@ function start() {
     render();
   }
 
-  const setStatus = async (id, status) => {
-    try { await api(`/api/staff/orders/${id}/status`, { method: 'POST', body: { status } }); await load(); }
-    catch (e) { toast(e.message, 'err'); }
+  const post = async (path, body) => {
+    try { await api(path, { method: 'POST', body }); await load(); } catch (e) { toast(e.message, 'err'); }
+  };
+  const setStatus = (id, status) => {
+    // With a station selected, "ready" means "my part is ready"; the order is ready when every station is.
+    if (status === 'ready' && station !== 'all') return post(`/api/staff/orders/${id}/station-ready`, { station });
+    return post(`/api/staff/orders/${id}/status`, { status });
+  };
+  const eta = (o) => {
+    if (!o.etaAt || o.status === 'ready') return '';
+    const m = Math.round((new Date(o.etaAt) - Date.now()) / 60000);
+    return `<span class="eta ${m < 0 ? 'late' : ''}">${m >= 0 ? `~${m}′` : `+${-m}′`}</span>`;
   };
 
   function ticket(o, actions) {
     const e = elapsed(o.createdAt);
     return `<div class="ticket s-${o.status} ${e.late && o.status !== 'ready' ? 'late' : ''}">
-      <div class="ticket-head"><span class="tbl">${esc(spotName(o.tableKind, o.tableLabel))}</span>
+      <div class="ticket-head"><span class="tbl">${o.channel === 'takeaway' ? `Παραλαβή · ${esc(o.customer?.name || '')}` : esc(spotName(o.tableKind, o.tableLabel))}</span>${eta(o)}
         <span class="elapsed" data-since="${esc(o.createdAt)}"><span>${e.text}</span></span></div>
       <div class="ticket-body">
-        <div class="meta">#${o.id} · <a class="print-link" href="/staff/print/order/${o.id}" target="_blank">Εκτύπωση</a></div>
-        <div class="items">${o.items.map((i) => `<div><span class="q">${i.qty}×</span>${esc(itemName(i.name))}
+        <div class="meta">#${o.id} · <a class="print-link" href="/staff/print/order/${o.id}${station !== 'all' ? `?station=${encodeURIComponent(station)}` : ''}" target="_blank">Εκτύπωση</a>
+          ${o.status !== 'ready' ? ` · <button class="linklike" data-eta="${o.id}">+5′</button>` : ''}</div>
+        <div class="items">${mine(o).map((i) => `<div><span class="q">${i.qty}×</span>${esc(itemName(i.name))}
           ${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</div>`).join('')}</div>
         ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
         <div class="row">${actions}</div>
@@ -77,9 +100,10 @@ function start() {
   }
 
   function render() {
-    const neu = orders.filter((o) => o.status === 'accepted');
-    const prep = orders.filter((o) => o.status === 'preparing');
-    const ready = orders.filter((o) => o.status === 'ready');
+    const doneHere = (o) => station !== 'all' && mine(o).every((i) => i.ready);
+    const neu = orders.filter((o) => o.status === 'accepted' && !doneHere(o));
+    const prep = orders.filter((o) => o.status === 'preparing' && !doneHere(o));
+    const ready = orders.filter((o) => o.status === 'ready' || (doneHere(o) && o.status !== 'served'));
     const col = (title, list, fn) => `<section class="kcol"><h2><span>${title}</span><span class="n">${list.length}</span></h2>
       ${list.length ? list.map(fn).join('') : '<p class="kempty">Καμία παραγγελία</p>'}</section>`;
     $('#app').innerHTML = `<div class="kcols">
@@ -89,10 +113,11 @@ function start() {
       ${col('Ετοιμάζονται', prep, (o) => ticket(o, `
         <button class="btn secondary sm" data-id="${o.id}" data-s="accepted" style="flex:0 0 auto">Πίσω</button>
         <button class="btn success sm" data-id="${o.id}" data-s="ready">Έτοιμο για πάσο</button>`))}
-      ${col('Στο πάσο', ready, (o) => ticket(o, `
-        <button class="btn secondary sm" data-id="${o.id}" data-s="preparing">Επιστροφή στην κουζίνα</button>`))}
+      ${col('Στο πάσο', ready, (o) => ticket(o, o.status === 'ready' ? `
+        <button class="btn secondary sm" data-id="${o.id}" data-s="preparing">Επιστροφή στην κουζίνα</button>` : '<span class="muted small">Περιμένει άλλο πόστο</span>'))}
     </div>`;
     $$('[data-s]').forEach((b) => b.onclick = () => setStatus(b.dataset.id, b.dataset.s));
+    $$('[data-eta]').forEach((b) => b.onclick = () => post(`/api/staff/orders/${b.dataset.eta}/eta`, { add: 5 }));
   }
 
   setInterval(() => {
