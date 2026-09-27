@@ -210,3 +210,58 @@ test('the menu look can be customised and is sanitised', async () => {
   assert.equal(pub.restaurant.theme.background, '#f6efe3');
   assert.equal(pub.restaurant.theme.font, 'elegant');
 });
+
+test('menu rules: schedules, zones, happy hour, stock and all-inclusive', async () => {
+  const { venueClock, inWindow } = await import('../server/menu-rules.js');
+  // Windows past midnight belong to the evening before.
+  assert.equal(inWindow({ days: [5], from: '22:00', to: '02:00' }, { day: 6, minutes: 60 }), true);
+  assert.equal(inWindow({ days: [5], from: '22:00', to: '02:00' }, { day: 6, minutes: 23 * 60 }), false);
+
+  const today = venueClock().day;
+  const other = today === 7 ? 1 : today + 1;
+  const spot = (await call('/api/admin/tables', { as: 'admin' })).data[5].token;
+  const url = `/api/public/table/${spot}`;
+  const menu = (await call('/api/admin/menu', { as: 'admin' })).data;
+  const cat = menu.categories[0];
+  const item = menu.items.find((i) => i.category_id === cat.id);
+  const put = (c, extra) => call(`/api/admin/categories/${c.id}`, { method: 'PUT', as: 'admin', body: { name: c.name, active: true, station: c.station, ...extra } });
+
+  // Category shown only on another day: hidden and not orderable today.
+  await put(cat, { schedule: { days: [other] } });
+  assert.ok(!(await call(url)).data.categories.some((c) => c.id === cat.id));
+  assert.equal((await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: item.id, qty: 1 }] } })).data.error, 'item_unavailable');
+  await put(cat, { schedule: null });
+
+  // Per-zone menu: only for the "Πισίνα" zone.
+  const tables = (await call('/api/admin/tables', { as: 'admin' })).data;
+  const t4 = tables.find((t) => t.token === spot);
+  await put(cat, { zones: ['Πισίνα'] });
+  assert.ok(!(await call(url)).data.categories.some((c) => c.id === cat.id));
+  await call(`/api/admin/tables/${t4.id}`, { method: 'PUT', as: 'admin', body: { label: t4.label, kind: t4.kind, zone: 'Πισίνα' } });
+  assert.ok((await call(url)).data.categories.some((c) => c.id === cat.id));
+  await put(cat, { zones: [] });
+
+  // Happy hour price, and stock that runs out.
+  const body = { ...item, price: item.price_cents / 100, categoryId: item.category_id, happyPrice: '1.00', stock: 2 };
+  await call(`/api/admin/items/${item.id}`, { method: 'PUT', as: 'admin', body });
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { happyHour: { enabled: true, days: [], from: '00:00', to: '23:59' } } });
+  const pub = (await call(url)).data.items.find((i) => i.id === item.id);
+  assert.equal(pub.happy, true);
+  assert.equal(pub.price_cents, 100);
+  assert.equal(pub.lowStock, 2);
+  assert.equal((await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: item.id, qty: 3 }] } })).data.error, 'item_unavailable');
+  const o = await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: item.id, qty: 2 }] } });
+  assert.equal(o.data.total, 200);
+  const after = (await call('/api/admin/menu', { as: 'admin' })).data.items.find((i) => i.id === item.id);
+  assert.equal(after.stock, 0);
+  assert.equal(after.available, false);
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { happyHour: { enabled: false } } });
+  await call(`/api/admin/items/${item.id}`, { method: 'PUT', as: 'admin', body: { ...body, happyPrice: '', stock: '', available: true } });
+
+  // All-inclusive spot: dishes free unless premium.
+  await call(`/api/admin/tables/${t4.id}`, { method: 'PUT', as: 'admin', body: { label: t4.label, kind: t4.kind, allInclusive: true } });
+  const ai = (await call(url)).data;
+  assert.equal(ai.table.allInclusive, true);
+  assert.ok(ai.items.every((i) => i.price_cents === 0 && i.included));
+  await call(`/api/admin/tables/${t4.id}`, { method: 'PUT', as: 'admin', body: { label: t4.label, kind: t4.kind, allInclusive: false } });
+});

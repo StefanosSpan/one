@@ -278,3 +278,19 @@ details.advanced summary { cursor: pointer; font-weight: 600; }
 .pv-cart span:first-child { background: rgba(255, 255, 255, .22); border-radius: 4px; padding: 0 .4rem; }
 .look .panel h3 { margin-top: 1.4rem; }
 .look .panel h3:first-child { margin-top: 0; }
+
+/* Menu rules: schedules, offers, zones */
+.win .days { display: flex; gap: .3rem; flex-wrap: wrap; }
+.win .days label { cursor: pointer; }
+.win .days input { position: absolute; opacity: 0; pointer-events: none; }
+.win .days span { display: inline-block; min-width: 38px; text-align: center; padding: .35rem .4rem; border: 1px solid #d6d6d6; border-radius: 6px; font-size: .85rem; }
+.win .days input:checked + span { background: var(--text); color: #fff; border-color: var(--text); }
+.win .times { display: flex; gap: .8rem; margin-top: .5rem; flex-wrap: wrap; }
+.win .times label { display: flex; align-items: center; gap: .4rem; font-size: .88rem; }
+.win .times .input { width: auto; }
+.offers { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+.offers > div { display: flex; flex-direction: column; }
+.bulk { align-items: center; }
+.check-all { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+.list-item .sel { flex: none; }
+.list-item .badge { margin-left: .35rem; }

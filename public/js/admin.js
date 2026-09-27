@@ -11,7 +11,29 @@ let tab = TAB_KEYS.includes(new URLSearchParams(location.search).get('tab')) ? n
 const me = await requireLogin(['admin']);
 if (me) start();
 
-const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: 'Χορτοφαγικό', vegan: 'Vegan', gluten_free: 'Χωρίς γλουτένη', spicy: 'Πικάντικο' };
+const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: 'Χορτοφαγικό', vegan: 'Vegan', gluten_free: 'Χωρίς γλουτένη', spicy: 'Πικάντικο',
+  suggest: 'Προτείνεται στο καλάθι' };
+const DAY_SHORT = ['Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα', 'Κυ'];
+
+// Days + hours editor, e.g. breakfast Mon–Sun 07:00–11:00 or happy hour 18:00–20:00.
+function windowEditor(id, win) {
+  const w = win || { days: [], from: '', to: '' };
+  return `<div class="win" id="${id}">
+    <div class="days">${DAY_SHORT.map((d, i) => `<label><input type="checkbox" value="${i + 1}" ${(w.days || []).includes(i + 1) ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div>
+    <div class="times"><label>από <input class="input" type="time" data-w="from" value="${esc(w.from || '')}"></label>
+      <label>έως <input class="input" type="time" data-w="to" value="${esc(w.to || '')}"></label></div>
+    <p class="muted small">Χωρίς ημέρες = κάθε μέρα. Χωρίς ώρες = όλη μέρα. Μπορεί να περνά τα μεσάνυχτα (π.χ. 22:00–02:00).</p>
+  </div>`;
+}
+const readWindow = (root) => ({
+  days: $$('.days input:checked', root).map((c) => Number(c.value)),
+  from: $('[data-w=from]', root).value, to: $('[data-w=to]', root).value,
+});
+const describeWindow = (w) => {
+  if (!w) return '';
+  const days = (w.days || []).length && w.days.length < 7 ? w.days.map((d) => DAY_SHORT[d - 1]).join(' ') : 'Κάθε μέρα';
+  return `${days}${w.from && w.to ? ` ${w.from}–${w.to}` : ''}`;
+};
 
 
 function start() {
@@ -408,6 +430,11 @@ async function renderMenu() {
   const { categories, items } = menu;
   const noPhoto = items.filter((i) => !i.image_url).length;
   $('#app').innerHTML = `
+    <div class="panel offers">
+      <div><b>Πιάτο ημέρας / ανακοίνωση</b><span class="muted small">${settings.announcement?.active ? esc(settings.announcement.text?.el || 'Ενεργό') : 'Ανενεργό'}</span></div>
+      <div><b>Happy hour</b><span class="muted small">${settings.happyHour?.enabled ? esc(describeWindow(settings.happyHour)) : 'Ανενεργό'}</span></div>
+      <button class="btn secondary sm" id="offers">Ρύθμιση προσφορών</button>
+    </div>
     <div class="toolbar">
       <button class="btn" id="addCat">Νέα κατηγορία</button>
       ${noPhoto ? `<span class="muted small">${noPhoto} από ${items.length} πιάτα δεν έχουν φωτογραφία. Οι φωτογραφίες αυξάνουν σημαντικά τις παραγγελίες.</span>` : ''}
@@ -416,7 +443,8 @@ async function renderMenu() {
       const list = items.filter((i) => i.category_id === c.id);
       return `<div class="cat-block">
         <div class="cat-head">
-          <h3>${esc(itemName(c.name))} ${c.active ? '' : '<span class="badge gray">Κρυφή</span>'}<span class="muted small"> · ${list.length} πιάτα</span></h3>
+          <h3>${esc(itemName(c.name))} ${c.active ? '' : '<span class="badge gray">Κρυφή</span>'}<span class="muted small"> · ${list.length} πιάτα
+            · ${esc(menu.stations.find((st) => st.id === c.station)?.name || 'Κουζίνα')}${c.schedule ? ` · ${esc(describeWindow(c.schedule))}` : ''}${c.zones?.length ? ` · ${esc(c.zones.join(', '))}` : ''}</span></h3>
           <button class="mini" data-cmove="${ci}" data-dir="-1" title="Πάνω">${icon('up', 15)}</button>
           <button class="mini" data-cmove="${ci}" data-dir="1" title="Κάτω">${icon('down', 15)}</button>
           <button class="mini" data-cedit="${c.id}" title="Επεξεργασία">${icon('edit', 15)}</button>
@@ -428,7 +456,8 @@ async function renderMenu() {
             <span class="muted small">${esc(i.description?.el || i.description?.en || '')}</span>
             <div class="langs-mini">${settings.languages.map((l) => `<span class="${i.name[l] ? 'ok' : ''}" title="${LANGUAGES[l].name}">${LANGUAGES[l].short}</span>`).join('')}</div>
           </div>
-          <b class="price">${euro(i.price_cents)}</b>
+          <b class="price">${euro(i.price_cents)}${i.happy_price_cents != null ? `<small class="muted"> HH ${euro(i.happy_price_cents)}</small>` : ''}
+            ${i.stock != null ? `<small class="badge ${i.stock ? 'gray' : 'red'}">${i.stock} μερ.</small>` : ''}</b>
           <label class="toggle" title="Διαθέσιμο"><input type="checkbox" data-avail="${i.id}" ${i.available ? 'checked' : ''}><span></span></label>
           <button class="mini" data-imove="${c.id}:${ii}" data-dir="-1">${icon('up', 15)}</button>
           <button class="mini" data-imove="${c.id}:${ii}" data-dir="1">${icon('down', 15)}</button>
@@ -438,6 +467,7 @@ async function renderMenu() {
     }).join('')}`;
 
   $('#addCat').onclick = () => editCategory();
+  $('#offers').onclick = editOffers;
   $$('[data-cedit]').forEach((b) => b.onclick = () => editCategory(categories.find((c) => c.id === Number(b.dataset.cedit))));
   $$('[data-iadd]').forEach((b) => b.onclick = () => editItem(null, Number(b.dataset.iadd)));
   $$('[data-iedit]').forEach((b) => b.onclick = () => editItem(items.find((i) => i.id === Number(b.dataset.iedit))));
@@ -463,18 +493,56 @@ async function move(kind, ids, idx, dir, rest = []) {
   renderMenu();
 }
 
+function editOffers() {
+  const a = settings.announcement || {};
+  const h = settings.happyHour || {};
+  const { el, close } = sheet(`
+    <div class="sheet-head"><h2>Προσφορές</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
+    <h3>Πιάτο ημέρας / ανακοίνωση</h3>
+    <p class="muted small" style="margin-top:0">Εμφανίζεται στην κορυφή του μενού. Αν διαλέξετε πιάτο, ο πελάτης το ανοίγει με ένα πάτημα.</p>
+    <label class="switch"><input type="checkbox" id="aOn" ${a.active ? 'checked' : ''}> Ενεργό</label>
+    ${i18nEditor([{ key: 'text', label: 'Κείμενο', max: 200 }], { text: a.text || {} })}
+    <label class="field"><span>Πιάτο (προαιρετικό)</span><select class="input" id="aItem"><option value="">—</option>
+      ${menu.items.map((i) => `<option value="${i.id}" ${a.itemId === i.id ? 'selected' : ''}>${esc(itemName(i.name))}</option>`).join('')}</select></label>
+    <h3>Happy hour</h3>
+    <p class="muted small" style="margin-top:0">Στις ώρες αυτές ισχύει η «Τιμή happy hour» των πιάτων που την έχουν, με διαγραμμένη την κανονική τιμή.</p>
+    <label class="switch"><input type="checkbox" id="hOn" ${h.enabled ? 'checked' : ''}> Ενεργό</label>
+    ${windowEditor('hh', h)}
+    <button class="btn block" id="save">Αποθήκευση</button>`);
+  const readA = bindI18n(el);
+  $('#save', el).onclick = async () => {
+    try {
+      await api('/api/admin/settings', { method: 'PUT', body: {
+        announcement: { active: $('#aOn', el).checked, text: readA().text || {}, itemId: Number($('#aItem', el).value) || null },
+        happyHour: { enabled: $('#hOn', el).checked, ...readWindow($('#hh', el)) },
+      } });
+      close(); toast('Αποθηκεύτηκε', 'ok'); render();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+}
+
 function editCategory(c) {
   const { el, close } = sheet(`
     <div class="sheet-head"><h2>${c ? 'Επεξεργασία κατηγορίας' : 'Νέα κατηγορία'}</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
     ${i18nEditor([{ key: 'name', label: 'Όνομα', max: 80 }], { name: c?.name })}
     <label class="switch"><input type="checkbox" id="active" ${c?.active === false ? '' : 'checked'}> Εμφανίζεται στο μενού</label>
+    <label class="field"><span>Πόστο που ετοιμάζει αυτά τα πιάτα</span><select class="input" id="station">
+      ${menu.stations.map((st) => `<option value="${esc(st.id)}" ${(c?.station || 'kitchen') === st.id ? 'selected' : ''}>${esc(st.name)}</option>`).join('')}
+    </select></label>
+    <div class="field"><span class="lbl">Ώρες που εμφανίζεται</span>
+      <p class="muted small" style="margin:0 0 .4rem">Π.χ. «Πρωινό» 07:00–11:00, «Room service» 12:00–23:00. Κενό = πάντα.</p>
+      ${windowEditor('sched', c?.schedule)}</div>
+    ${menu.zones.length ? `<div class="field"><span class="lbl">Εμφανίζεται μόνο στις ζώνες</span>
+      <div class="checks">${menu.zones.map((z) => `<label><input type="checkbox" data-zone="${esc(z)}" ${(c?.zones || []).includes(z) ? 'checked' : ''}>${esc(z)}</label>`).join('')}</div>
+      <p class="muted small">Καμία επιλογή = σε όλες. Π.χ. το μενού «Pool bar» μόνο στη ζώνη «Πισίνα».</p></div>` : ''}
     <div class="row">
       ${c ? `<button class="btn danger" id="del">Διαγραφή</button>` : ''}
       <button class="btn" id="save">Αποθήκευση</button>
     </div>`);
   const read = bindI18n(el);
   $('#save', el).onclick = async () => {
-    const body = { ...read(), icon: c?.icon || '', active: $('#active', el).checked };
+    const body = { ...read(), icon: c?.icon || '', active: $('#active', el).checked, station: $('#station', el).value,
+      schedule: readWindow($('#sched', el)), zones: $$('[data-zone]', el).filter((x) => x.checked).map((x) => x.dataset.zone) };
     try {
       await api(c ? `/api/admin/categories/${c.id}` : '/api/admin/categories', { method: c ? 'PUT' : 'POST', body });
       close(); toast('Αποθηκεύτηκε', 'ok'); renderMenu();
@@ -499,6 +567,15 @@ function editItem(item, categoryId) {
         ${menu.categories.map((c) => `<option value="${c.id}" ${c.id === i.category_id ? 'selected' : ''}>${esc(itemName(c.name))}</option>`).join('')}
       </select></label>
     </div>
+    <div class="two">
+      <label class="field"><span>Τιμή happy hour (€)</span><input class="input" id="happy" type="number" step="0.10" min="0" placeholder="—"
+        value="${i.happy_price_cents != null ? (i.happy_price_cents / 100).toFixed(2) : ''}"></label>
+      <label class="field"><span>Απόθεμα (μερίδες)</span><input class="input" id="stock" type="number" min="0" step="1" placeholder="Χωρίς όριο"
+        value="${i.stock != null ? i.stock : ''}"></label>
+      <label class="field"><span>Χρόνος προετοιμασίας (λεπτά)</span><input class="input" id="prep" type="number" min="0" max="240" value="${i.prep_minutes || ''}" placeholder="π.χ. 15"></label>
+      <label class="switch" style="align-self:end"><input type="checkbox" id="premium" ${i.premium ? 'checked' : ''}> Χρεώνεται και στο all-inclusive</label>
+    </div>
+    <p class="muted small" style="margin-top:-.3rem">Το απόθεμα μειώνεται με κάθε παραγγελία· στο 0 το πιάτο γίνεται αυτόματα «εξαντλημένο».</p>
     <div class="field"><span class="lbl">Επιλογές και έξτρα</span>
       <p class="muted small" style="margin:0 0 .5rem">Π.χ. «Ψήσιμο: Μέτριο / Καλοψημένο» (υποχρεωτική, μία επιλογή) ή «Έξτρα: Φέτα +1,50 €» (προαιρετική, πολλές).
         Συμπληρώστε ελληνικά και αγγλικά· οι υπόλοιπες γλώσσες δείχνουν τα αγγλικά.</p>
@@ -530,6 +607,7 @@ function editItem(item, categoryId) {
       tags: $$('[data-tag]', el).filter((c) => c.checked).map((c) => c.dataset.tag),
       allergens: $$('[data-al]', el).filter((c) => c.checked).map((c) => c.dataset.al),
       available: $('#avail', el).checked,
+      happyPrice: $('#happy', el).value, stock: $('#stock', el).value, prepMinutes: $('#prep', el).value, premium: $('#premium', el).checked,
     };
     try {
       await api(item ? `/api/admin/items/${item.id}` : '/api/admin/items', { method: item ? 'PUT' : 'POST', body });
@@ -614,10 +692,18 @@ async function renderTables() {
         Η διαχείριση είναι ανοιχτή από <b>localhost</b>, οπότε τα QR δείχνουν σε localhost και δεν ανοίγουν από κινητό.
         Ορίστε «Δημόσια διεύθυνση» στις Ρυθμίσεις ή ανοίξτε τη σελίδα με τη διεύθυνση IP του υπολογιστή.</div>` : ''}
     </div>
+    <div class="toolbar bulk">
+      <label class="check-all"><input type="checkbox" id="all"> Επιλογή όλων</label>
+      <span class="muted small" id="selCount"></span>
+      <button class="btn secondary sm" id="bulkZone">Ζώνη…</button>
+      <button class="btn secondary sm" id="bulkAi">All-inclusive…</button>
+    </div>
     <div class="cat-block">
       ${tables.map((t) => `<div class="list-item ${t.active ? '' : 'off'}">
+        <input type="checkbox" class="sel" value="${t.id}">
         <img class="qr-img" src="/api/admin/tables/${t.id}/qr.svg?v=${esc(t.token)}" alt="QR">
         <div class="grow"><b>${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</b>
+          ${t.zone ? `<span class="badge gray">${esc(t.zone)}</span>` : ''}${t.all_inclusive ? '<span class="badge amber">All-inclusive</span>' : ''}
           <a class="small" href="${esc(t.url)}" target="_blank" style="word-break:break-all">${esc(t.url)}</a></div>
         <label class="toggle" title="Ενεργή"><input type="checkbox" data-active="${t.id}" ${t.active ? 'checked' : ''}><span></span></label>
         <a class="btn secondary sm" href="/staff/qr?ids=${t.id}" target="_blank" title="Εκτύπωση μόνο αυτού του QR">Εκτύπωση</a>
@@ -640,7 +726,7 @@ async function renderTables() {
   };
   $$('[data-active]').forEach((c) => c.onchange = async () => {
     const t = byId(c.dataset.active);
-    await api(`/api/admin/tables/${t.id}`, { method: 'PUT', body: { label: t.label, kind: t.kind, active: c.checked } }); reload();
+    await api(`/api/admin/tables/${t.id}`, { method: 'PUT', body: { label: t.label, kind: t.kind, active: c.checked, zone: t.zone, allInclusive: t.all_inclusive } }); reload();
   });
   $$('[data-rename]').forEach((b) => b.onclick = () => {
     const t = byId(b.dataset.rename);
@@ -649,15 +735,30 @@ async function renderTables() {
       <div class="two">
         <label class="field"><span>Τύπος</span><select class="input" id="k">${kindOptions(t.kind)}</select></label>
         <label class="field"><span>Όνομα ή αριθμός</span><input class="input" id="l" maxlength="20" value="${esc(t.label)}"></label>
+        <label class="field"><span>Ζώνη (π.χ. Βεράντα, Πισίνα, Παραλία)</span><input class="input" id="z" maxlength="30" list="zonesList" value="${esc(t.zone)}"></label>
+        <label class="switch" style="align-self:end"><input type="checkbox" id="ai" ${t.all_inclusive ? 'checked' : ''}> All-inclusive</label>
       </div>
+      <datalist id="zonesList">${[...new Set(tables.map((x) => x.zone).filter(Boolean))].map((z) => `<option value="${esc(z)}">`).join('')}</datalist>
       <button class="btn block" id="s">Αποθήκευση</button>`);
     $('#s', el).onclick = async () => {
       try {
-        await api(`/api/admin/tables/${t.id}`, { method: 'PUT', body: { label: $('#l', el).value, kind: $('#k', el).value, active: t.active } });
+        await api(`/api/admin/tables/${t.id}`, { method: 'PUT', body: { label: $('#l', el).value, kind: $('#k', el).value, active: t.active,
+          zone: $('#z', el).value, allInclusive: $('#ai', el).checked } });
         close(); reload();
       } catch (e) { toast(e.message, 'err'); }
     };
   });
+  const selected = () => $$('.sel').filter((c) => c.checked).map((c) => Number(c.value));
+  const count = () => { const n = selected().length; $('#selCount').textContent = n ? `${n} επιλεγμένες` : ''; };
+  $$('.sel').forEach((c) => c.onchange = count);
+  $('#all').onchange = (e) => { $$('.sel').forEach((c) => { c.checked = e.target.checked; }); count(); };
+  const bulk = async (body) => {
+    const ids = selected();
+    if (!ids.length) return toast('Επιλέξτε θέσεις', 'err');
+    await api('/api/admin/tables/bulk', { method: 'POST', body: { ids, ...body } }); reload();
+  };
+  $('#bulkZone').onclick = () => { const z = prompt('Ζώνη για τις επιλεγμένες θέσεις (κενό = καμία):', ''); if (z !== null) bulk({ zone: z }); };
+  $('#bulkAi').onclick = () => { const yes = confirm('All-inclusive για τις επιλεγμένες θέσεις; (Άκυρο = απενεργοποίηση)'); bulk({ allInclusive: yes }); };
   $$('[data-regen]').forEach((b) => b.onclick = async () => {
     if (!confirm('Δημιουργία νέου QR; Το παλιό αυτοκόλλητο θα σταματήσει να λειτουργεί.')) return;
     await api(`/api/admin/tables/${b.dataset.regen}/regenerate`, { method: 'POST' }); reload();

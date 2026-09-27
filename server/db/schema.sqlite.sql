@@ -154,3 +154,82 @@ CREATE INDEX IF NOT EXISTS idx_orders_table     ON orders(table_id, closed);
 CREATE INDEX IF NOT EXISTS idx_orders_created   ON orders(venue_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items      ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_calls_status     ON calls(venue_id, status);
+
+-- ---------------------------------------------------------------------------
+-- Columns added to the tables above by server/db/adapter.js (ADDED_COLUMNS) on every start,
+-- so databases already online get them too:
+--   categories.station       prep station that receives these dishes (kitchen, bar, …)
+--   categories.schedule      JSON {days:[1-7], from:'HH:MM', to:'HH:MM'}: shown only then ('' = always)
+--   categories.zones         JSON array of zones where the category is shown ('' = everywhere)
+--   items.happy_price_cents  price during happy hour (NULL = no offer)
+--   items.stock              portions left (NULL = not tracked); at 0 the dish is sold out
+--   items.prep_minutes       preparation time for the estimate shown to the guest
+--   items.premium            charged even at all-inclusive spots
+--   tables.zone              e.g. Βεράντα, Πισίνα, Παραλία: waiter zones and per-zone menus
+--   tables.all_inclusive     dishes are free here except premium ones
+--   orders.guest_id          random id of the guest's phone (loyalty), no personal data
+--   orders.accepted_at, eta_at  estimated ready time shown to the guest
+--   orders.channel           table | takeaway; customer_name, customer_phone, pickup_at for takeaway
+--   order_items.station, ready  each station marks its own dishes ready
+--   order_items.paid_qty     portions already paid from the guest's phone (split bill)
+--   receipts.guest_ids, tip_cents
+-- ---------------------------------------------------------------------------
+
+-- Payments made from the guest's phone (whole bill, own dishes or an equal share), with tip.
+CREATE TABLE IF NOT EXISTS payments (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  venue_id       INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  table_id       INTEGER,
+  provider       TEXT NOT NULL,            -- viva | demo
+  ref            TEXT DEFAULT '',          -- provider's order code
+  transaction_id TEXT DEFAULT '',
+  amount_cents   INTEGER NOT NULL,         -- towards the bill
+  tip_cents      INTEGER DEFAULT 0,
+  lines          TEXT DEFAULT '[]',        -- JSON [[orderItemId, qty]] when paying for own dishes
+  method         TEXT DEFAULT 'online',    -- online | room
+  status         TEXT NOT NULL DEFAULT 'pending', -- pending | paid | failed
+  closed         INTEGER DEFAULT 0,        -- 1 once the spot's bill has been settled
+  guest_id       TEXT DEFAULT '',
+  created_at     TEXT NOT NULL,
+  paid_at        TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_payments_table ON payments(table_id, closed);
+CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(ref);
+
+-- Ratings left by guests after the bill.
+CREATE TABLE IF NOT EXISTS feedback (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  venue_id    INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  receipt_id  INTEGER,
+  table_label TEXT DEFAULT '',
+  rating      INTEGER NOT NULL,          -- 1-5
+  comment     TEXT DEFAULT '',
+  lang        TEXT DEFAULT 'el',
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_venue ON feedback(venue_id, created_at);
+
+-- How many times each dish was opened on the menu, per day.
+CREATE TABLE IF NOT EXISTS item_views (
+  venue_id INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  item_id  INTEGER NOT NULL,
+  day      TEXT NOT NULL,
+  views    INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (venue_id, item_id, day)
+);
+
+-- Loyalty rewards given (visits are counted from receipts since the last reward).
+CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  venue_id   INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  guest_id   TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_loyalty_guest ON loyalty_redemptions(venue_id, guest_id);
+
+-- Owners with more than one venue.
+CREATE TABLE IF NOT EXISTS account_venues (
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  venue_id   INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  PRIMARY KEY (account_id, venue_id)
+);

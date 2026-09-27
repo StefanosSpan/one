@@ -163,3 +163,25 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
   border-radius: var(--radius); padding: .8rem 1rem; margin: .8rem 0; }
 .receipt-card b { display: block; }
 
+
+/* Offers, happy hour, stock, suggestions */
+.announce { display: flex; align-items: center; gap: .75rem; width: 100%; text-align: left; margin: .9rem 0 0; padding: .7rem .8rem;
+  border: 1px solid var(--border); border-left: 4px solid var(--brand); background: var(--surface); border-radius: var(--radius); font-weight: 600; }
+.announce img { width: 48px; height: 48px; object-fit: cover; border-radius: calc(var(--radius) - 2px); flex: none; }
+.announce span { flex: 1; }
+.happy-bar { display: flex; align-items: center; gap: .5rem; margin-top: .7rem; padding: .5rem .75rem; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--brand) 12%, var(--bg)); color: var(--text); font-size: .9rem; }
+.happy-bar span { color: var(--muted); }
+.price.happy s { color: var(--muted); font-weight: 400; margin-right: .2rem; }
+.price.happy { color: var(--brand); }
+.price.incl { color: var(--green); }
+.low { color: var(--amber); font-weight: 600; }
+.suggest { margin-top: 1rem; }
+.suggest-title { font-weight: 700; margin-bottom: .5rem; }
+.suggest-row { display: flex; gap: .6rem; overflow-x: auto; padding-bottom: .3rem; }
+.suggest-card { position: relative; flex: 0 0 132px; display: flex; flex-direction: column; gap: .2rem; text-align: left; padding: .5rem;
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); font-size: .82rem; }
+.suggest-card img { width: 100%; height: 72px; object-fit: cover; border-radius: calc(var(--radius) - 2px); }
+.suggest-card span { color: var(--muted); }
+.suggest-card i { position: absolute; right: .4rem; bottom: .4rem; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand); color: var(--brand-ink); }

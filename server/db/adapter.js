@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const schema = (dialect) => readFileSync(join(HERE, `schema.${dialect}.sql`), 'utf8');
 
-export const TABLES = ['uploads', 'receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts', 'venues', 'admins'];
+export const TABLES = ['account_venues', 'loyalty_redemptions', 'item_views', 'feedback', 'payments', 'uploads', 'receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts', 'venues', 'admins'];
 
 // ---------------------------------------------------------------------------
 // Migration from the single-venue schema (before venues existed): the old tables are
@@ -28,7 +28,28 @@ const LEGACY = {
 const LEGACY_INDEXES = ['idx_receipts_created', 'idx_orders_table', 'idx_orders_created', 'idx_order_items', 'idx_calls_status'];
 // Columns added to the single-venue schema over time; old databases may miss them.
 // Columns added after the multi-venue schema was first released (databases already online get them on start).
-const ADDED_COLUMNS = [['accounts', 'terms_version', "TEXT DEFAULT ''"], ['accounts', 'terms_accepted_at', "TEXT DEFAULT ''"]];
+const ADDED_COLUMNS = [['accounts', 'terms_version', "TEXT DEFAULT ''"], ['accounts', 'terms_accepted_at', "TEXT DEFAULT ''"],
+  ['categories', 'station', "TEXT DEFAULT 'kitchen'"],
+  ['categories', 'schedule', "TEXT DEFAULT ''"],
+  ['categories', 'zones', "TEXT DEFAULT ''"],
+  ['items', 'happy_price_cents', "INTEGER"],
+  ['items', 'stock', "INTEGER"],
+  ['items', 'prep_minutes', "INTEGER DEFAULT 0"],
+  ['items', 'premium', "INTEGER DEFAULT 0"],
+  ['tables', 'zone', "TEXT DEFAULT ''"],
+  ['tables', 'all_inclusive', "INTEGER DEFAULT 0"],
+  ['orders', 'guest_id', "TEXT DEFAULT ''"],
+  ['orders', 'accepted_at', "TEXT DEFAULT ''"],
+  ['orders', 'eta_at', "TEXT DEFAULT ''"],
+  ['orders', 'channel', "TEXT DEFAULT 'table'"],
+  ['orders', 'customer_name', "TEXT DEFAULT ''"],
+  ['orders', 'customer_phone', "TEXT DEFAULT ''"],
+  ['orders', 'pickup_at', "TEXT DEFAULT ''"],
+  ['order_items', 'station', "TEXT DEFAULT 'kitchen'"],
+  ['order_items', 'ready', "INTEGER DEFAULT 0"],
+  ['order_items', 'paid_qty', "INTEGER DEFAULT 0"],
+  ['receipts', 'guest_ids', "TEXT DEFAULT '[]'"],
+  ['receipts', 'tip_cents', "INTEGER DEFAULT 0"]];
 async function addColumns(api, columns) {
   for (const [table, column, ddl] of ADDED_COLUMNS) {
     if (!(await columns(table)).includes(column)) await api.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);

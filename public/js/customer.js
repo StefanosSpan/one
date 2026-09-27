@@ -27,6 +27,8 @@ function saveCart() {
 }
 
 const t = (key) => STRINGS[S.lang]?.[key] ?? STRINGS.en[key] ?? key;
+// Text with placeholders, e.g. tf('readyIn', { n: 15 }).
+const tf = (key, vars) => t(key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
 const tr = (obj) => pick(obj, S.lang, S.data?.defaultLanguage);
 const fmt = (c) => money(c, S.lang);
 const itemById = (id) => S.data.items.find((i) => i.id === id);
@@ -272,8 +274,13 @@ function renderMenu() {
   const usedFilters = FILTERS.filter((f) => f === 'all' || S.data.items.some((i) => i.tags.includes(f)));
   const cats = S.data.categories.filter((c) => items.some((i) => i.category_id === c.id));
 
+  const ann = S.data.announcement;
+  const hh = S.data.happyHour;
   $('#app').innerHTML = `
     ${venueHeader()}
+    ${ann ? `<button class="announce" id="announce">${ann.itemId && itemById(ann.itemId)?.image_url ? `<img src="${esc(itemById(ann.itemId).image_url)}" alt="">` : ''}
+      <span>${esc(tr(ann.text) || tr(itemById(ann.itemId)?.name || {}))}</span>${ann.itemId ? icon('chevron', 16) : ''}</button>` : ''}
+    ${hh ? `<div class="happy-bar">${icon('clock', 15)}<b>${esc(tr(hh.label) || t('happyHour'))}</b>${hh.to ? `<span>${esc(tf('happyUntil', { t: hh.to }))}</span>` : ''}</div>` : ''}
     <div class="search">${icon('search', 17)}
       <input class="input" id="q" type="search" placeholder="${esc(t('search'))}" value="${esc(S.query)}"></div>
     <div class="chips" id="filters">
@@ -289,6 +296,7 @@ function renderMenu() {
     <p class="footnote">${esc(t('allergyNotice'))} ${esc(t('pricesVat'))}</p>
   `;
 
+  $('#announce')?.addEventListener('click', () => { if (ann.itemId && itemById(ann.itemId)) openItem(ann.itemId); });
   const q = $('#q');
   q.addEventListener('input', () => {
     S.query = q.value;
@@ -344,9 +352,17 @@ function dietText(i) {
   return out.join(' · ');
 }
 
+// Price as shown: "Included" at all-inclusive spots, the happy hour price next to the struck-out normal price.
+function priceHtml(i) {
+  if (i.included) return `<span class="price incl">${esc(t('included'))}</span>`;
+  if (i.happy) return `<span class="price happy"><s>${fmt(i.base_price_cents)}</s> ${fmt(i.price_cents)}</span>`;
+  return `<span class="price">${fmt(i.price_cents)}</span>`;
+}
+
 function dishMeta(i, withPrice = true) {
   const parts = [];
-  if (withPrice) parts.push(`<span class="price">${fmt(i.price_cents)}</span>`);
+  if (withPrice) parts.push(priceHtml(i));
+  if (i.available && i.lowStock) parts.push(`<span class="low">${esc(tf('lastPortions', { n: i.lowStock }))}</span>`);
   if (!i.available) parts.push(`<span class="soldout">${esc(t('unavailable'))}</span>`);
   if (i.tags.includes('popular')) parts.push(`<span class="pop">${esc(t('popular'))}</span>`);
   if (i.tags.includes('new')) parts.push(`<span class="pop">${esc(t('new'))}</span>`);
@@ -413,7 +429,7 @@ function openItem(id) {
   let qty = 1;
   const { el, close } = sheet(`
     ${i.image_url ? `<div class="sheet-photo"><img src="${esc(i.image_url)}" alt=""></div>` : ''}
-    <div class="sheet-head"><h2>${esc(tr(i.name))}</h2><span class="price-lg">${fmt(i.price_cents)}</span></div>
+    <div class="sheet-head"><h2>${esc(tr(i.name))}</h2><span class="price-lg">${priceHtml(i)}</span></div>
     ${tr(i.description) ? `<p class="muted" style="margin:0">${esc(tr(i.description))}</p>` : ''}
     ${dishMeta(i, false)}
     ${i.allergens.length ? `<p class="detail-row"><span>${esc(t('allergens'))}:</span> ${i.allergens.map((a) => esc(t(`allergen_${a}`))).join(', ')}</p>` : ''}
@@ -457,6 +473,17 @@ function openItem(id) {
 // ---------------------------------------------------------------------------
 // Cart
 // ---------------------------------------------------------------------------
+// "You might also like": dishes the venue marked as suggestions, not already in the cart.
+function suggestionsHtml() {
+  const inCart = new Set(S.cart.map((l) => l.id));
+  const list = S.data.items.filter((i) => i.tags.includes('suggest') && i.available && !inCart.has(i.id)).slice(0, 4);
+  if (!list.length) return '';
+  return `<div class="suggest"><div class="suggest-title">${esc(t('suggestions'))}</div><div class="suggest-row">
+    ${list.map((i) => `<button class="suggest-card" data-suggest="${i.id}">
+      ${i.image_url ? `<img src="${esc(i.image_url)}" alt="">` : ''}<b>${esc(tr(i.name))}</b><span>${i.included ? esc(t('included')) : fmt(i.price_cents)}</span>
+      <i>${icon('plus', 14)}</i></button>`).join('')}</div></div>`;
+}
+
 function openCart() {
   const { el, close } = sheet('<div id="cartBody"></div>', {
     onClose: () => { if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); } },
@@ -477,6 +504,7 @@ function openCart() {
           <div class="qty"><button data-dec="${idx}">${icon('minus', 15)}</button><span>${l.qty}</span><button data-inc="${idx}">${icon('plus', 15)}</button></div>
         </div>`;
       }).join('') : `<div class="empty"><p>${esc(t('emptyCart'))}</p></div>`}
+      ${S.cart.length ? suggestionsHtml() : ''}
       ${S.cart.length ? `
         <label class="field" style="margin-top:1rem"><textarea class="input" id="onote" rows="2" maxlength="300" placeholder="${esc(t('orderNote'))}">${esc(orderNote)}</textarea></label>
         <div class="total-row"><span>${esc(t('total'))}</span><span>${fmt(total)}</span></div>
@@ -484,6 +512,11 @@ function openCart() {
         <p class="muted small" style="text-align:center;margin-bottom:0">${esc(t('allergyNotice'))}</p>` : ''}
     `;
     $('#onote', el)?.addEventListener('input', (e) => { orderNote = e.target.value; });
+    $$('[data-suggest]', el).forEach((b) => b.onclick = () => {
+      const id = Number(b.dataset.suggest);
+      if (itemById(id)?.options?.some((g) => g.required)) { close(); openItem(id); return; }
+      addToCart(id, 1); render();
+    });
     $$('[data-dec]', el).forEach((b) => b.onclick = () => {
       const l = S.cart[b.dataset.dec]; l.qty -= 1;
       if (l.qty <= 0) S.cart.splice(b.dataset.dec, 1);

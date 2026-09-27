@@ -14,6 +14,7 @@ import { LANGS } from './seed.js';
 import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
 import { sendMail } from './mail.js';
+import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT) || 3000;
@@ -180,10 +181,11 @@ function cleanI18n(obj, max = 300) {
 
 const ALLERGENS = ['gluten', 'crustaceans', 'eggs', 'fish', 'peanuts', 'soy', 'milk', 'nuts',
   'celery', 'mustard', 'sesame', 'sulphites', 'lupin', 'molluscs'];
-const TAGS = ['vegetarian', 'vegan', 'gluten_free', 'spicy', 'popular', 'new'];
+const TAGS = ['vegetarian', 'vegan', 'gluten_free', 'spicy', 'popular', 'new', 'suggest'];
 
 // Validates the customer's option choices ([[groupIndex, choiceIndex], ...]) and returns the unit price.
-function priceWithOptions(item, picks) {
+// `base` is the dish price for this spot and moment (happy hour, all-inclusive); options are free when the dish is included.
+function priceWithOptions(item, picks, base = item.price_cents, included = false) {
   const groups = item.options || [];
   const selected = groups.map(() => new Set());
   for (const pair of Array.isArray(picks) ? picks.slice(0, 50) : []) {
@@ -191,7 +193,7 @@ function priceWithOptions(item, picks) {
     if (!groups[g]?.choices?.[c]) fail(400, 'bad_option');
     selected[g].add(c);
   }
-  let unit = item.price_cents;
+  let unit = base;
   const chosen = [];
   groups.forEach((group, g) => {
     const picked = [...selected[g]].sort((a, b) => a - b);
@@ -199,8 +201,9 @@ function priceWithOptions(item, picks) {
     if (!group.multi && picked.length > 1) fail(400, 'bad_option');
     for (const c of picked) {
       const choice = group.choices[c];
-      unit += choice.price_cents || 0;
-      chosen.push({ group: group.name, choice: choice.name, price_cents: choice.price_cents || 0 });
+      const extra = included ? 0 : choice.price_cents || 0;
+      unit += extra;
+      chosen.push({ group: group.name, choice: choice.name, price_cents: extra });
     }
   });
   return { unit, chosen };
@@ -241,6 +244,25 @@ function cleanTheme(t = {}) {
     font: THEME_FONTS.includes(t.font) ? t.font : 'modern',
     corners: THEME_CORNERS.includes(t.corners) ? t.corners : 'soft',
   };
+}
+
+// What the guest sees at this spot right now: visible categories and dish prices.
+async function menuFor(venue, table) {
+  const s = venue.settings;
+  const clock = venueClock(s.timezone || DEFAULT_TZ);
+  const happy = happyHourActive(s, clock);
+  const ctx = { clock, table, happy };
+  const categories = (await db.all('SELECT * FROM categories WHERE venue_id = ? ORDER BY sort, id', [venue.id]))
+    .map(mapCategory).filter((c) => categoryVisible(c, ctx));
+  const visible = new Set(categories.map((c) => c.id));
+  const items = (await db.all('SELECT * FROM items WHERE venue_id = ? ORDER BY sort, id', [venue.id])).map(mapItem)
+    .filter((i) => visible.has(i.category_id))
+    .map(({ sort, venue_id, happy_price_cents, stock, ...i }) => {
+      const p = dishPrice({ ...i, happy_price_cents }, ctx);
+      return { ...i, base_price_cents: i.price_cents, price_cents: p.price, happy: p.happy, included: p.included,
+        lowStock: stock != null && stock > 0 && stock <= 3 ? stock : null };
+    });
+  return { categories, items, ctx, happy };
 }
 
 function publicRestaurant(venue) {
@@ -326,6 +348,8 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
   const { venue } = req;
   const s = venue.settings;
   const f = features(venue);
+  const { categories, items, happy } = await menuFor(venue, table);
+  const ann = s.announcement;
   res.json({
     restaurant: publicRestaurant(venue),
     languages: s.languages,
@@ -334,11 +358,11 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
     requireApproval: s.requireApproval,
     currency: s.currency,
     features: { ordering: f.ordering, calls: f.calls },
-    table: { label: table.label, kind: table.kind },
-    categories: (await db.all('SELECT * FROM categories WHERE venue_id = ? AND active = 1 ORDER BY sort, id', [venue.id])).map(mapCategory),
-    items: (await db.all(`SELECT i.* FROM items i JOIN categories c ON c.id = i.category_id
-      WHERE i.venue_id = ? AND c.active = 1 ORDER BY i.sort, i.id`, [venue.id])).map(mapItem)
-      .map(({ sort, venue_id, ...i }) => i),
+    table: { label: table.label, kind: table.kind, zone: table.zone, allInclusive: table.all_inclusive },
+    happyHour: happy ? { label: s.happyHour?.label || {}, to: s.happyHour?.to || '' } : null,
+    announcement: ann?.active && (ann.text?.el || ann.text?.en || ann.itemId) ? { text: ann.text || {}, itemId: ann.itemId || null } : null,
+    categories: categories.map(({ schedule, zones, station, venue_id, ...c }) => c),
+    items,
   });
 }));
 
@@ -361,15 +385,22 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
   const lines = Array.isArray(req.body?.items) ? req.body.items : [];
   if (!lines.length || lines.length > 40) fail(400, 'empty_order');
 
+  const { categories, ctx } = await menuFor(venue, table);
+  const visible = new Map(categories.map((c) => [c.id, c]));
   const prepared = [];
+  const wanted = new Map(); // item id -> portions, for stock
   for (const l of lines) {
     const item = mapItem(await db.get('SELECT * FROM items WHERE id = ? AND venue_id = ?', [Number(l.id) || 0, venue.id]));
     if (!item) fail(400, 'unknown_item');
-    if (!item.available) fail(409, 'item_unavailable');
+    // Sold out, or its category is not offered at this spot / at this hour.
+    if (!item.available || !visible.has(item.category_id)) fail(409, 'item_unavailable');
     const qty = Math.trunc(Number(l.qty));
     if (!(qty >= 1 && qty <= 50)) fail(400, 'bad_quantity');
-    const { unit, chosen } = priceWithOptions(item, l.options);
-    prepared.push({ item, qty, unit, chosen, note: cleanText(l.note, 200) });
+    const p = dishPrice(item, ctx);
+    const { unit, chosen } = priceWithOptions(item, l.options, p.price, p.included);
+    wanted.set(item.id, (wanted.get(item.id) || 0) + qty);
+    if (item.stock != null && wanted.get(item.id) > item.stock) fail(409, 'item_unavailable');
+    prepared.push({ item, qty, unit, chosen, note: cleanText(l.note, 200), station: visible.get(item.category_id).station || 'kitchen' });
   }
   const total = prepared.reduce((s, p) => s + p.unit * p.qty, 0);
   const status = venue.settings.requireApproval ? 'pending' : 'accepted';
@@ -380,11 +411,19 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
     const id = await t.insert(`INSERT INTO orders (venue_id, table_id, status, note, lang, total_cents, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(req.body?.note, 300), lang, total, ts, ts]);
     for (const p of prepared) {
-      await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note, options) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.unit, p.note, JSON.stringify(p.chosen)]);
+      await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note, options, station) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.unit, p.note, JSON.stringify(p.chosen), p.station]);
+    }
+    // Stock: portions are taken when ordered; at zero the dish becomes sold out.
+    for (const [itemId, qty] of wanted) {
+      const r = await t.run('UPDATE items SET stock = stock - ? WHERE id = ? AND stock IS NOT NULL AND stock >= ?', [qty, itemId, qty]);
+      const row = await t.get('SELECT stock FROM items WHERE id = ?', [itemId]);
+      if (row.stock != null && !r.changes) throw new HttpError(409, 'item_unavailable');
+      if (row.stock === 0) await t.run('UPDATE items SET available = 0 WHERE id = ?', [itemId]);
     }
     return id;
   });
+  if ([...wanted.keys()].length) broadcastMenuUpdate(venue);
 
   const order = await loadOrder(venue.id, orderId);
   emit(staffChannel(venue), 'order:new', order);
@@ -649,7 +688,7 @@ admin.use(requireStaff('admin'));
 
 const adminSettings = (req) => {
   const { secret, ...s } = req.venue.settings;
-  return { ...s, allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
+  return { ...s, stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
     staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
 };
 
@@ -690,6 +729,19 @@ admin.put('/settings', wrap(async (req, res) => {
   if (b.onlinePayments === 'off' || (b.onlinePayments === 'demo' && canUseDemoPayments(req.venue))) await set('onlinePayments', b.onlinePayments);
   if (typeof b.publicBaseUrl === 'string') await set('publicBaseUrl', cleanText(b.publicBaseUrl, 200));
   if (b.theme && typeof b.theme === 'object') await set('theme', cleanTheme(b.theme));
+  if (b.happyHour && typeof b.happyHour === 'object') {
+    const w = cleanWindow(b.happyHour) || { days: [], from: '', to: '' };
+    await set('happyHour', { enabled: !!b.happyHour.enabled && !!(w.from && w.to), ...w, label: cleanI18n(b.happyHour.label, 40) });
+  }
+  if (b.announcement && typeof b.announcement === 'object') {
+    await set('announcement', { active: !!b.announcement.active, text: cleanI18n(b.announcement.text, 200), itemId: Number(b.announcement.itemId) || null });
+  }
+  if (Array.isArray(b.stations)) {
+    const seen = new Set();
+    const stations = b.stations.slice(0, 8).map((x) => ({ id: cleanText(x?.id, 20).toLowerCase().replace(/[^a-z0-9_-]/g, ''), name: cleanText(x?.name, 30) }))
+      .filter((x) => x.id && x.name && !seen.has(x.id) && seen.add(x.id));
+    await set('stations', stations.length ? stations : DEFAULT_STATIONS);
+  }
   if (typeof b.brandColor === 'string') {
     if (!/^#[0-9a-fA-F]{6}$/.test(b.brandColor)) fail(400, 'Μη έγκυρο χρώμα');
     await set('brandColor', b.brandColor.toLowerCase());
@@ -716,29 +768,41 @@ admin.get('/menu', wrap(async (req, res) => {
   res.json({
     categories: (await db.all('SELECT * FROM categories WHERE venue_id = ? ORDER BY sort, id', [v])).map(mapCategory),
     items: (await db.all('SELECT * FROM items WHERE venue_id = ? ORDER BY sort, id', [v])).map(mapItem),
-    allergens: ALLERGENS, tags: TAGS,
+    allergens: ALLERGENS, tags: TAGS, stations: stationsOf(req.venue), zones: await zonesOf(v),
   });
 }));
 
-function categoryInput(b) {
+function categoryInput(b, venue) {
   const name = cleanI18n(b.name, 80);
   if (!name.el && !name.en) fail(400, 'Δώστε όνομα κατηγορίας (τουλάχιστον στα Ελληνικά)');
-  return { name: JSON.stringify(name), icon: cleanText(b.icon, 8), active: b.active === false ? 0 : 1 };
+  const stations = stationsOf(venue).map((x) => x.id);
+  const schedule = cleanWindow(b.schedule);
+  const zones = cleanZones(b.zones);
+  return {
+    name: JSON.stringify(name), icon: cleanText(b.icon, 8), active: b.active === false ? 0 : 1,
+    station: stations.includes(b.station) ? b.station : 'kitchen',
+    schedule: schedule ? JSON.stringify(schedule) : '', zones: zones.length ? JSON.stringify(zones) : '',
+  };
 }
 
+// Prep stations (kitchen, bar, …): each has its own screen and printer.
+const DEFAULT_STATIONS = [{ id: 'kitchen', name: 'Κουζίνα' }, { id: 'bar', name: 'Μπαρ' }];
+const stationsOf = (venue) => (Array.isArray(venue.settings.stations) && venue.settings.stations.length ? venue.settings.stations : DEFAULT_STATIONS);
+
 admin.post('/categories', wrap(async (req, res) => {
-  const c = categoryInput(req.body || {});
+  const c = categoryInput(req.body || {}, req.venue);
   const v = req.venue.id;
   const { s: sort } = await db.get('SELECT COALESCE(MAX(sort), -1) + 1 AS s FROM categories WHERE venue_id = ?', [v]);
-  const id = await db.insert('INSERT INTO categories (venue_id, name, icon, active, sort) VALUES (?, ?, ?, ?, ?)', [v, c.name, c.icon, c.active, sort]);
+  const id = await db.insert('INSERT INTO categories (venue_id, name, icon, active, sort, station, schedule, zones) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [v, c.name, c.icon, c.active, sort, c.station, c.schedule, c.zones]);
   broadcastMenuUpdate(req.venue);
   res.status(201).json(mapCategory(await db.get('SELECT * FROM categories WHERE id = ?', [id])));
 }));
 
 admin.put('/categories/:id', wrap(async (req, res) => {
-  const c = categoryInput(req.body || {});
-  const r = await db.run('UPDATE categories SET name = ?, icon = ?, active = ? WHERE id = ? AND venue_id = ?',
-    [c.name, c.icon, c.active, Number(req.params.id) || 0, req.venue.id]);
+  const c = categoryInput(req.body || {}, req.venue);
+  const r = await db.run('UPDATE categories SET name = ?, icon = ?, active = ?, station = ?, schedule = ?, zones = ? WHERE id = ? AND venue_id = ?',
+    [c.name, c.icon, c.active, c.station, c.schedule, c.zones, Number(req.params.id) || 0, req.venue.id]);
   if (!r.changes) fail(404, 'Δεν βρέθηκε');
   broadcastMenuUpdate(req.venue);
   res.json(mapCategory(await db.get('SELECT * FROM categories WHERE id = ?', [Number(req.params.id)])));
@@ -761,6 +825,12 @@ admin.post('/reorder', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+const optionalCents = (v) => {
+  if (v === '' || v == null) return null;
+  const c = Math.round(Number(v) * 100);
+  return c >= 0 && c <= 1_000_000 ? c : null;
+};
+
 async function itemInput(req) {
   const b = req.body || {};
   const name = cleanI18n(b.name, 100);
@@ -776,6 +846,10 @@ async function itemInput(req) {
     tags: JSON.stringify(TAGS.filter((a) => (b.tags || []).includes(a))),
     emoji: cleanText(b.emoji, 8), image_url: cleanText(b.imageUrl, 500), available: b.available === false ? 0 : 1,
     options: JSON.stringify(cleanOptions(b.options)),
+    happy_price_cents: optionalCents(b.happyPrice),
+    stock: b.stock === '' || b.stock == null ? null : Math.min(Math.max(Math.trunc(Number(b.stock)) || 0, 0), 100_000),
+    prep_minutes: Math.min(Math.max(Math.trunc(Number(b.prepMinutes)) || 0, 0), 240),
+    premium: b.premium ? 1 : 0,
   };
 }
 
@@ -783,9 +857,10 @@ admin.post('/items', wrap(async (req, res) => {
   const i = await itemInput(req);
   const v = req.venue.id;
   const { s: sort } = await db.get('SELECT COALESCE(MAX(sort), -1) + 1 AS s FROM items WHERE venue_id = ?', [v]);
-  const id = await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, image_url, available, sort, options)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [v, i.category_id, i.name, i.description, i.price_cents, i.allergens, i.tags,
-    i.emoji, i.image_url, i.available, sort, i.options]);
+  const id = await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, image_url, available, sort, options,
+    happy_price_cents, stock, prep_minutes, premium)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [v, i.category_id, i.name, i.description, i.price_cents, i.allergens, i.tags,
+    i.emoji, i.image_url, i.available && i.stock !== 0 ? 1 : 0, sort, i.options, i.happy_price_cents, i.stock, i.prep_minutes, i.premium]);
   broadcastMenuUpdate(req.venue);
   res.status(201).json(mapItem(await db.get('SELECT * FROM items WHERE id = ?', [id])));
 }));
@@ -793,8 +868,10 @@ admin.post('/items', wrap(async (req, res) => {
 admin.put('/items/:id', wrap(async (req, res) => {
   const i = await itemInput(req);
   const r = await db.run(`UPDATE items SET category_id = ?, name = ?, description = ?, price_cents = ?, allergens = ?, tags = ?,
-    emoji = ?, image_url = ?, available = ?, options = ? WHERE id = ? AND venue_id = ?`, [i.category_id, i.name, i.description, i.price_cents,
-    i.allergens, i.tags, i.emoji, i.image_url, i.available, i.options, Number(req.params.id) || 0, req.venue.id]);
+    emoji = ?, image_url = ?, available = ?, options = ?, happy_price_cents = ?, stock = ?, prep_minutes = ?, premium = ?
+    WHERE id = ? AND venue_id = ?`, [i.category_id, i.name, i.description, i.price_cents,
+    i.allergens, i.tags, i.emoji, i.image_url, i.available && i.stock !== 0 ? 1 : 0, i.options, i.happy_price_cents, i.stock, i.prep_minutes, i.premium,
+    Number(req.params.id) || 0, req.venue.id]);
   if (!r.changes) fail(404, 'Δεν βρέθηκε');
   broadcastMenuUpdate(req.venue);
   res.json(mapItem(await db.get('SELECT * FROM items WHERE id = ?', [Number(req.params.id)])));
@@ -826,6 +903,9 @@ admin.get('/tables', wrap(async (req, res) => {
     .map(({ venue_id, ...t }) => ({ ...t, url: `${base}/t/${t.token}` })));
 }));
 
+const zonesOf = async (venueId) => (await db.all("SELECT DISTINCT zone FROM tables WHERE venue_id = ? AND zone != '' ORDER BY zone", [venueId]))
+  .map((r) => r.zone);
+
 admin.post('/tables', wrap(async (req, res) => {
   const b = req.body || {};
   const v = req.venue.id;
@@ -851,8 +931,22 @@ admin.put('/tables/:id', wrap(async (req, res) => {
   const kind = SPOT_KINDS.includes(req.body?.kind) ? req.body.kind : 'table';
   const cur = await db.get('SELECT kind FROM tables WHERE id = ? AND venue_id = ?', [Number(req.params.id) || 0, req.venue.id]);
   if (!cur) fail(404, 'Δεν βρέθηκε');
-  await db.run('UPDATE tables SET label = ?, active = ?, kind = ? WHERE id = ? AND venue_id = ?',
-    [label, req.body?.active === false ? 0 : 1, kind, Number(req.params.id), req.venue.id]);
+  const zone = cleanZones([req.body?.zone])[0] || '';
+  await db.run('UPDATE tables SET label = ?, active = ?, kind = ?, zone = ?, all_inclusive = ? WHERE id = ? AND venue_id = ?',
+    [label, req.body?.active === false ? 0 : 1, kind, zone, req.body?.allInclusive ? 1 : 0, Number(req.params.id), req.venue.id]);
+  res.json({ ok: true });
+}));
+
+// Set the zone / all-inclusive flag of many spots at once (e.g. all sunbeds → "Παραλία").
+admin.post('/tables/bulk', wrap(async (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean).slice(0, 500);
+  if (!ids.length) fail(400, 'Επιλέξτε θέσεις');
+  const sets = [];
+  const params = [];
+  if (typeof req.body.zone === 'string') { sets.push('zone = ?'); params.push(cleanZones([req.body.zone])[0] || ''); }
+  if (typeof req.body.allInclusive === 'boolean') { sets.push('all_inclusive = ?'); params.push(req.body.allInclusive ? 1 : 0); }
+  if (!sets.length) fail(400, 'Τίποτα για αλλαγή');
+  await db.run(`UPDATE tables SET ${sets.join(', ')} WHERE venue_id = ? AND id IN (${ids.map(() => '?').join(',')})`, [...params, req.venue.id, ...ids]);
   res.json({ ok: true });
 }));
 

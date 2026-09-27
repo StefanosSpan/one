@@ -111,7 +111,7 @@ export async function createDemoVenue() {
 export async function deleteVenue(id) {
   await db.tx(async (t) => {
     // order_items go with their orders; everything else is removed per venue.
-    for (const table of ['uploads', 'receipts', 'calls', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts']) {
+    for (const table of ['account_venues', 'loyalty_redemptions', 'item_views', 'feedback', 'payments', 'uploads', 'receipts', 'calls', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts']) {
       await t.run(`DELETE FROM ${table} WHERE venue_id = ?`, [id]);
     }
     await t.run('DELETE FROM venues WHERE id = ?', [id]);
@@ -157,7 +157,10 @@ export async function ensureSuperAdmin(email, password, { reset = false } = {}) 
 }
 
 // JSON-aware row mappers
-export const mapCategory = (r) => r && { ...r, name: parse(r.name, {}), active: !!r.active };
+export const mapCategory = (r) => r && {
+  ...r, name: parse(r.name, {}), active: !!r.active, station: r.station || 'kitchen',
+  schedule: parse(r.schedule, null) || null, zones: parse(r.zones, []) || [],
+};
 export const mapItem = (r) => r && {
   ...r,
   name: parse(r.name, {}),
@@ -166,5 +169,7 @@ export const mapItem = (r) => r && {
   tags: parse(r.tags, []),
   options: parse(r.options, []),
   available: !!r.available,
+  premium: !!r.premium,
+  prep_minutes: Number(r.prep_minutes) || 0,
 };
-export const mapTable = (r) => r && { ...r, active: !!r.active };
+export const mapTable = (r) => r && { ...r, active: !!r.active, zone: r.zone || '', all_inclusive: !!r.all_inclusive };
