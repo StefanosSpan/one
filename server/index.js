@@ -13,7 +13,7 @@ import {
 import { LANGS } from './seed.js';
 import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
-import { vivaCreateOrder, vivaVerify, isvConfig, isvCreateAccount, isvGetAccount } from './payments.js';
+import { vivaCreateOrder, vivaVerify, isvConfig, isvCreateAccount, isvGetAccount, isvWebhookKey, isvCreateWebhook } from './payments.js';
 import { sendMail } from './mail.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
@@ -670,25 +670,48 @@ app.post('/api/public/table/:token/pay', wrap(async (req, res) => {
   res.json({ ok: true, amount, tip, method });
 }));
 
+// Checks a Viva transaction with Viva itself (never trusting what the browser or a webhook says) and settles the payment.
+// Returns true when paid. `final` marks the payment failed when Viva does not confirm it (guest came back with an error).
+async function confirmVivaPayment(payment, transactionId, { final = false } = {}) {
+  const venue = await getVenue(payment.venue_id);
+  if (!venue) return false;
+  if (payment.status === 'paid') return true;
+  const check = transactionId ? await vivaVerify(vivaCfg(venue), String(transactionId)).catch(() => ({ ok: false })) : { ok: false };
+  const ok = check.ok && check.orderCode === payment.ref && check.amount >= payment.amount_cents + payment.tip_cents;
+  if (ok) {
+    await db.run('UPDATE payments SET transaction_id = ? WHERE id = ?', [String(transactionId).slice(0, 80), payment.id]);
+    await settlePayment(payment, venue);
+  } else if (final) {
+    await db.run("UPDATE payments SET status = 'failed' WHERE id = ? AND status = 'pending'", [payment.id]);
+  }
+  return ok;
+}
+
 // Viva sends the guest back here (set this as Success and Failure URL of the venue's Viva payment source).
 app.get('/pay/viva/return', wrap(async (req, res) => {
   const orderCode = String(req.query.s || '');
   const payment = orderCode && await db.get("SELECT * FROM payments WHERE ref = ? AND provider = 'viva'", [orderCode]);
   if (!payment) return res.redirect('/');
-  const venue = await getVenue(payment.venue_id);
   const table = await db.get('SELECT token FROM tables WHERE id = ?', [payment.table_id]);
-  let ok = false;
-  if (venue && req.query.t) {
-    const check = await vivaVerify(vivaCfg(venue), String(req.query.t)).catch(() => ({ ok: false }));
-    ok = check.ok && check.orderCode === orderCode && check.amount >= payment.amount_cents + payment.tip_cents;
-    if (ok) {
-      await db.run('UPDATE payments SET transaction_id = ? WHERE id = ?', [String(req.query.t).slice(0, 80), payment.id]);
-      await settlePayment(payment, venue);
-    } else {
-      await db.run("UPDATE payments SET status = 'failed' WHERE id = ? AND status = 'pending'", [payment.id]);
-    }
-  }
+  const ok = await confirmVivaPayment(payment, req.query.t, { final: true });
   res.redirect(`/t/${table?.token || ''}?pay=${ok ? 'ok' : 'fail'}`);
+}));
+
+// Viva webhook for paid transactions (Viva Connect venues). GET: Viva checks the URL with our verification key.
+app.get('/pay/viva/webhook', wrap(async (req, res) => {
+  const cfg = isvConfig();
+  if (!cfg) return res.status(404).json({});
+  res.json({ Key: await isvWebhookKey(cfg) });
+}));
+
+app.post('/pay/viva/webhook', wrap(async (req, res) => {
+  // Always answer 200 quickly so Viva does not retry; the transaction itself is re-checked with Viva before it counts.
+  res.json({ ok: true });
+  const e = req.body?.EventData || {};
+  const orderCode = String(e.OrderCode ?? '');
+  if (!orderCode || !e.TransactionId) return;
+  const payment = await db.get("SELECT * FROM payments WHERE ref = ? AND provider = 'viva'", [orderCode]);
+  if (payment && payment.status === 'pending') await confirmVivaPayment(payment, e.TransactionId).catch(() => {});
 }));
 
 
@@ -1942,6 +1965,8 @@ superApi.get('/overview', wrap(async (req, res) => {
   const spots = await count("SELECT venue_id, COUNT(*) AS n FROM tables WHERE kind != 'takeaway' GROUP BY venue_id");
   const orders = await count(`SELECT venue_id, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS revenue, MAX(created_at) AS last
     FROM orders WHERE created_at >= ? AND status != 'rejected' GROUP BY venue_id`, [since]);
+  const paid = await count(`SELECT venue_id, COUNT(*) AS n, COALESCE(SUM(amount_cents + tip_cents), 0) AS total, COALESCE(SUM(fee_cents), 0) AS fees
+    FROM payments WHERE status = 'paid' AND provider = 'viva' AND paid_at >= ? GROUP BY venue_id`, [since]);
   const venues = [];
   for (const { id } of await db.all('SELECT id FROM venues ORDER BY id DESC')) {
     const v = await getVenue(id);
@@ -1951,6 +1976,8 @@ superApi.get('/overview', wrap(async (req, res) => {
       isDemo: v.isDemo, stripe: !!v.stripeSubscriptionId, mrr: venueMrr(v),
       items: Number(items.get(id)?.n || 0), spots: Number(spots.get(id)?.n || 0),
       orders30: Number(orders.get(id)?.n || 0), revenue30: Number(orders.get(id)?.revenue || 0), lastOrderAt: orders.get(id)?.last || '',
+      payments: paymentStatus(v), cardPayments30: Number(paid.get(id)?.n || 0), cardTotal30: Number(paid.get(id)?.total || 0),
+      fees30: Number(paid.get(id)?.fees || 0),
     });
   }
   const real = venues.filter((v) => !v.isDemo);
@@ -1966,11 +1993,29 @@ superApi.get('/overview', wrap(async (req, res) => {
       mrr: real.reduce((s, v) => s + v.mrr, 0),
       signups30: real.filter((v) => v.createdAt >= since).length,
       trialsEnding7: real.filter((v) => trialActive(v) && new Date(v.trialEndsAt) - Date.now() < 7 * 86400_000).length,
+      cardPayments: real.filter((v) => v.payments === 'viva' || v.payments === 'viva-connect').length,
+      fees30: real.reduce((s, v) => s + v.fees30, 0),
     },
     venues,
     plans: PLANS,
     stripe: stripeEnabled(),
+    vivaConnect: isvConfig() ? { environment: isvConfig().environment, webhookUrl: `${APP_URL || baseUrl(req)}/pay/viva/webhook` } : null,
   });
+}));
+
+// How a venue takes payments from the phone: off | demo | viva (own keys) | viva-connect | viva-pending (sign-up at Viva not finished).
+function paymentStatus(venue) {
+  const p = paymentSettings(venue);
+  if (p.provider !== 'off') return p.provider;
+  return venue.settings.payments?.isv?.accountId ? 'viva-pending' : 'off';
+}
+
+// Registers the webhook for paid transactions with Viva (once, after becoming an ISV partner).
+superApi.post('/viva/webhook', wrap(async (req, res) => {
+  const cfg = isvConfig();
+  if (!cfg) fail(400, 'Δεν έχουν οριστεί τα κλειδιά VIVA_ISV_*');
+  await isvCreateWebhook(cfg, `${APP_URL || baseUrl(req)}/pay/viva/webhook`);
+  res.json({ ok: true });
 }));
 
 const VENUE_STATUSES = ['trialing', 'active', 'past_due', 'paused', 'canceled', 'suspended'];

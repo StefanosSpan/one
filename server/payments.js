@@ -116,3 +116,26 @@ export async function isvGetAccount(cfg, accountId) {
   const verified = data.verified === true || data.isVerified === true || /^verified$/i.test(data.verificationStatus || data.status || '');
   return { merchantId: String(merchantId || ''), verified, email: data.email || '', redirectUrl: data.invitation?.redirectUrl || data.redirectUrl || '' };
 }
+
+// ---------------------------------------------------------------------------
+// Webhooks: Viva tells us about every paid transaction, so a payment counts even when the guest closes the phone
+// before coming back to the menu. Viva first checks the URL with a GET that must answer with our verification key.
+// ---------------------------------------------------------------------------
+let webhookKey = { key: '', until: 0 };
+
+/** Verification key for the webhook URL (ISV partner account), cached for an hour. */
+export async function isvWebhookKey(cfg) {
+  if (webhookKey.key && webhookKey.until > Date.now()) return webhookKey.key;
+  const { ok, data } = await vivaFetch(cfg, '/isv/v1/webhooks/token');
+  const key = data.key || data.Key;
+  if (!ok || !key) throw Object.assign(new Error('Αποτυχία λήψης κλειδιού webhook από τη Viva'), { status: 502 });
+  webhookKey = { key: String(key), until: Date.now() + 3600_000 };
+  return webhookKey.key;
+}
+
+/** Registers our webhook URL for paid transactions (event 1796, "Transaction Payment Created") of connected venues. */
+export async function isvCreateWebhook(cfg, url) {
+  const { ok, data } = await vivaFetch(cfg, '/isv/v1/webhooks', { method: 'POST', body: { url, eventTypeId: 1796 } });
+  if (!ok) throw Object.assign(new Error(data.message || 'Η Viva δεν δέχτηκε το webhook'), { status: 502 });
+  return data;
+}

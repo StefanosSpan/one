@@ -51,6 +51,7 @@
     import { $, $$, api, toast, sheet, esc, euro } from '/js/util.js';
 
     const STATUS = { trialing: 'Δοκιμή', active: 'Ενεργή', past_due: 'Εκκρεμεί πληρωμή', paused: 'Πάγωμα', canceled: 'Ακυρώθηκε', suspended: 'Αναστολή' };
+    const PAY = { viva: 'Viva (δικά του κλειδιά)', 'viva-connect': 'Viva ✓', 'viva-pending': 'Viva: εκκρεμεί εγγραφή', demo: 'Δοκιμαστικές' };
     const day = (iso) => (iso ? new Date(iso).toLocaleDateString('el-GR') : '—');
     const left = (iso) => Math.ceil((new Date(iso) - Date.now()) / 86400_000);
     let data;
@@ -93,8 +94,14 @@
           <div class="stat"><div class="l">Λήγει δοκιμή σε 7 ημ.</div><div class="v">${t.trialsEnding7}</div></div>
           <div class="stat"><div class="l">Νέα (30 ημέρες)</div><div class="v">${t.signups30}</div></div>
           <div class="stat"><div class="l">Χωρίς συνδρομή / πάγωμα</div><div class="v">${t.inactive} / ${t.paused}</div></div>
+          <div class="stat"><div class="l">Με πληρωμές από κινητό</div><div class="v">${t.cardPayments}</div></div>
+          ${t.fees30 ? `<div class="stat"><div class="l">Προμήθειες Viva (30 ημ.)</div><div class="v">${euro(t.fees30)}</div></div>` : ''}
         </div>
         ${data.stripe ? '' : '<div class="plan-banner warn"><span>Δεν έχουν οριστεί κλειδιά Stripe: οι ιδιοκτήτες δεν μπορούν ακόμα να πληρώσουν online.</span></div>'}
+        ${data.vivaConnect ? `<div class="plan-banner"><span>Σύνδεση με Viva ενεργή (${data.vivaConnect.environment === 'live' ? 'πραγματικό' : 'δοκιμαστικό'} περιβάλλον).
+          Ειδοποιήσεις πληρωμών: <code>${esc(data.vivaConnect.webhookUrl)}</code></span>
+          <button class="btn secondary sm" id="webhook">Ενεργοποίηση ειδοποιήσεων</button></div>`
+          : '<div class="plan-banner"><span>Η «Σύνδεση με Viva» δεν είναι ενεργή: ορίστε τα VIVA_ISV_* στο Render. Μέχρι τότε οι ιδιοκτήτες βάζουν δικά τους κλειδιά Viva.</span></div>'}
         <div class="sa-tools">
           <input class="input" id="q" placeholder="Αναζήτηση: όνομα, κωδικός, e-mail" value="${esc(filter.q)}">
           <select class="input" id="st" style="max-width:200px"><option value="">Όλες οι καταστάσεις</option>
@@ -102,7 +109,7 @@
           <button class="btn secondary sm" id="csv">Εξαγωγή CSV</button>
         </div>
         <div class="table-scroll"><table class="data">
-          <thead><tr><th>Κατάστημα</th><th>Πλάνο</th><th>Κατάσταση</th><th>Εγγραφή</th><th>Χρήση</th><th>Παραγγ. 30 ημ.</th><th>MRR</th><th></th></tr></thead>
+          <thead><tr><th>Κατάστημα</th><th>Πλάνο</th><th>Κατάσταση</th><th>Εγγραφή</th><th>Χρήση</th><th>Παραγγ. 30 ημ.</th><th>Πληρωμές κινητού</th><th>MRR</th><th></th></tr></thead>
           <tbody>${rows.map((v) => `<tr>
             <td class="name"><b>${esc(v.name)}${v.isDemo ? ' <span class="badge gray">demo</span>' : ''}</b><span>${esc(v.email || '—')} · ${esc(v.slug)}</span></td>
             <td>${esc(data.plans[v.plan]?.name || v.plan)}<br><span class="muted small">${v.interval === 'year' ? 'ετήσιο' : 'μηνιαίο'}${v.stripe ? ' · Stripe' : ''}</span></td>
@@ -111,13 +118,18 @@
             <td>${day(v.createdAt)}</td>
             <td class="small">${v.items} πιάτα<br>${v.spots} θέσεις</td>
             <td>${v.orders30}${v.lastOrderAt ? `<br><span class="muted small">τελ. ${day(v.lastOrderAt)}</span>` : ''}</td>
+            <td class="small">${PAY[v.payments] || '—'}${v.cardPayments30 ? `<br><span class="muted">${v.cardPayments30} · ${euro(v.cardTotal30)}</span>` : ''}</td>
             <td>${v.mrr ? euro(v.mrr) : '—'}</td>
             <td><button class="btn secondary sm" data-open="${v.id}">Διαχείριση</button></td>
-          </tr>`).join('') || '<tr><td colspan="8" class="muted">Δεν βρέθηκαν καταστήματα.</td></tr>'}</tbody>
+          </tr>`).join('') || '<tr><td colspan="9" class="muted">Δεν βρέθηκαν καταστήματα.</td></tr>'}</tbody>
         </table></div>`;
       $('#q').oninput = (e) => { filter.q = e.target.value; const pos = e.target.selectionStart; render(); $('#q').focus(); $('#q').setSelectionRange(pos, pos); };
       $('#st').onchange = (e) => { filter.status = e.target.value; render(); };
       $('#csv').onclick = () => exportCsv(rows);
+      $('#webhook')?.addEventListener('click', async () => {
+        try { await api('/api/super/viva/webhook', { method: 'POST' }); toast('Οι ειδοποιήσεις της Viva ενεργοποιήθηκαν', 'ok'); }
+        catch (err) { toast(err.message, 'err'); }
+      });
       $$('[data-open]').forEach((b) => b.onclick = () => manage(data.venues.find((v) => v.id === Number(b.dataset.open))));
     }
 
@@ -181,9 +193,9 @@
 
     function exportCsv(rows) {
       const cell = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
-      const lines = [['Κατάστημα', 'Κωδικός', 'E-mail', 'Πλάνο', 'Χρέωση', 'Κατάσταση', 'Λήξη δοκιμής', 'Εγγραφή', 'Πιάτα', 'Θέσεις', 'Παραγγελίες 30 ημ.', 'MRR (€)'],
+      const lines = [['Κατάστημα', 'Κωδικός', 'E-mail', 'Πλάνο', 'Χρέωση', 'Κατάσταση', 'Λήξη δοκιμής', 'Εγγραφή', 'Πιάτα', 'Θέσεις', 'Παραγγελίες 30 ημ.', 'Πληρωμές κινητού', 'Πληρωμές κινητού 30 ημ. (€)', 'MRR (€)'],
         ...rows.map((v) => [v.name, v.slug, v.email, data.plans[v.plan]?.name, v.interval, STATUS[v.status], day(v.trialEndsAt), day(v.createdAt),
-          v.items, v.spots, v.orders30, (v.mrr / 100).toFixed(2).replace('.', ',')])];
+          v.items, v.spots, v.orders30, PAY[v.payments] || '', (v.cardTotal30 / 100).toFixed(2).replace('.', ','), (v.mrr / 100).toFixed(2).replace('.', ',')])];
       const blob = new Blob([`﻿${lines.map((r) => r.map(cell).join(';')).join('\r\n')}`], { type: 'text/csv' });
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'kalimenu-katastimata.csv' });
       a.click();

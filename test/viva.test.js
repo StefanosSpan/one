@@ -28,6 +28,8 @@ const viva = createServer(async (req, res) => {
     accounts.set(accountId, { accountId, email: body.email, verified: false, merchantId: null });
     return send(200, { accountId, redirectUrl: `https://viva.example/onboard/${accountId}` });
   }
+  if (url.pathname === '/isv/v1/webhooks/token') return send(200, { Key: 'webhook-key-1' });
+  if (url.pathname === '/isv/v1/webhooks' && req.method === 'POST') { seen.webhooks = [...(seen.webhooks || []), JSON.parse(raw)]; return send(200, {}); }
   const acc = url.pathname.match(/^\/isv\/v1\/accounts\/(.+)$/);
   if (acc) return accounts.has(acc[1]) ? send(200, accounts.get(acc[1])) : send(404, {});
   if (url.pathname === '/checkout/v2/isv/orders' && req.method === 'POST') {
@@ -156,4 +158,32 @@ test('a demo merchant id can be entered in the demo environment only', async () 
   const ok = await owner('/api/admin/payments/viva-connect', { method: 'POST', body: { merchantId: '3fa85f64-5717-4562-b3fc-2c963f66afa6' } });
   assert.equal(ok.status, 200);
   assert.equal((await owner('/api/admin/settings')).data.payments.provider, 'viva-connect');
+});
+
+test('a payment counts through the Viva webhook even if the guest never comes back', async () => {
+  // Viva checks the webhook URL first.
+  assert.deepEqual((await guest('/pay/viva/webhook')).data, { Key: 'webhook-key-1' });
+
+  const token = (await owner('/api/admin/tables')).data[1].token;
+  const menu = (await guest(`/api/public/table/${token}`)).data;
+  const dish = menu.items.find((i) => i.available && !i.options.some((o) => o.required));
+  const order = await guest(`/api/public/table/${token}/orders`, { method: 'POST', body: { items: [{ id: dish.id, qty: 1 }] } });
+  await owner(`/api/staff/orders/${order.data.id}/status`, { method: 'POST', body: { status: 'accepted' } });
+  const pay = await guest(`/api/public/table/${token}/pay`, { method: 'POST', body: { mode: 'all', tipPercent: 0 } });
+  const orderCode = pay.data.url.split('ref=')[1];
+
+  // A forged webhook for an unknown transaction changes nothing: every event is checked with Viva.
+  await guest('/pay/viva/webhook', { method: 'POST', body: { EventTypeId: 1796, EventData: { OrderCode: Number(orderCode), TransactionId: 'tx-999' } } });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal((await db.get('SELECT status FROM payments WHERE ref = ?', [orderCode])).status, 'pending');
+
+  await guest('/pay/viva/webhook', { method: 'POST', body: { EventTypeId: 1796, EventData: { OrderCode: Number(orderCode), TransactionId: `tx-${orderCode}` } } });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal((await db.get('SELECT status FROM payments WHERE ref = ?', [orderCode])).status, 'paid');
+  assert.equal((await guest(`/api/public/table/${token}/state`)).data.bill.due, 0);
+
+  // The guest coming back later still sees success, and nothing is counted twice.
+  const back = await guest(`/pay/viva/return?t=tx-${orderCode}&s=${orderCode}`);
+  assert.match(back.location, /\?pay=ok$/);
+  assert.equal((await guest(`/api/public/table/${token}/state`)).data.bill.paid, (await guest(`/api/public/table/${token}/state`)).data.bill.total);
 });

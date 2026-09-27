@@ -241,6 +241,9 @@ function setupChecklist(spots, menu, stats) {
     [spots.length > 0, 'Θέσεις και QR', `${spots.length} θέσεις. Τυπώστε τα QR σε αυτοκόλλητα ή επιτραπέζιες κάρτες.`, 'tables'],
     [false, 'Το προσωπικό σας', 'Στείλτε στους σερβιτόρους τον σύνδεσμο σύνδεσης και το PIN τους.', 'settings'],
     [stats.orders > 0, 'Δοκιμαστική παραγγελία', 'Σκανάρετε ένα QR με το κινητό σας και στείλτε μια παραγγελία.', 'dash'],
+    [settings.payments?.provider !== 'off', 'Πληρωμές από το κινητό (προαιρετικό)',
+      settings.payments?.isv?.accountId && !settings.payments?.isv?.merchantId ? 'Ολοκληρώστε την εγγραφή σας στη Viva.'
+        : 'Συνδέστε τη Viva για να πληρώνουν οι πελάτες με κάρτα, Apple Pay ή Google Pay.', 'settings'],
   ];
   return `<div class="panel setup" id="setup">
     <div class="setup-head"><h3>Πρώτα βήματα</h3><button class="btn ghost sm" id="hideSetup">Απόκρυψη</button></div>
