@@ -2,8 +2,8 @@
 body { background: #f6f6f4; }
 .auth-top { border-bottom: 1px solid var(--line); background: #fff; }
 .auth-top .in { max-width: 1080px; margin: 0 auto; padding: .8rem 16px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.wordmark { font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; color: var(--text); text-decoration: none; }
-.wordmark span { color: #1f3a5f; }
+.wordmark { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; }
+.wordmark img { display: block; height: 29px; width: auto; }
 .auth-top a.link { color: var(--muted); font-size: .9rem; text-decoration: none; }
 .auth { max-width: 520px; margin: 2rem auto 3rem; padding: 0 16px; }
 .auth.wide { max-width: 720px; }

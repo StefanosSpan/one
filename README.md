@@ -83,6 +83,14 @@ npm run superadmin -- you@example.com 'ένας-μεγάλος-κωδικός'
    - Το δωρεάν πλάνο του Render «κοιμάται» μετά από 15 λεπτά χωρίς επισκέψεις. Πριν μπουν πραγματικοί πελάτες, αλλάξτε το σε
      Starter ($7/μήνα) από το Settings → Instance Type.
    - Εναλλακτικά, το [`Dockerfile`](Dockerfile) τρέχει σε οποιονδήποτε πάροχο.
+   - **Supabase αντί για Neon:**
+     - Στο Supabase: Project → **Connect** → **Session pooler**, και αντιγράψτε τη διεύθυνση
+       (`postgresql://postgres.xxxx:ΚΩΔΙΚΟΣ@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`) στο `DATABASE_URL`.
+     - Μη χρησιμοποιήσετε το «Direct connection», γιατί δουλεύει μόνο με IPv6 και το Render δεν το υποστηρίζει.
+     - Τη σύνδεση SSL τη ρυθμίζει αυτόματα η εφαρμογή.
+   - **Netlify:** φιλοξενεί στατικές σελίδες και serverless functions. Δεν μπορεί να κρατήσει ανοιχτές τις ζωντανές συνδέσεις
+     (παραγγελίες στην κουζίνα, κλήσεις σερβιτόρου) που χρειάζεται ο server. Γι' αυτό ο server μένει στο Render ή σε άλλο
+     πάροχο με Docker, και το domain συνδέεται απευθείας εκεί.
 2. **Domains.**
    - Συνδέστε στο hosting τα `kalimenu.gr`, `www.kalimenu.gr`, `kalimenu.com` και `www.kalimenu.com`. Στο Render: Settings → Custom Domains,
      και στον πάροχο των domains βάζετε τις εγγραφές DNS που σας δίνει.
@@ -112,6 +120,21 @@ npm run superadmin -- you@example.com 'ένας-μεγάλος-κωδικός'
 - Το demo κατάστημα (`/demo`, PIN 1234/1111/2222) ξαναφτιάχνεται κάθε 24 ώρες σε παραγωγή. Εκεί δεν επιτρέπονται uploads και
   αλλαγές PIN. Για να μην υπάρχει καθόλου, ορίστε `DEMO_VENUE=off`.
 - Οι βάσεις της προηγούμενης έκδοσης (ένα κατάστημα) μεταφέρονται αυτόματα, ως κατάστημα με κωδικό `main`.
+
+## Λογότυπο
+
+Στον φάκελο [`public/brand`](public/brand):
+- `logo.svg`: για λευκό φόντο
+- `logo-white.svg`: για σκούρο φόντο
+- `mark.svg`: μόνο το σύμβολο
+- `icon.svg`, `icon-192.png`, `icon-512.png`: εικονίδια εφαρμογής
+- `og-image.png`: εικόνα για κοινοποίηση σε Facebook, Viber και WhatsApp
+
+Χρώματα:
+- σκούρο μπλε `#1f3a5f`
+- τερακότα `#d2643c`
+
+Γραμματοσειρά του λογότυπου: Inter Bold. Τα γράμματα είναι σε καμπύλες, οπότε δεν χρειάζεται να είναι εγκατεστημένη.
 
 ## Εκκίνηση (τοπικά)
 

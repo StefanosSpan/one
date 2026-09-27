@@ -3,6 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#1f3a5f">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kalimenu.gr/">
+  <meta property="og:title" content="Kalimenu · Μενού σε 8 γλώσσες και παραγγελία από το τραπέζι">
+  <meta property="og:description" content="Ο πελάτης σκανάρει το QR, διαβάζει το μενού στη γλώσσα του και παραγγέλνει. 14 ημέρες δωρεάν, χωρίς εγκατάσταση.">
+  <meta property="og:image" content="https://kalimenu.gr/brand/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
   <title>Kalimenu · Ψηφιακό μενού και παραγγελία με QR</title>
   <meta name="description" content="Ψηφιακό μενού σε 8 γλώσσες, παραγγελία από το τραπέζι, κλήση σερβιτόρου και λογαριασμός με QR. Για εστιατόρια, ταβέρνες, beach bars και ξενοδοχεία. 14 ημέρες δωρεάν δοκιμή.">
   <link rel="stylesheet" href="/css/app.css">
@@ -12,8 +23,8 @@
     .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
     header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 10; }
     header.site .wrap { display: flex; align-items: center; gap: 1.5rem; min-height: 60px; }
-    .wordmark { font-weight: 800; font-size: 1.25rem; letter-spacing: -.02em; color: var(--text); text-decoration: none; }
-    .wordmark span { color: var(--brand); }
+    .wordmark { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; }
+    .wordmark img { display: block; height: 29px; width: auto; }
     header.site nav { display: flex; gap: 1.2rem; margin-left: auto; align-items: center; }
     header.site nav a { color: var(--muted); text-decoration: none; font-size: .92rem; }
     header.site nav a.btn { color: var(--brand-ink); }
@@ -88,7 +99,7 @@
 <body>
   <header class="site">
     <div class="wrap">
-      <a class="wordmark" href="/">Kali<span>menu</span></a>
+      <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="147" height="29"></a>
       <nav>
         <a href="#how">Πώς δουλεύει</a>
         <a href="#features">Δυνατότητες</a>
