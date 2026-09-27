@@ -1,21 +1,25 @@
-# One-click deployment on Render (https://render.com): Dashboard → New → Blueprint → choose this repository.
-# Creates the web service and a PostgreSQL database in Frankfurt (EU). Fill in the secret values when asked.
+# Deployment on Render (https://render.com): Dashboard → New → Blueprint → choose this repository.
+#
+# Starts on the free plan. The database is a free PostgreSQL on Neon (https://neon.tech, region Frankfurt):
+# paste its connection string into DATABASE_URL when Render asks.
+# Before real customers use it, switch the web service to "Starter" (Settings → Instance Type): the free
+# plan sleeps after 15 minutes without visits and the next QR scan waits up to a minute.
 services:
   - type: web
     name: kalimenu
     runtime: node
     region: frankfurt
-    plan: starter            # always on; the free plan sleeps and would delay the first menu scan
+    plan: free
     buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: kalimenu-db
-          property: connectionString
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL        # from Neon: postgresql://…neon.tech/neondb?sslmode=require
+        sync: false
       - key: APP_URL
         value: https://kalimenu.gr
       - key: REDIRECT_HOSTS      # these domains redirect to APP_URL
@@ -34,9 +38,3 @@ services:
         value: Kalimenu <hello@kalimenu.gr>
       - key: NOTIFY_EMAIL        # where new sign-ups are announced
         sync: false
-
-databases:
-  - name: kalimenu-db
-    region: frankfurt
-    plan: basic-256mb
-    postgresMajorVersion: "16"

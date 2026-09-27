@@ -76,10 +76,13 @@ npm run superadmin -- you@example.com 'ένας-μεγάλος-κωδικός'
 
 ### Ανέβασμα online (βήμα βήμα)
 
-1. **Hosting με PostgreSQL.** Ο πιο απλός τρόπος είναι το [Render](https://render.com): New → Blueprint → επιλέξτε αυτό το
-   repository. Το [`render.yaml`](render.yaml) φτιάχνει τον server και τη βάση στη Φρανκφούρτη (ΕΕ). Κοστίζει περίπου $7/μήνα
-   για τον server και $6/μήνα για τη βάση. Εναλλακτικά, το [`Dockerfile`](Dockerfile) τρέχει σε οποιονδήποτε πάροχο
-   (Railway, Fly.io, DigitalOcean, Hetzner) με βάση από Neon ή Supabase.
+1. **Hosting.**
+   - Ξεκινήστε δωρεάν: βάση PostgreSQL στο [Neon](https://neon.tech) (δωρεάν, περιοχή Frankfurt) και server στο
+     [Render](https://render.com): New → Blueprint → αυτό το repository.
+   - Το [`render.yaml`](render.yaml) στήνει τον server στο δωρεάν πλάνο. Βάλτε τη διεύθυνση σύνδεσης του Neon στο `DATABASE_URL`.
+   - Το δωρεάν πλάνο του Render «κοιμάται» μετά από 15 λεπτά χωρίς επισκέψεις. Πριν μπουν πραγματικοί πελάτες, αλλάξτε το σε
+     Starter ($7/μήνα) από το Settings → Instance Type.
+   - Εναλλακτικά, το [`Dockerfile`](Dockerfile) τρέχει σε οποιονδήποτε πάροχο.
 2. **Domains.**
    - Συνδέστε στο hosting τα `kalimenu.gr`, `www.kalimenu.gr`, `kalimenu.com` και `www.kalimenu.com`. Στο Render: Settings → Custom Domains,
      και στον πάροχο των domains βάζετε τις εγγραφές DNS που σας δίνει.
