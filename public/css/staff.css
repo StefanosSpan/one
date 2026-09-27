@@ -296,7 +296,8 @@ details.advanced summary { cursor: pointer; font-weight: 600; }
 .list-item .badge { margin-left: .35rem; }
 
 /* Stations, ETA, zones */
-.station-select { width: auto; padding: .35rem .6rem; font-size: .88rem; }
+.bar .station-select, .station-select { width: auto; flex: 0 0 auto; max-width: 220px; padding: .3rem .5rem; font-size: .88rem; background: transparent; color: inherit; border-color: color-mix(in srgb, currentColor 35%, transparent); }
+.station-select option { color: #1a1a1a; background: #fff; }
 .ticket-head .eta { margin-left: auto; margin-right: .6rem; font-weight: 700; font-size: .9rem; opacity: .85; }
 .ticket-head .eta.late { color: #fff; background: var(--red); border-radius: 4px; padding: 0 .35rem; opacity: 1; }
 .linklike { border: 0; background: none; padding: 0; color: var(--brand); font: inherit; text-decoration: underline; cursor: pointer; }
