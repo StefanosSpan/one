@@ -38,11 +38,24 @@ const describeWindow = (w) => {
 
 function start() {
   topBar(me, 'admin', 'Διαχείριση');
+  if (me.owner) venueSwitcher();
   const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['look', 'Εμφάνιση'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
   $$('#tabs button').forEach((b) => b.onclick = () => go(b.dataset.tab));
   liveStaff((evt) => { if ((tab === 'dash' || tab === 'history') && evt.startsWith('order')) render(); });
   render();
+}
+
+// Owners with several venues switch between them from the top bar.
+async function venueSwitcher() {
+  let venues = [];
+  try { ({ venues } = await api('/api/account/venues')); } catch { return; }
+  if (venues.length < 2) return;
+  const sel = document.createElement('select');
+  sel.className = 'input station-select';
+  sel.innerHTML = venues.map((v) => `<option value="${v.id}" ${v.current ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
+  sel.onchange = async () => { location.href = (await api(`/api/account/venues/${sel.value}/switch`, { method: 'POST' })).next; };
+  document.querySelector('#soundBtn')?.before(sel);
 }
 
 function go(next) {
@@ -290,6 +303,19 @@ async function renderBilling() {
     }).join('')}</div>
     <p class="muted small">Η πληρωμή γίνεται με κάρτα μέσω Stripe. Μπορείτε να ακυρώσετε ή να παγώσετε όποτε θέλετε.</p>
     <div class="panel" style="margin-top:1rem">
+      <h3>Τα καταστήματά σας</h3>
+      <div id="myVenues" class="muted small">…</div>
+      <details style="margin-top:.6rem"><summary><b>Νέο κατάστημα</b> <span class="muted small">(π.χ. δεύτερη ταβέρνα ή beach bar, με δική του συνδρομή και ${acc.trialDays} ημέρες δοκιμή)</span></summary>
+        <div class="two" style="margin-top:.6rem">
+          <label class="field"><span>Όνομα</span><input class="input" id="nvName" maxlength="80"></label>
+          <label class="field"><span>Τραπέζια</span><input class="input" id="nvTables" type="number" min="0" max="100" value="10"></label>
+          <label class="field"><span>Δωμάτια</span><input class="input" id="nvRooms" type="number" min="0" max="300" value="0"></label>
+          <label class="field"><span>Ξαπλώστρες</span><input class="input" id="nvSunbeds" type="number" min="0" max="300" value="0"></label>
+        </div>
+        <button class="btn sm" id="nvCreate">Δημιουργία</button>
+      </details>
+    </div>
+    <div class="panel" style="margin-top:1rem">
       <h3>Τα δεδομένα σας</h3>
       <p class="muted small" style="margin-top:0">Κατεβάστε όλα τα δεδομένα του καταστήματος (μενού, θέσεις, παραγγελίες, αποδείξεις) σε αρχείο JSON,
         ή διαγράψτε οριστικά τον λογαριασμό. <a href="/terms" target="_blank">Όροι</a> · <a href="/privacy" target="_blank">Απόρρητο</a> ·
@@ -318,14 +344,29 @@ async function renderBilling() {
       try { await api('/api/account/pause', { method: 'POST', body: { paused } }); toast(paused ? 'Η συνδρομή πάγωσε' : 'Η συνδρομή ενεργοποιήθηκε', 'ok'); render(); }
       catch (e) { toast(e.message, 'err'); }
     };
+    api('/api/account/venues').then(({ venues }) => {
+      $('#myVenues').innerHTML = venues.map((x) => `<div class="kv"><span>${esc(x.name)}${x.current ? ' (τρέχον)' : ''}</span>
+        <b>${esc(acc.plans[x.plan]?.name || '')} · ${STATUS_TEXT[x.status] || x.status}
+        ${x.current ? '' : ` <button class="btn secondary sm" data-switch="${x.id}">Άνοιγμα</button>`}</b></div>`).join('');
+      $$('[data-switch]').forEach((b) => b.onclick = async () => {
+        location.href = (await api(`/api/account/venues/${b.dataset.switch}/switch`, { method: 'POST' })).next;
+      });
+    }).catch(() => {});
+    $('#nvCreate').onclick = async () => {
+      try {
+        const r = await api('/api/account/venues', { method: 'POST', body: {
+          business: $('#nvName').value, tables: $('#nvTables').value, rooms: $('#nvRooms').value, sunbeds: $('#nvSunbeds').value } });
+        location.href = r.next;
+      } catch (e) { toast(e.message, 'err'); }
+    };
     $('#deleteAccount').onclick = async () => {
       if (!confirm('Θα διαγραφούν οριστικά το μενού, οι θέσεις, οι παραγγελίες και οι αποδείξεις, και θα ακυρωθεί η συνδρομή. Τα QR θα σταματήσουν να λειτουργούν. Συνέχεια;')) return;
       const password = prompt('Για επιβεβαίωση γράψτε τον κωδικό σας:');
       if (!password) return;
       try {
-        await api('/api/account', { method: 'DELETE', body: { password } });
-        alert('Ο λογαριασμός διαγράφηκε.');
-        location.href = '/';
+        const r = await api('/api/account', { method: 'DELETE', body: { password } });
+        alert(r.next ? 'Το κατάστημα διαγράφηκε.' : 'Ο λογαριασμός διαγράφηκε.');
+        location.href = r.next || '/';
       } catch (e) { toast(e.message, 'err'); }
     };
     $('#pause')?.addEventListener('click', pause(true));

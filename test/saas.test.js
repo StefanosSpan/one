@@ -339,3 +339,25 @@ test('a database from the single-venue version is moved into venue 1', { skip: !
   assert.equal((await again.get('SELECT COUNT(*) AS n FROM venues')).n, 1);
   await again.close();
 });
+
+test('an owner can run several venues from one account', async () => {
+  const b = browser();
+  await b('/api/account/signup', { method: 'POST', body: { business: 'Ταβέρνα Ένα', email: 'multi@example.com', password: 'multi-pass-1', acceptTerms: true, tables: 5 } });
+  const second = await b('/api/account/venues', { method: 'POST', body: { business: 'Beach Bar Δύο', tables: 0, sunbeds: 60 } });
+  assert.equal(second.status, 201);
+  assert.equal(second.data.venue.plan, 'plus'); // 60 spots
+  let list = (await b('/api/account/venues')).data.venues;
+  assert.equal(list.length, 2);
+  assert.equal(list.find((v) => v.current).name, 'Beach Bar Δύο');
+  const first = list.find((v) => !v.current);
+  assert.equal((await b(`/api/account/venues/${first.id}/switch`, { method: 'POST' })).status, 200);
+  assert.equal((await b('/api/staff/me')).data.venue.name, 'Ταβέρνα Ένα');
+  // Other owners cannot switch into it.
+  assert.equal((await owner(`/api/account/venues/${first.id}/switch`, { method: 'POST' })).status, 404);
+  // Deleting the first venue keeps the account on the second one.
+  const del = await b('/api/account', { method: 'DELETE', body: { password: 'multi-pass-1' } });
+  assert.equal(del.data.next, '/staff/admin');
+  list = (await b('/api/account/venues')).data.venues;
+  assert.deepEqual(list.map((v) => v.name), ['Beach Bar Δύο']);
+  assert.equal((await browser()('/api/account/login', { method: 'POST', body: { email: 'multi@example.com', password: 'multi-pass-1' } })).status, 200);
+});

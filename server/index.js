@@ -1689,6 +1689,53 @@ app.post('/api/account/pause', ...requireOwner, wrap(async (req, res) => {
   res.json({ ok: true, venue: venueSummary(await getVenue(venue.id)) });
 }));
 
+// ---------------------------------------------------------------------------
+// Several venues per owner (e.g. a taverna and a beach bar): each with its own menu, staff and subscription.
+// ---------------------------------------------------------------------------
+async function venueIdsOf(accountId) {
+  const acc = await db.get('SELECT venue_id FROM accounts WHERE id = ?', [accountId]);
+  if (!acc) return [];
+  const more = (await db.all('SELECT venue_id FROM account_venues WHERE account_id = ?', [accountId])).map((r) => r.venue_id);
+  return [...new Set([acc.venue_id, ...more])];
+}
+
+app.get('/api/account/venues', ...requireOwner, wrap(async (req, res) => {
+  const venues = [];
+  for (const id of await venueIdsOf(req.accountId)) {
+    const v = await getVenue(id);
+    if (v) venues.push({ id: v.id, ...venueSummary(v), current: v.id === req.venue.id });
+  }
+  res.json({ venues });
+}));
+
+app.post('/api/account/venues', ...requireOwner, wrap(async (req, res) => {
+  const b = req.body || {};
+  const business = cleanText(b.business, 80);
+  if (!business) fail(400, 'Δώστε το όνομα του καταστήματος');
+  if ((await venueIdsOf(req.accountId)).length >= 20) fail(400, 'Έως 20 καταστήματα ανά λογαριασμό');
+  const count = (v, max) => Math.min(Math.max(Math.trunc(Number(v) || 0), 0), max);
+  const spots = { table: count(b.tables ?? 10, 100), room: count(b.rooms, 300), sunbed: count(b.sunbeds, 300) };
+  const plan = planForSpots(spots.table + spots.room + spots.sunbed);
+  const id = await db.tx(async (t) => {
+    const vid = await createVenue(t, { name: business, plan, status: 'trialing',
+      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString(), sample: b.sample !== false, spots });
+    await t.run('INSERT INTO account_venues (account_id, venue_id) VALUES (?, ?)', [req.accountId, vid]);
+    return vid;
+  });
+  const venue = await getVenue(id);
+  setSession(req, res, venue, 'admin', req.accountId);
+  res.status(201).json({ ok: true, venue: venueSummary(venue), next: '/staff/admin?welcome=1' });
+}));
+
+app.post('/api/account/venues/:id/switch', ...requireOwner, wrap(async (req, res) => {
+  const id = Number(req.params.id) || 0;
+  if (!(await venueIdsOf(req.accountId)).includes(id)) fail(404, 'Δεν βρέθηκε');
+  const venue = await getVenue(id);
+  if (!venue || venue.status === 'suspended') fail(403, 'Το κατάστημα έχει ανασταλεί');
+  setSession(req, res, venue, 'admin', req.accountId);
+  res.json({ ok: true, next: '/staff/admin' });
+}));
+
 // Data export (GDPR portability): everything stored for the venue, as JSON.
 app.get('/api/account/export', ...requireOwner, wrap(async (req, res) => {
   const v = req.venue.id;
@@ -1720,7 +1767,17 @@ app.delete('/api/account', ...requireOwner, wrap(async (req, res) => {
   if (venue.stripeSubscriptionId && stripeEnabled() && venue.status !== 'canceled') {
     await stripe(`subscriptions/${venue.stripeSubscriptionId}`, null, 'DELETE');
   }
+  // With other venues the account stays and moves to one of them; with the last one it is deleted too.
+  const others = (await venueIdsOf(req.accountId)).filter((id) => id !== venue.id);
+  if (others.length) {
+    await db.run('UPDATE accounts SET venue_id = ? WHERE id = ? AND venue_id = ?', [others[0], req.accountId, venue.id]);
+    await db.run('DELETE FROM account_venues WHERE account_id = ? AND venue_id = ?', [req.accountId, others[0]]);
+  }
   await deleteVenue(venue.id);
+  if (others.length) {
+    setSession(req, res, await getVenue(others[0]), 'admin', req.accountId);
+    return res.json({ ok: true, next: '/staff/admin' });
+  }
   if (process.env.NOTIFY_EMAIL) sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Διαγραφή λογαριασμού: ${venue.name}`, text: `${venue.name} (${venue.slug})` });
   res.setHeader('Set-Cookie', 'staff=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
   res.json({ ok: true });
@@ -1813,7 +1870,9 @@ const venueMrr = (v) => (['active', 'past_due'].includes(v.status) && !v.isDemo
 superApi.get('/overview', wrap(async (req, res) => {
   const since = new Date(Date.now() - 30 * 86400_000).toISOString();
   const count = async (sql, params = []) => new Map((await db.all(sql, params)).map((r) => [r.venue_id, r]));
-  const owners = await count('SELECT venue_id, MIN(email) AS email FROM accounts GROUP BY venue_id');
+  const owners = await count(`SELECT venue_id, MIN(email) AS email FROM (
+    SELECT venue_id, email FROM accounts UNION ALL SELECT av.venue_id, a.email FROM account_venues av JOIN accounts a ON a.id = av.account_id) x
+    GROUP BY venue_id`);
   const items = await count('SELECT venue_id, COUNT(*) AS n FROM items GROUP BY venue_id');
   const spots = await count("SELECT venue_id, COUNT(*) AS n FROM tables WHERE kind != 'takeaway' GROUP BY venue_id");
   const orders = await count(`SELECT venue_id, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS revenue, MAX(created_at) AS last
@@ -1873,7 +1932,8 @@ superApi.put('/venues/:id', wrap(async (req, res) => {
 // Opens the venue's administration as its owner (to help them set up or check a problem).
 superApi.post('/venues/:id/impersonate', wrap(async (req, res) => {
   const venue = await superVenue(req);
-  const owner = await db.get('SELECT id FROM accounts WHERE venue_id = ? ORDER BY id LIMIT 1', [venue.id]);
+  const owner = (await db.get('SELECT id FROM accounts WHERE venue_id = ? ORDER BY id LIMIT 1', [venue.id]))
+    || (await db.get('SELECT account_id AS id FROM account_venues WHERE venue_id = ? LIMIT 1', [venue.id]));
   setSession(req, res, venue, 'admin', owner?.id || 0);
   res.json({ ok: true, next: '/staff/admin' });
 }));
@@ -1881,7 +1941,8 @@ superApi.post('/venues/:id/impersonate', wrap(async (req, res) => {
 // A password link the administrator can also pass on by phone or message (valid 24 hours).
 superApi.post('/venues/:id/reset-link', wrap(async (req, res) => {
   const venue = await superVenue(req);
-  const account = await db.get('SELECT id, email FROM accounts WHERE venue_id = ? ORDER BY id LIMIT 1', [venue.id]);
+  const account = (await db.get('SELECT id, email FROM accounts WHERE venue_id = ? ORDER BY id LIMIT 1', [venue.id]))
+    || (await db.get('SELECT a.id, a.email FROM account_venues av JOIN accounts a ON a.id = av.account_id WHERE av.venue_id = ? LIMIT 1', [venue.id]));
   if (!account) fail(400, 'Το κατάστημα δεν έχει λογαριασμό ιδιοκτήτη');
   res.json({ link: await sendResetLink(req, account, 24), email: account.email });
 }));
