@@ -230,6 +230,19 @@ async function tableByToken(req, token = req.params.token) {
   return t;
 }
 
+// Look of the guest menu (Admin → Εμφάνιση). Colours are #rrggbb; empty means "use the default".
+const THEME_FONTS = ['modern', 'classic', 'elegant', 'rounded', 'traditional'];
+const THEME_CORNERS = ['square', 'soft', 'round'];
+const HEX = /^#[0-9a-f]{6}$/i;
+function cleanTheme(t = {}) {
+  const color = (v) => (HEX.test(String(v || '')) ? String(v).toLowerCase() : '');
+  return {
+    background: color(t.background), text: color(t.text), category: color(t.category),
+    font: THEME_FONTS.includes(t.font) ? t.font : 'modern',
+    corners: THEME_CORNERS.includes(t.corners) ? t.corners : 'soft',
+  };
+}
+
 function publicRestaurant(venue) {
   const s = venue.settings;
   const r = s.restaurant || {};
@@ -239,6 +252,7 @@ function publicRestaurant(venue) {
     wifiName: r.wifiName, wifiPassword: r.wifiPassword, instagram: r.instagram,
     reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
     brandColor: s.brandColor || '#1f3a5f',
+    theme: cleanTheme(s.theme),
     legalName: r.legalName || '', vatNumber: r.vatNumber || '', taxOffice: r.taxOffice || '', receiptFooter: r.receiptFooter || '',
   };
 }
@@ -675,6 +689,7 @@ admin.put('/settings', wrap(async (req, res) => {
   if (typeof b.requireApproval === 'boolean') await set('requireApproval', b.requireApproval);
   if (b.onlinePayments === 'off' || (b.onlinePayments === 'demo' && canUseDemoPayments(req.venue))) await set('onlinePayments', b.onlinePayments);
   if (typeof b.publicBaseUrl === 'string') await set('publicBaseUrl', cleanText(b.publicBaseUrl, 200));
+  if (b.theme && typeof b.theme === 'object') await set('theme', cleanTheme(b.theme));
   if (typeof b.brandColor === 'string') {
     if (!/^#[0-9a-fA-F]{6}$/.test(b.brandColor)) fail(400, 'Μη έγκυρο χρώμα');
     await set('brandColor', b.brandColor.toLowerCase());

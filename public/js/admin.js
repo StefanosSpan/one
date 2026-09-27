@@ -2,9 +2,10 @@ import { $, $$, esc, api, toast, sheet, euro } from './util.js';
 import { icon } from './icons.js';
 import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND } from './staff.js';
 import { LANGUAGES, STRINGS } from './i18n.js';
+import { applyTheme, THEME_PRESETS } from './theme.js';
 
 let settings = null;
-const TAB_KEYS = ['dash', 'history', 'receipts', 'menu', 'tables', 'store', 'settings', 'billing'];
+const TAB_KEYS = ['dash', 'history', 'receipts', 'menu', 'tables', 'look', 'store', 'settings', 'billing'];
 let tab = TAB_KEYS.includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'dash';
 
 const me = await requireLogin(['admin']);
@@ -15,7 +16,7 @@ const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: '
 
 function start() {
   topBar(me, 'admin', 'Διαχείριση');
-  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή']];
+  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['look', 'Εμφάνιση'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
   $$('#tabs button').forEach((b) => b.onclick = () => go(b.dataset.tab));
   liveStaff((evt) => { if ((tab === 'dash' || tab === 'history') && evt.startsWith('order')) render(); });
@@ -31,7 +32,7 @@ function go(next) {
 
 async function render() {
   settings = await api('/api/admin/settings');
-  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, store: renderStore, settings: renderSettings, billing: renderBilling };
+  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, look: renderLook, store: renderStore, settings: renderSettings, billing: renderBilling };
   await views[tab]();
   $$('[data-go]').forEach((b) => b.onclick = (e) => { e.preventDefault(); go(b.dataset.go); });
 }
@@ -670,20 +671,125 @@ async function renderTables() {
 // ---------------------------------------------------------------------------
 // Venue
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Look of the guest menu: logo, cover, colours, fonts, with a live preview
+// ---------------------------------------------------------------------------
+const FONT_LABELS = { modern: 'Σύγχρονη', classic: 'Κλασική (τίτλοι serif)', elegant: 'Κομψή', rounded: 'Στρογγυλή', traditional: 'Παραδοσιακή' };
+const CORNER_LABELS = { square: 'Ίσιες', soft: 'Απαλές', round: 'Στρογγυλές' };
+const BRAND_SWATCHES = ['#1f3a5f', '#1a1a1a', '#0f5e4a', '#7a2e2e', '#8a5a14', '#2b4c8c', '#5b3a73', '#b0452d'];
+
+function renderLook() {
+  const r = settings.restaurant;
+  const theme = { background: '#ffffff', text: '', category: '', font: 'modern', corners: 'soft', ...(settings.theme || {}) };
+  let brand = settings.brandColor || '#1f3a5f';
+  const colorField = (id, label, value, hint) => `<label class="field color-field"><span>${label}</span>
+    <div class="color-row"><input type="color" id="${id}" value="${esc(value || '#000000')}">
+      ${hint ? `<button type="button" class="btn ghost sm" data-clear="${id}">${hint}</button>` : ''}</div></label>`;
+  $('#app').innerHTML = `<div class="look">
+    <div class="panel">
+      <h3>Έτοιμα θέματα</h3>
+      <div class="presets">${THEME_PRESETS.map((p, i) => `<button type="button" class="preset" data-preset="${i}" style="background:${p.background};color:${p.text}">
+        <span class="sw" style="background:${p.category || p.text}"></span>${esc(p.name)}</button>`).join('')}</div>
+
+      <h3>Χρώματα</h3>
+      <div class="two">
+        <label class="field color-field"><span>Κύριο χρώμα (κουμπιά, καλάθι)</span>
+          <div class="color-row"><input type="color" id="brand" value="${esc(brand)}">
+          <div class="swatches">${BRAND_SWATCHES.map((c) => `<button type="button" data-sw="${c}" style="background:${c}" title="${c}"></button>`).join('')}</div></div></label>
+        ${colorField('bg', 'Φόντο', theme.background)}
+        ${colorField('text', 'Κείμενο', theme.text || '#1a1a1a', 'Αυτόματο')}
+        ${colorField('cat', 'Τίτλοι κατηγοριών', theme.category || theme.text || '#1a1a1a', 'Ίδιο με το κείμενο')}
+      </div>
+
+      <h3>Γραμματοσειρά</h3>
+      <div class="font-pick">${Object.entries(FONT_LABELS).map(([k, l]) => `<label class="font-opt"><input type="radio" name="font" value="${k}" ${theme.font === k ? 'checked' : ''}>
+        <span class="f-${k}">Μουσακάς</span><small>${l}</small></label>`).join('')}</div>
+
+      <h3>Γωνίες</h3>
+      <div class="seg">${Object.entries(CORNER_LABELS).map(([k, l]) => `<button type="button" data-corners="${k}" class="${theme.corners === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+
+      <h3>Λογότυπο</h3>
+      <p class="muted small" style="margin-top:0">Στην κορυφή του μενού, στις κάρτες QR και στην καρτέλα του browser. Ιδανικά τετράγωνο PNG με διάφανο φόντο.</p>
+      <div id="logo"></div>
+      <h3>Φωτογραφία εξωφύλλου</h3>
+      <p class="muted small" style="margin-top:0">Οριζόντια φωτογραφία του χώρου, της θέας ή ενός πιάτου.</p>
+      <div id="cover"></div>
+      <div style="margin-top:1.2rem"><button class="btn" id="save">Αποθήκευση εμφάνισης</button></div>
+    </div>
+    <div class="look-preview"><div class="pv-label">Έτσι το βλέπουν οι πελάτες</div><div class="phone-pv" id="pv"></div></div>
+  </div>`;
+
+  const logo = photoField($('#app'), '#logo', r.logoUrl, { contain: true, onChange: () => setTimeout(draw) });
+  const cover = photoField($('#app'), '#cover', r.coverUrl, { wide: true, onChange: () => setTimeout(draw) });
+  const cleared = { text: !theme.text, cat: !theme.category };
+
+  function current() {
+    return {
+      background: $('#bg').value, text: cleared.text ? '' : $('#text').value, category: cleared.cat ? '' : $('#cat').value,
+      font: $('[name=font]:checked')?.value || 'modern', corners: $('.seg [data-corners].active')?.dataset.corners || 'soft',
+    };
+  }
+  function draw() {
+    const pv = $('#pv');
+    if (!pv) return;
+    const t = current();
+    const logoUrl = logo?.() ?? r.logoUrl;
+    const coverUrl = cover?.() ?? r.coverUrl;
+    pv.innerHTML = `
+      ${coverUrl ? `<div class="pv-cover"><img src="${esc(coverUrl)}" alt=""></div>` : ''}
+      <div class="pv-head">${logoUrl ? `<img class="pv-logo" src="${esc(logoUrl)}" alt="">` : ''}
+        <div><h1>${esc(r.name)}</h1><p>Τραπέζι 4 · ${esc(r.hours?.el || 'Κάθε μέρα 12:00 – 00:00')}</p></div></div>
+      <div class="pv-service"><span>Σερβιτόρος</span><span>Λογαριασμός</span></div>
+      <div class="pv-tabs"><b>Ορεκτικά</b><span>Κυρίως</span><span>Γλυκά</span></div>
+      <h2>Ορεκτικά</h2>
+      <div class="pv-dish"><div><b>Τζατζίκι</b><p>Στραγγιστό γιαούρτι, αγγούρι, σκόρδο</p><em>4,50 €</em></div><span class="pv-add">+</span></div>
+      <div class="pv-dish"><div><b>Φάβα Σαντορίνης</b><p>Με κάπαρη και κρεμμύδι</p><em>5,50 €</em></div><span class="pv-add">+</span></div>
+      <div class="pv-cart"><span>2</span>Καλάθι<span>10,00 €</span></div>`;
+    applyTheme(t, pv);
+    const n = parseInt(brand.slice(1), 16);
+    const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+    pv.style.setProperty('--brand', brand);
+    pv.style.setProperty('--brand-ink', lum > 0.6 ? '#1a1a1a' : '#ffffff');
+  }
+
+  $$('[data-preset]').forEach((b) => b.onclick = () => {
+    const p = THEME_PRESETS[Number(b.dataset.preset)];
+    brand = p.brand; $('#brand').value = brand;
+    $('#bg').value = p.background;
+    $('#text').value = p.text; cleared.text = false;
+    $('#cat').value = p.category || p.text; cleared.cat = !p.category;
+    $(`[name=font][value=${p.font}]`).checked = true;
+    $$('[data-corners]').forEach((x) => x.classList.toggle('active', x.dataset.corners === p.corners));
+    draw();
+  });
+  $$('[data-sw]').forEach((b) => b.onclick = () => { brand = b.dataset.sw; $('#brand').value = brand; draw(); });
+  $('#brand').oninput = (e) => { brand = e.target.value; draw(); };
+  $('#text').oninput = () => { cleared.text = false; draw(); };
+  $('#cat').oninput = () => { cleared.cat = false; draw(); };
+  $('#bg').oninput = draw;
+  $$('[data-clear]').forEach((b) => b.onclick = () => { cleared[b.dataset.clear] = true; draw(); });
+  $$('[name=font]').forEach((x) => x.onchange = draw);
+  $$('[data-corners]').forEach((b) => b.onclick = () => {
+    $$('[data-corners]').forEach((x) => x.classList.toggle('active', x === b));
+    draw();
+  });
+  draw();
+
+  $('#save').onclick = async () => {
+    try {
+      await api('/api/admin/settings', { method: 'PUT', body: {
+        brandColor: brand, theme: current(), restaurant: { ...settings.restaurant, logoUrl: logo(), coverUrl: cover() },
+      } });
+      toast('Η εμφάνιση αποθηκεύτηκε. Ανανεώστε το μενού στο κινητό για να τη δείτε.', 'ok');
+      settings = await api('/api/admin/settings');
+    } catch (err) { toast(err.message, 'err'); }
+  };
+}
+
 function renderStore() {
   const r = settings.restaurant;
   $('#app').innerHTML = `<div class="panel narrow">
-    <h3>Λογότυπο</h3>
-    <p class="muted small" style="margin-top:0">Εμφανίζεται στην αρχή του μενού, στις κάρτες QR που τυπώνετε και στην καρτέλα του browser.
-      Προτείνεται τετράγωνη εικόνα PNG με διάφανο ή λευκό φόντο.</p>
-    <div class="logo-row">
-      <div id="logo"></div>
-      <div class="menu-preview" id="preview"></div>
-    </div>
-
-    <h3>Φωτογραφία εξωφύλλου</h3>
-    <p class="muted small" style="margin-top:0">Εμφανίζεται στην κορυφή του μενού. Προτείνεται οριζόντια φωτογραφία του χώρου, της θέας ή ενός χαρακτηριστικού πιάτου.</p>
-    <div id="cover"></div>
+    <p class="muted small" style="margin-top:0">Λογότυπο, εξώφυλλο, χρώματα και γραμματοσειρά: καρτέλα <a href="?tab=look" data-go="look">Εμφάνιση</a>.</p>
     <h3>Στοιχεία</h3>
     <label class="field"><span>Όνομα καταστήματος</span><input class="input" id="name" maxlength="80" value="${esc(r.name)}"></label>
     ${i18nEditor([{ key: 'description', label: 'Σύντομη περιγραφή', textarea: true, max: 400 }, { key: 'hours', label: 'Ωράριο', max: 200 }], r)}
@@ -708,23 +814,10 @@ function renderStore() {
     <button class="btn" id="save">Αποθήκευση</button>
   </div>`;
   const read = bindI18n($('#app'));
-  const preview = () => {
-    const box = $('#preview');
-    if (!box) return;
-    const logoUrl = logo?.() ?? r.logoUrl;
-    box.innerHTML = `<div class="pv-label">Προεπισκόπηση στο μενού</div>
-      <div class="pv">${logoUrl ? `<img src="${esc(logoUrl)}" alt="">` : '<div class="pv-empty">Χωρίς λογότυπο</div>'}
-        <div><b>${esc($('#name')?.value || r.name)}</b><span>Τραπέζι 1</span></div></div>`;
-  };
-  let logo;
-  const cover = photoField($('#app'), '#cover', r.coverUrl, { wide: true });
-  logo = photoField($('#app'), '#logo', r.logoUrl, { contain: true, onChange: () => setTimeout(preview) });
-  $('#name').addEventListener('input', preview);
-  preview();
   $('#save').onclick = async () => {
     const fields = ['name', 'address', 'mapsUrl', 'phone', 'email', 'wifiName', 'wifiPassword', 'instagram', 'reviewUrl',
       'legalName', 'vatNumber', 'taxOffice', 'receiptFooter'];
-    const restaurant = { ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read(), logoUrl: logo(), coverUrl: cover() };
+    const restaurant = { ...settings.restaurant, ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read() };
     try { await api('/api/admin/settings', { method: 'PUT', body: { restaurant } }); toast('Αποθηκεύτηκε', 'ok'); }
     catch (err) { toast(err.message, 'err'); }
   };
@@ -735,18 +828,10 @@ function renderStore() {
 // ---------------------------------------------------------------------------
 function renderSettings() {
   const s = settings;
-  const SWATCHES = ['#1f3a5f', '#1a1a1a', '#0f5e4a', '#7a2e2e', '#8a5a14', '#2b4c8c', '#5b3a73', '#b0452d'];
   const dbInfo = s.database === 'postgres'
     ? 'PostgreSQL (ορίζεται με τη μεταβλητή DATABASE_URL).'
     : 'SQLite, στο αρχείο <code>data/taverna.db</code> του server. Για online φιλοξενία ορίστε <code>DATABASE_URL</code> ώστε να χρησιμοποιηθεί PostgreSQL.';
   $('#app').innerHTML = `<div class="panel narrow">
-    <h3>Χρώμα καταστήματος</h3>
-    <p class="muted small" style="margin-top:0">Χρησιμοποιείται στα κουμπιά και τις επιλογές του μενού που βλέπουν οι πελάτες.</p>
-    <div class="color-row">
-      <input type="color" id="brand" value="${esc(s.brandColor || '#1f3a5f')}">
-      <div class="swatches">${SWATCHES.map((c) => `<button type="button" data-sw="${c}" style="background:${c}" title="${c}"></button>`).join('')}</div>
-    </div>
-
     <h3>Ροή παραγγελιών</h3>
     <label class="switch"><input type="checkbox" id="approval" ${s.requireApproval ? 'checked' : ''}>
       <span><b>Έγκριση από το προσωπικό πριν την κουζίνα</b><br><span class="muted small">Ο σερβιτόρος βλέπει την παραγγελία, την καταχωρεί στο ταμείο/POS και την εγκρίνει.</span></span></label>
@@ -788,7 +873,6 @@ function renderSettings() {
 
     <div style="margin-top:1.2rem"><button class="btn" id="save">Αποθήκευση ρυθμίσεων</button></div>
   </div>`;
-  $$('[data-sw]').forEach((b) => b.onclick = () => { $('#brand').value = b.dataset.sw; });
   $('#copyStaff').onclick = async () => {
     try { await navigator.clipboard.writeText(s.staffUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#staffUrl').select(); }
   };
@@ -800,7 +884,6 @@ function renderSettings() {
       defaultLanguage: $('#defLang').value,
       pins: { admin: $('#pinAdmin').value.trim(), waiter: $('#pinWaiter').value.trim(), kitchen: $('#pinKitchen').value.trim() },
       publicBaseUrl: $('#baseUrl').value.trim(),
-      brandColor: $('#brand').value,
     };
     try { await api('/api/admin/settings', { method: 'PUT', body }); toast('Οι ρυθμίσεις αποθηκεύτηκαν', 'ok'); render(); }
     catch (err) { toast(err.message, 'err'); }

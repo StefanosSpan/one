@@ -236,3 +236,45 @@ table.data .input.fiscal { padding: .3rem .5rem; min-width: 160px; font-size: .8
 .copy-row .input { flex: 1; }
 details.advanced { margin-top: 1.2rem; }
 details.advanced summary { cursor: pointer; font-weight: 600; }
+
+/* Appearance tab: theme editor with a live phone preview */
+.look { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .look { grid-template-columns: 1fr; } }
+.presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .5rem; }
+.preset { display: flex; align-items: center; gap: .5rem; border: 1px solid #d6d6d6; border-radius: 8px; padding: .6rem .7rem; font-weight: 600; font-size: .88rem; text-align: left; }
+.preset .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+.color-field input[type=color] { width: 48px; height: 36px; border: 1px solid #d6d6d6; border-radius: 6px; padding: 2px; background: #fff; }
+.font-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; }
+.font-opt { border: 1px solid #d6d6d6; border-radius: 8px; padding: .6rem .7rem; cursor: pointer; display: flex; flex-direction: column; gap: .15rem; }
+.font-opt:has(input:checked) { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.font-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.font-opt span { font-size: 1.15rem; font-weight: 700; }
+.font-opt small { color: var(--muted); }
+.f-classic, .f-traditional { font-family: Georgia, 'Times New Roman', serif; }
+.f-elegant { font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif; }
+.f-rounded { font-family: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', sans-serif; }
+.look-preview { position: sticky; top: 1rem; }
+.look-preview .pv-label { font-size: .8rem; color: var(--muted); margin-bottom: .4rem; }
+.phone-pv { border: 8px solid #1a1a1a; border-radius: 28px; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font);
+  padding: 0 14px 14px; min-height: 560px; font-size: 14px; position: relative; }
+.phone-pv h1, .phone-pv h2 { font-family: var(--font-display); margin: 0; }
+.phone-pv h1 { font-size: 1.3rem; }
+.phone-pv h2 { color: var(--cat); font-size: 1.1rem; margin: 1rem 0 .2rem; }
+.phone-pv p { margin: .15rem 0 0; color: var(--muted); font-size: .82rem; }
+.pv-cover { margin: 0 -14px; height: 120px; overflow: hidden; background: var(--fill); }
+.pv-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pv-head { display: flex; gap: .7rem; align-items: center; padding-top: 14px; }
+.pv-logo { width: 52px; height: 52px; object-fit: contain; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.pv-service { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .8rem; }
+.pv-service span { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: .5rem; text-align: center; font-weight: 600; font-size: .82rem; }
+.pv-tabs { display: flex; gap: 1rem; border-bottom: 1px solid var(--line); margin-top: .9rem; font-size: .85rem; }
+.pv-tabs b, .pv-tabs span { padding: .5rem 0; color: var(--muted); }
+.pv-tabs b { color: var(--cat); border-bottom: 2px solid var(--brand); }
+.pv-dish { display: flex; justify-content: space-between; gap: .6rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
+.pv-dish em { font-style: normal; font-weight: 700; display: block; margin-top: .3rem; }
+.pv-add { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: var(--radius); display: grid; place-items: center; flex: none; background: var(--surface); }
+.pv-cart { position: absolute; left: 14px; right: 14px; bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: .5rem;
+  background: var(--brand); color: var(--brand-ink); border-radius: var(--radius); padding: .7rem .9rem; font-weight: 700; }
+.pv-cart span:first-child { background: rgba(255, 255, 255, .22); border-radius: 4px; padding: 0 .4rem; }
+.look .panel h3 { margin-top: 1.4rem; }
+.look .panel h3:first-child { margin-top: 0; }

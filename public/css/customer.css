@@ -1,14 +1,14 @@
 body { padding-bottom: 150px; }
 
 /* Top bar */
-.top { position: sticky; top: 0; z-index: 20; background: #fff; border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
 .top-inner { max-width: 720px; margin: 0 auto; padding: .6rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 54px; }
 .brand { display: flex; align-items: center; gap: .6rem; min-width: 0; }
 .logo { width: 32px; height: 32px; border-radius: 6px; overflow: hidden; flex: none; }
 .logo img { width: 100%; height: 100%; object-fit: cover; }
 .name { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .15s; }
 .top.scrolled .name { opacity: 1; }
-.lang-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid #d6d6d6; background: #fff; border-radius: var(--radius);
+.lang-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius);
   height: 34px; padding: 0 .6rem; font-size: .82rem; font-weight: 600; color: var(--text); }
 .offline { position: fixed; top: 0; left: 0; right: 0; background: var(--amber); color: #fff; text-align: center; font-size: .85rem; padding: .3rem; z-index: 60; }
 
@@ -23,7 +23,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .venue .meta { margin-top: .45rem; font-size: .88rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
 .venue .meta b { color: var(--text); font-weight: 600; }
 .service { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: .9rem 0 1rem; }
-.service button { display: flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid #d6d6d6; background: #fff;
+.service button { display: flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid var(--border); background: var(--surface);
   border-radius: var(--radius); padding: .6rem .5rem; font-weight: 600; font-size: .9rem; color: var(--text); }
 .service button.on { border-color: #a9d4b9; background: var(--green-bg); color: var(--green); }
 
@@ -31,18 +31,18 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .search { position: relative; margin: .2rem 0 .5rem; }
 .search .ic { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--faint); }
 .search input { padding-left: 2.4rem; background: var(--fill); border-color: var(--fill); }
-.search input:focus { background: #fff; }
+.search input:focus { background: var(--surface); }
 .chips { display: flex; gap: .4rem; overflow-x: auto; padding: .25rem 0; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 
 /* Category tabs */
-.catnav { position: sticky; top: 54px; z-index: 10; background: #fff; margin: .5rem -1rem 0; padding: 0 1rem; border-bottom: 1px solid var(--line); }
+.catnav { position: sticky; top: 54px; z-index: 10; background: var(--bg); margin: .5rem -1rem 0; padding: 0 1rem; border-bottom: 1px solid var(--line); }
 .catnav .chips { gap: 1.3rem; padding: 0; }
 .catnav .chip { border: 0; border-radius: 0; background: none; padding: .75rem 0 .65rem; font-size: .92rem; font-weight: 500; color: var(--muted);
   border-bottom: 2px solid transparent; }
-.catnav .chip.active { color: var(--text); font-weight: 600; border-bottom-color: var(--brand); background: none; }
+.catnav .chip.active { color: var(--cat); font-weight: 600; border-bottom-color: var(--brand); background: none; }
 
-.section-title { font-size: 1.2rem; margin: 1.6rem 0 .2rem; scroll-margin-top: 110px; }
+.section-title { color: var(--cat); font-size: 1.2rem; margin: 1.6rem 0 .2rem; scroll-margin-top: 110px; }
 
 /* Dishes */
 .dish { display: flex; gap: .9rem; width: 100%; text-align: left; border: 0; background: none; padding: .95rem 0;
@@ -62,7 +62,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .dish-meta .soldout { color: var(--red); font-weight: 600; }
 .dish-side { position: relative; flex: none; display: flex; flex-direction: column; align-items: flex-end; }
 .dish-photo { width: 96px; height: 96px; border-radius: var(--radius); object-fit: cover; background: var(--fill); display: block; }
-.add { width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid #d6d6d6; background: #fff; color: var(--text);
+.add { width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text);
   display: grid; place-items: center; }
 .dish-photo + .add { position: absolute; right: 6px; bottom: 6px; border-color: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .2); }
 
@@ -74,7 +74,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
   border-radius: var(--radius); padding: .85rem 1rem; background: var(--brand); color: var(--brand-ink); font-weight: 600; }
 .cartbar .count { background: rgba(255, 255, 255, .22); border-radius: 4px; min-width: 24px; padding: 0 .35rem; font-weight: 700; text-align: center; }
 .cartbar b { margin-left: auto; font-variant-numeric: tabular-nums; }
-.tabs { display: flex; background: #fff; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.tabs { display: flex; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tabs button { flex: 1; border: 0; background: none; padding: .45rem 0 .5rem; display: flex; flex-direction: column; align-items: center;
   gap: .15rem; font-size: .72rem; color: var(--faint); position: relative; }
 .tabs button svg { width: 22px; height: 22px; }
@@ -117,8 +117,8 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .bill-actions .btn { flex: 1; }
 .paid-note { color: var(--green); font-weight: 600; display: flex; gap: .4rem; align-items: center; margin: .3rem 0 0; }
 .pay-options { display: grid; gap: .5rem; }
-.pay-option { display: flex; align-items: center; gap: .8rem; padding: .85rem 1rem; border: 1px solid #d6d6d6; border-radius: var(--radius);
-  background: #fff; font-weight: 600; text-align: left; color: var(--text); }
+.pay-option { display: flex; align-items: center; gap: .8rem; padding: .85rem 1rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); font-weight: 600; text-align: left; color: var(--text); }
 .pay-option:hover { background: var(--fill); }
 .pay-option .ic { color: var(--muted); }
 .demo-note { font-size: .85rem; color: var(--amber); background: var(--amber-bg); padding: .6rem .8rem; border-radius: var(--radius); }
@@ -134,15 +134,15 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .link-btn { border: 0; background: none; color: var(--brand); font-weight: 600; font-size: .88rem; padding: 0 0 0 .4rem; }
 
 .langs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
-.lang-opt { display: flex; gap: .6rem; align-items: center; justify-content: space-between; padding: .75rem .85rem; border: 1px solid #d6d6d6;
-  border-radius: var(--radius); background: #fff; font-weight: 500; color: var(--text); }
+.lang-opt { display: flex; gap: .6rem; align-items: center; justify-content: space-between; padding: .75rem .85rem; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--surface); font-weight: 500; color: var(--text); }
 .lang-opt .code { font-size: .75rem; color: var(--faint); font-weight: 600; }
 .lang-opt.active { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); font-weight: 600; }
 
 /* Venue logo */
 .venue.with-logo { display: flex; gap: .9rem; align-items: flex-start; }
-.venue-logo { width: 72px; height: 72px; border-radius: 12px; object-fit: contain; background: #fff; border: 1px solid var(--line); flex: none; }
-.venue.on-cover .venue-logo { margin-top: -48px; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); position: relative; }
+.venue-logo { width: 72px; height: 72px; border-radius: 12px; object-fit: contain; background: var(--surface); border: 1px solid var(--line); flex: none; }
+.venue.on-cover .venue-logo { margin-top: -48px; border: 3px solid var(--bg); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); position: relative; }
 .venue-text { min-width: 0; }
 
 /* Dish options */

@@ -1,5 +1,6 @@
 import { $, $$, esc, api, toast, sheet, stream } from './util.js';
 import { LANGUAGES, STRINGS, pick, money } from './i18n.js';
+import { applyTheme } from './theme.js';
 import { icon } from './icons.js';
 
 const token = location.pathname.split('/').filter(Boolean)[1];
@@ -90,6 +91,7 @@ async function boot() {
   S.lang = chooseLanguage();
   document.title = S.data.restaurant.name;
   applyBrand(S.data.restaurant.brandColor);
+  applyTheme(S.data.restaurant.theme);
   setFavicon(S.data.restaurant.logoUrl);
   $('#bottom').hidden = false;
   bindChrome();
@@ -124,6 +126,7 @@ async function refreshMenu() {
     S.data = await api(`/api/public/table/${token}`);
     if (!S.data.languages.includes(S.lang)) S.lang = chooseLanguage();
     applyBrand(S.data.restaurant.brandColor);
+  applyTheme(S.data.restaurant.theme);
     // Drop cart lines (or option picks) that no longer exist after the owner edited the menu.
     S.cart = S.cart.filter((l) => itemById(l.id)).map((l) => ({
       ...l, options: (l.options || []).filter(([g, c]) => itemById(l.id).options?.[g]?.choices?.[c]),

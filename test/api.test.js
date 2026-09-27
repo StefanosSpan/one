@@ -199,3 +199,14 @@ test('closing a spot stores a numbered receipt that can be reprinted and shared 
   // Closing an empty spot issues no receipt.
   assert.equal((await call(`/api/staff/tables/${tableId}/close`, { method: 'POST', as: 'waiter' })).data.receipt, null);
 });
+
+test('the menu look can be customised and is sanitised', async () => {
+  const r = await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: {
+    theme: { background: '#F6EFE3', text: 'red', category: '#8a4b2a', font: 'elegant', corners: 'bogus' },
+  } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.theme, { background: '#f6efe3', text: '', category: '#8a4b2a', font: 'elegant', corners: 'soft' });
+  const pub = (await call(`/api/public/table/${token}`)).data;
+  assert.equal(pub.restaurant.theme.background, '#f6efe3');
+  assert.equal(pub.restaurant.theme.font, 'elegant');
+});
