@@ -1,21 +1,29 @@
-// Subscription plans. Every plan includes ordering from the table; there is no menu-only plan.
+// Subscription plans. Both include every feature (ordering, payments, rooms, sunbeds…);
+// they differ only in how many spots with a QR code the venue has.
 // Prices are in cents per month, excluding VAT. Yearly billing costs 10 months (2 months free).
 export const TRIAL_DAYS = 14;
+export const STANDARD_SPOTS = 50;
+
+const ALL_KINDS = ['table', 'room', 'sunbed'];
 
 export const PLANS = {
-  pro: { name: 'Pro', month: 1490, ordering: true, calls: true, kinds: ['table'] },
-  hotel: { name: 'Ξενοδοχείο', month: 2490, ordering: true, calls: true, kinds: ['table', 'room', 'sunbed'] },
+  pro: { name: 'Kalimenu', month: 1490, maxSpots: STANDARD_SPOTS, ordering: true, calls: true, kinds: ALL_KINDS },
+  plus: { name: 'Kalimenu Plus', month: 2990, maxSpots: null, ordering: true, calls: true, kinds: ALL_KINDS },
 };
 
 export const PAID_PLANS = Object.keys(PLANS);
 
 // No trial and no paid subscription: the menu is not shown to guests, the owner can still sign in,
 // prepare the menu and choose a plan. Nothing is deleted, so the printed QR codes work again on renewal.
-export const INACTIVE = { name: 'Χωρίς συνδρομή', month: 0, ordering: false, calls: false, kinds: ['table', 'room', 'sunbed'], inactive: true };
+export const INACTIVE = { name: 'Χωρίς συνδρομή', month: 0, maxSpots: null, ordering: false, calls: false, kinds: ALL_KINDS, inactive: true };
 
 export const priceCents = (plan, interval) => PLANS[plan].month * (interval === 'year' ? 10 : 1);
 
-const planOf = (venue) => (PLANS[venue.plan] ? venue.plan : 'pro');
+// Plan stored on the venue; older plan names are mapped to the current ones.
+export const planOf = (venue) => (PLANS[venue?.plan] ? venue.plan : venue?.plan === 'hotel' ? 'plus' : 'pro');
+
+// The smallest plan that fits a number of spots.
+export const planForSpots = (spots) => (spots > STANDARD_SPOTS ? 'plus' : 'pro');
 
 /** The plan that applies right now, or null while the venue has no running trial or subscription. */
 export function effectivePlan(venue) {

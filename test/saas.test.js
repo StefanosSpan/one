@@ -131,13 +131,19 @@ test('without a trial or subscription the menu is offline until the owner pays',
   assert.equal(acc.venue.plan, 'pro'); // there is no menu-only plan
   assert.equal(acc.venue.status, 'trialing');
   assert.equal(acc.usage.spots, 50); // no limits on tables or dishes
-  assert.deepEqual(Object.keys(acc.plans), ['pro', 'hotel']);
+  assert.deepEqual(Object.keys(acc.plans), ['pro', 'plus']);
 
   const token = (await b('/api/admin/tables')).data[0].token;
   const pub = (await b(`/api/public/table/${token}`)).data;
   assert.deepEqual(pub.features, { ordering: true, calls: true });
-  // Rooms and sunbeds belong to the hotel plan.
+  // Kalimenu includes up to 50 spots (of any kind); more need Kalimenu Plus.
   assert.equal((await b('/api/admin/tables', { method: 'POST', body: { count: 1, kind: 'room' } })).data.code, 'plan_limit');
+  const big = browser();
+  const r = await big('/api/account/signup', { method: 'POST', body: {
+    business: 'Hotel Aegean', email: 'hotel@example.com', password: 'hotel-pass-1', acceptTerms: true, tables: 20, rooms: 40, sunbeds: 30,
+  } });
+  assert.equal(r.data.venue.plan, 'plus'); // chosen automatically by size
+  assert.equal((await big('/api/account/checkout', { method: 'POST', body: { plan: 'pro' } })).status, 400);
 
   // The trial ends without payment: guests see a notice instead of the menu, the owner can still work on it.
   const { id } = await db.get("SELECT id FROM venues WHERE slug = 'kantina'");
@@ -178,11 +184,11 @@ test('Stripe webhooks are verified and update the subscription', async () => {
   };
   const completed = { type: 'checkout.session.completed', data: { object: {
     mode: 'subscription', customer: 'cus_1', subscription: 'sub_1', client_reference_id: String(venueId),
-    metadata: { venue_id: String(venueId), plan: 'hotel', interval: 'month' } } } };
+    metadata: { venue_id: String(venueId), plan: 'plus', interval: 'month' } } } };
   assert.equal((await send(completed, 'wrong')).status, 400);
   assert.equal((await send(completed)).status, 200);
   let me = (await owner('/api/account')).data;
-  assert.equal(me.venue.plan, 'hotel');
+  assert.equal(me.venue.plan, 'plus');
   assert.equal(me.venue.status, 'active');
   assert.equal(me.billing.subscription, true);
 
@@ -203,7 +209,7 @@ test('the super admin manages every venue', async () => {
   assert.equal((await boss('/api/super/login', { method: 'POST', body: { email: 'boss@example.com', password: 'super-secret-123' } })).status, 200);
 
   const { data } = await boss('/api/super/overview');
-  assert.equal(data.totals.venues, 2); // the demo venue is not counted
+  assert.equal(data.totals.venues, 3); // the demo venue is not counted
   const kyma = data.venues.find((v) => v.slug === 'psarotaverna-to-kyma');
   assert.equal(kyma.email, 'owner@example.com');
   assert.equal(kyma.orders30, 1);
@@ -239,7 +245,7 @@ test('the super admin manages every venue', async () => {
   const kantina = data.venues.find((v) => v.slug === 'kantina');
   assert.equal((await boss(`/api/super/venues/${kantina.id}`, { method: 'DELETE', body: { confirm: 'x' } })).status, 400);
   assert.equal((await boss(`/api/super/venues/${kantina.id}`, { method: 'DELETE', body: { confirm: 'kantina' } })).status, 200);
-  assert.equal((await boss('/api/super/overview')).data.totals.venues, 1);
+  assert.equal((await boss('/api/super/overview')).data.totals.venues, 2);
   assert.equal((await browser()('/api/account/login', { method: 'POST', body: { email: 'kantina@example.com', password: 'secret-pass-2' } })).status, 401);
 });
 
@@ -317,7 +323,7 @@ test('a database from the single-venue version is moved into venue 1', { skip: !
   const venue = await moved.get('SELECT * FROM venues');
   assert.equal(venue.id, 1);
   assert.equal(venue.name, 'Παλιά Ταβέρνα');
-  assert.equal(venue.plan, 'hotel');
+  assert.equal(venue.plan, 'plus');
   assert.equal((await moved.get("SELECT value FROM settings WHERE venue_id = 1 AND key = 'pins'")).value.includes('4321'), true);
   assert.equal((await moved.get('SELECT * FROM items WHERE id = 30')).options, '[]');
   const table = await moved.get("SELECT * FROM tables WHERE token = 'oldtoken'");

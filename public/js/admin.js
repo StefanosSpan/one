@@ -206,7 +206,7 @@ function setupChecklist(spots, menu, stats) {
   </div>`;
 }
 
-const PLAN_ORDER = ['pro', 'hotel'];
+const PLAN_ORDER = ['pro', 'plus'];
 const STATUS_TEXT = { trialing: 'Δωρεάν δοκιμή', active: 'Ενεργή', past_due: 'Εκκρεμεί πληρωμή', paused: 'Σε πάγωμα', canceled: 'Ακυρώθηκε' };
 
 async function renderBilling() {
@@ -220,15 +220,15 @@ async function renderBilling() {
   const params = new URLSearchParams(location.search);
   if (params.get('checkout') === 'success') toast('Ευχαριστούμε! Η συνδρομή ενεργοποιείται σε λίγα δευτερόλεπτα.', 'ok');
   let interval = v.interval || 'month';
-  const limits = (p) => ['Παραγγελία από το τραπέζι', 'Οθόνες σερβιτόρου και κουζίνας', 'Κλήση σερβιτόρου και λογαριασμού',
-    p.kinds.length > 1 ? 'Τραπέζια, δωμάτια και ξαπλώστρες' : 'Απεριόριστα τραπέζια και πιάτα', 'Μενού σε 8 γλώσσες, φωτογραφίες, λογότυπο'];
+  const limits = (p) => [p.maxSpots ? `Έως ${p.maxSpots} θέσεις με QR` : 'Πάνω από 50 θέσεις με QR, χωρίς όριο',
+    'Όλες οι δυνατότητες: παραγγελία, πληρωμή από το κινητό, πόστα, happy hour', 'Τραπέζια, δωμάτια και ξαπλώστρες', 'Μενού σε 8 γλώσσες, δική σας εμφάνιση'];
   const paidNow = ['active', 'past_due'].includes(v.status);
 
   const draw = () => {
     $('#app').innerHTML = `${planBanner()}
     <div class="panel">
       <h3>Η συνδρομή σας</h3>
-      <div class="kv"><span>Πλάνο</span><b>${esc(acc.plans[v.plan]?.name || 'Pro')}${v.effectivePlan ? '' : ' <span class="muted">(ανενεργό)</span>'}</b></div>
+      <div class="kv"><span>Πλάνο</span><b>${esc(acc.plans[v.plan]?.name || 'Kalimenu')}${v.effectivePlan ? '' : ' <span class="muted">(ανενεργό)</span>'}</b></div>
       <div class="kv"><span>Κατάσταση</span><b>${STATUS_TEXT[v.status] || v.status}${v.status === 'trialing' ? ` · λήγει ${new Date(v.trialEndsAt).toLocaleDateString('el-GR')}` : ''}</b></div>
       ${paidNow ? `<div class="kv"><span>Χρέωση</span><b>${v.interval === 'year' ? 'Ετήσια' : 'Μηνιαία'}</b></div>` : ''}
       <div class="kv"><span>Χρήση</span><b>${acc.usage.items} πιάτα · ${acc.usage.spots} θέσεις</b></div>

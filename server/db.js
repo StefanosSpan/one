@@ -102,7 +102,7 @@ export async function createVenue(t, { name, plan = 'pro', status = 'active', tr
 export const DEMO_PINS = { admin: '1234', waiter: '1111', kitchen: '2222' };
 export async function createDemoVenue() {
   return db.tx((t) => createVenue(t, {
-    name: 'Το εστιατόριό σας', slug: 'demo', plan: 'hotel', status: 'active', isDemo: true,
+    name: 'Το εστιατόριό σας', slug: 'demo', plan: 'plus', status: 'active', isDemo: true,
     pins: DEMO_PINS, onlinePayments: 'demo', sample: true, demoInfo: true,
   }));
 }

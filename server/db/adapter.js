@@ -56,7 +56,7 @@ async function migrateLegacy(api, { columns, tableExists }) {
     const rows = await t.all("SELECT value FROM legacy_settings WHERE key = 'restaurant'");
     let name = 'Κατάστημα';
     try { name = JSON.parse(rows[0]?.value || '{}').name || name; } catch { /* keep default */ }
-    await t.run(`INSERT INTO venues (id, slug, name, plan, status, created_at) VALUES (1, 'main', ?, 'hotel', 'active', ?)`,
+    await t.run(`INSERT INTO venues (id, slug, name, plan, status, created_at) VALUES (1, 'main', ?, 'plus', 'active', ?)`,
       [name, new Date().toISOString()]);
     for (const name of Object.keys(LEGACY)) {
       if (!present.includes(name)) continue;

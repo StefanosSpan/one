@@ -27,14 +27,13 @@
       <label class="field"><span>Όνομα καταστήματος</span>
         <input class="input" name="business" maxlength="80" required autocomplete="organization" placeholder="π.χ. Ταβέρνα Το Κύμα"></label>
 
-      <span class="field-label small muted">Πλάνο</span>
-      <div class="plan-pick" id="plans"></div>
-
-      <div class="row2">
-        <label class="field"><span>Τραπέζια με QR</span><input class="input" name="tables" type="number" min="0" max="100" value="10"></label>
-        <label class="field" data-hotel hidden><span>Δωμάτια</span><input class="input" name="rooms" type="number" min="0" max="300" value="0"></label>
-        <label class="field" data-hotel hidden><span>Ξαπλώστρες</span><input class="input" name="sunbeds" type="number" min="0" max="300" value="0"></label>
+      <span class="field-label small muted">Πόσες θέσεις θέλετε με QR;</span>
+      <div class="row2" style="grid-template-columns:1fr 1fr 1fr">
+        <label class="field"><span>Τραπέζια</span><input class="input" name="tables" type="number" min="0" max="100" value="10"></label>
+        <label class="field"><span>Δωμάτια</span><input class="input" name="rooms" type="number" min="0" max="300" value="0"></label>
+        <label class="field"><span>Ξαπλώστρες</span><input class="input" name="sunbeds" type="number" min="0" max="300" value="0"></label>
       </div>
+      <p class="hint" id="planNote" style="margin:-.3rem 0 .9rem"></p>
 
       <label class="check"><input type="checkbox" name="sample" checked>
         <span>Ξεκινήστε με δείγμα μενού (21 πιάτα σε 8 γλώσσες) που αλλάζετε ή σβήνετε όποτε θέλετε</span></label>
@@ -60,24 +59,16 @@
     const eur = (c) => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
     const { plans, trialDays } = await api('/api/plans');
     const interval = params.get('interval') === 'year' ? 'year' : 'month';
-    const initial = plans[params.get('plan')] ? params.get('plan') : 'pro';
-    const SUB = { pro: 'Εστιατόρια, καφέ, beach bars', hotel: 'Με δωμάτια και ξαπλώστρες' };
-
-    document.getElementById('plans').innerHTML = Object.keys(plans).map((k) => {
-      const p = plans[k];
-      const price = interval === 'year' ? `${eur(p.month * 10)}/έτος` : `${eur(p.month)}/μήνα`;
-      return `<label><input type="radio" name="plan" value="${k}" ${k === initial ? 'checked' : ''}><b>${p.name}</b><span>${SUB[k]} · ${price}</span></label>`;
-    }).join('');
-
+    // The plan follows the number of spots: up to 50 → Kalimenu, more → Kalimenu Plus.
     function update() {
-      const plan = form.plan.value;
-      const hotel = plans[plan].kinds.length > 1;
-      document.querySelectorAll('[data-hotel]').forEach((el) => { el.hidden = !hotel; });
-      const price = interval === 'year' ? `${eur(plans[plan].month * 10)} τον χρόνο` : `${eur(plans[plan].month)} τον μήνα`;
+      const total = ['tables', 'rooms', 'sunbeds'].reduce((n, k) => n + (Number(form[k].value) || 0), 0);
+      const plan = total > 50 ? plans.plus : plans.pro;
+      const price = interval === 'year' ? `${eur(plan.month * 10)} τον χρόνο` : `${eur(plan.month)} τον μήνα`;
+      document.getElementById('planNote').textContent = `${total} θέσεις → ${plan.name}, ${price} + ΦΠΑ μετά τη δοκιμή.`;
       document.getElementById('trialNote').textContent =
-        `${trialDays} ημέρες δωρεάν δοκιμή με όλες τις δυνατότητες, χωρίς κάρτα. Μετά ${price} + ΦΠΑ, μόνο αν το επιλέξετε.`;
+        `${trialDays} ημέρες δωρεάν με όλες τις δυνατότητες, χωρίς κάρτα. Πληρώνετε μόνο αν συνεχίσετε.`;
     }
-    form.addEventListener('change', update);
+    form.addEventListener('input', update);
     update();
 
     form.addEventListener('submit', async (e) => {
@@ -87,7 +78,7 @@
       try {
         const r = await api('/api/account/signup', { method: 'POST', body: {
           business: form.business.value, email: form.email.value, password: form.password.value,
-          plan: form.plan.value, interval, tables: form.tables.value, rooms: form.rooms.value, sunbeds: form.sunbeds.value,
+          interval, tables: form.tables.value, rooms: form.rooms.value, sunbeds: form.sunbeds.value,
           sample: form.sample.checked, acceptTerms: form.acceptTerms.checked,
         } });
         location.href = r.next;

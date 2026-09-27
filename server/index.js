@@ -11,7 +11,7 @@ import {
   mapCategory, mapItem, mapTable, UPLOAD_DIR, SPOT_KINDS,
 } from './db.js';
 import { LANGS } from './seed.js';
-import { PLANS, PAID_PLANS, TRIAL_DAYS, effectivePlan, features, priceCents } from './plans.js';
+import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
 import { sendMail } from './mail.js';
 
@@ -467,7 +467,7 @@ app.post('/api/staff/logout', (req, res) => {
 function venueSummary(venue) {
   const plan = effectivePlan(venue);
   return {
-    slug: venue.slug, name: venue.name, plan: venue.plan, status: venue.status, trialEndsAt: venue.trial_ends_at,
+    slug: venue.slug, name: venue.name, plan: planOf(venue), status: venue.status, trialEndsAt: venue.trial_ends_at,
     interval: venue.interval, effectivePlan: plan, features: features(venue), isDemo: venue.isDemo,
   };
 }
@@ -826,20 +826,18 @@ admin.get('/tables', wrap(async (req, res) => {
     .map(({ venue_id, ...t }) => ({ ...t, url: `${base}/t/${t.token}` })));
 }));
 
-function checkSpotKind(req, kind) {
-  // Spot types follow the chosen plan, also before paying, so nothing has to change on renewal.
-  const plan = PLANS[req.venue.plan] || PLANS.pro;
-  if (!plan.kinds.includes(kind)) planLimit(`Δωμάτια και ξαπλώστρες υπάρχουν στο πλάνο «${PLANS.hotel.name}». Αναβαθμίστε από το «Συνδρομή».`);
-}
-
 admin.post('/tables', wrap(async (req, res) => {
   const b = req.body || {};
   const v = req.venue.id;
   const count = Math.min(Math.max(Math.trunc(Number(b.count) || 1), 1), 100);
   const kind = SPOT_KINDS.includes(b.kind) ? b.kind : 'table';
-  checkSpotKind(req, kind);
+  const plan = PLANS[planOf(req.venue)];
   const ins = 'INSERT INTO tables (venue_id, label, token, kind) VALUES (?, ?, ?, ?)';
   await db.tx(async (t) => {
+    const { total } = await t.get('SELECT COUNT(*) AS total FROM tables WHERE venue_id = ?', [v]);
+    if (plan.maxSpots != null && Number(total) + count > plan.maxSpots) {
+      planLimit(`Το ${plan.name} περιλαμβάνει έως ${plan.maxSpots} θέσεις με QR. Για περισσότερες περάστε στο ${PLANS.plus.name} από το «Συνδρομή».`);
+    }
     if (count === 1 && cleanText(b.label, 20)) return t.insert(ins, [v, cleanText(b.label, 20), newToken(), kind]);
     const { n } = await t.get('SELECT COUNT(*) AS n FROM tables WHERE venue_id = ? AND kind = ?', [v, kind]);
     for (let i = 1; i <= count; i++) await t.insert(ins, [v, String(Number(n) + i), newToken(), kind]);
@@ -853,7 +851,6 @@ admin.put('/tables/:id', wrap(async (req, res) => {
   const kind = SPOT_KINDS.includes(req.body?.kind) ? req.body.kind : 'table';
   const cur = await db.get('SELECT kind FROM tables WHERE id = ? AND venue_id = ?', [Number(req.params.id) || 0, req.venue.id]);
   if (!cur) fail(404, 'Δεν βρέθηκε');
-  if (cur.kind !== kind) checkSpotKind(req, kind);
   await db.run('UPDATE tables SET label = ?, active = ?, kind = ? WHERE id = ? AND venue_id = ?',
     [label, req.body?.active === false ? 0 : 1, kind, Number(req.params.id), req.venue.id]);
   res.json({ ok: true });
@@ -1000,7 +997,7 @@ const appBase = (req) => APP_URL || `${req.protocol}://${req.get('host')}`;
 const isUnique = (e) => /unique|duplicate/i.test(e?.message || '');
 
 app.post('/api/account/signup', wrap(async (req, res) => {
-  if (!rateLimit(`signup:${req.ip}`, 5, 3600_000)) fail(429, 'Πολλές εγγραφές από αυτή τη σύνδεση. Δοκιμάστε αργότερα.');
+  if (!rateLimit(`signup:${req.ip}`, 10, 3600_000)) fail(429, 'Πολλές εγγραφές από αυτή τη σύνδεση. Δοκιμάστε αργότερα.');
   const b = req.body || {};
   const business = cleanText(b.business, 80);
   if (!business) fail(400, 'Δώστε το όνομα του καταστήματος');
@@ -1009,15 +1006,13 @@ app.post('/api/account/signup', wrap(async (req, res) => {
   const password = String(b.password || '');
   if (password.length < 8) fail(400, 'Ο κωδικός χρειάζεται τουλάχιστον 8 χαρακτήρες');
   if (!b.acceptTerms) fail(400, 'Χρειάζεται να αποδεχτείτε τους όρους χρήσης');
-  const plan = PLANS[b.plan] ? b.plan : 'pro';
   const interval = b.interval === 'year' ? 'year' : 'month';
-  const f = PLANS[plan];
   const count = (v, max) => Math.min(Math.max(Math.trunc(Number(v) || 0), 0), max);
-  const spots = {
-    table: count(b.tables ?? 10, 100),
-    room: f.kinds.includes('room') ? count(b.rooms, 300) : 0,
-    sunbed: f.kinds.includes('sunbed') ? count(b.sunbeds, 300) : 0,
-  };
+  const spots = { table: count(b.tables ?? 10, 100), room: count(b.rooms, 300), sunbed: count(b.sunbeds, 300) };
+  // The plan follows the size of the venue: more than 50 spots need Kalimenu Plus.
+  const needed = planForSpots(spots.table + spots.room + spots.sunbed);
+  const plan = needed === 'plus' || b.plan === 'plus' ? 'plus' : 'pro';
+  const f = PLANS[plan];
   if (await db.get('SELECT id FROM accounts WHERE email = ?', [email])) fail(409, 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Συνδεθείτε.');
 
   const hash = await hashPassword(password);
@@ -1120,7 +1115,7 @@ async function ensureProduct(plan) {
   const id = `kalimenu_${plan}`;
   if (products.has(id)) return id;
   try { await stripe(`products/${id}`, null, 'GET'); } catch {
-    await stripe('products', { id, name: `Kalimenu ${PLANS[plan].name}` }).catch((e) => { if (!/already exists/i.test(e.message)) throw e; });
+    await stripe('products', { id, name: PLANS[plan].name }).catch((e) => { if (!/already exists/i.test(e.message)) throw e; });
   }
   products.add(id);
   return id;
@@ -1130,6 +1125,11 @@ app.post('/api/account/checkout', ...requireOwner, wrap(async (req, res) => {
   const plan = PAID_PLANS.includes(req.body?.plan) ? req.body.plan : fail(400, 'Επιλέξτε πλάνο');
   const interval = req.body?.interval === 'year' ? 'year' : 'month';
   const venue = req.venue;
+  const maxSpots = PLANS[plan].maxSpots;
+  if (maxSpots != null) {
+    const { n } = await db.get('SELECT COUNT(*) AS n FROM tables WHERE venue_id = ?', [venue.id]);
+    if (Number(n) > maxSpots) fail(400, `Έχετε ${n} θέσεις με QR. Το ${PLANS[plan].name} περιλαμβάνει έως ${maxSpots}· επιλέξτε ${PLANS.plus.name}.`);
+  }
   if (!stripeEnabled()) {
     if (PRODUCTION) fail(503, 'Οι online πληρωμές δεν έχουν ενεργοποιηθεί ακόμα. Επικοινωνήστε μαζί μας.');
     // Local testing without Stripe: the plan is activated straight away.
@@ -1313,8 +1313,8 @@ superApi.use(requireSuper);
 superApi.get('/me', (req, res) => res.json({ email: req.admin.email }));
 
 // Monthly recurring revenue of a venue in cents (yearly plans spread over 12 months).
-const venueMrr = (v) => (['active', 'past_due'].includes(v.status) && PLANS[v.plan] && !v.isDemo
-  ? Math.round(priceCents(v.plan, v.interval) / (v.interval === 'year' ? 12 : 1)) : 0);
+const venueMrr = (v) => (['active', 'past_due'].includes(v.status) && !v.isDemo
+  ? Math.round(priceCents(planOf(v), v.interval) / (v.interval === 'year' ? 12 : 1)) : 0);
 
 superApi.get('/overview', wrap(async (req, res) => {
   const since = new Date(Date.now() - 30 * 86400_000).toISOString();
@@ -1328,7 +1328,7 @@ superApi.get('/overview', wrap(async (req, res) => {
   for (const { id } of await db.all('SELECT id FROM venues ORDER BY id DESC')) {
     const v = await getVenue(id);
     venues.push({
-      id: v.id, slug: v.slug, name: v.name, email: owners.get(id)?.email || '', plan: v.plan, status: v.status,
+      id: v.id, slug: v.slug, name: v.name, email: owners.get(id)?.email || '', plan: planOf(v), status: v.status,
       effectivePlan: effectivePlan(v), interval: v.interval, trialEndsAt: v.trial_ends_at, createdAt: v.createdAt,
       isDemo: v.isDemo, stripe: !!v.stripeSubscriptionId, mrr: venueMrr(v),
       items: Number(items.get(id)?.n || 0), spots: Number(spots.get(id)?.n || 0),
