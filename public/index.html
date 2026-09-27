@@ -10,271 +10,468 @@
   <meta name="theme-color" content="#1f3a5f">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://kalimenu.gr/">
-  <meta property="og:title" content="Kalimenu · Μενού σε 8 γλώσσες και παραγγελία από το τραπέζι">
-  <meta property="og:description" content="Ο πελάτης σκανάρει το QR, διαβάζει το μενού στη γλώσσα του και παραγγέλνει. 14 ημέρες δωρεάν, χωρίς εγκατάσταση.">
+  <meta property="og:title" content="Kalimenu · Μενού σε 8 γλώσσες, παραγγελία από το τραπέζι">
+  <meta property="og:description" content="Ο πελάτης σκανάρει το QR, διαβάζει το μενού στη γλώσσα του, παραγγέλνει και πληρώνει. 14 ημέρες δωρεάν, χωρίς εγκατάσταση.">
   <meta property="og:image" content="https://kalimenu.gr/brand/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <title>Kalimenu · Ψηφιακό μενού και παραγγελία με QR</title>
-  <meta name="description" content="Ψηφιακό μενού σε 8 γλώσσες, παραγγελία από το τραπέζι, κλήση σερβιτόρου και λογαριασμός με QR. Για εστιατόρια, ταβέρνες, beach bars και ξενοδοχεία. 14 ημέρες δωρεάν δοκιμή.">
+  <title>Kalimenu · Ψηφιακό μενού, παραγγελία και πληρωμή με QR</title>
+  <meta name="description" content="Ψηφιακό μενού σε 8 γλώσσες, παραγγελία και πληρωμή από το τραπέζι, κλήση σερβιτόρου, κουζίνα και μπαρ. Για ταβέρνες, εστιατόρια, beach bars και ξενοδοχεία. 14 ημέρες δωρεάν δοκιμή.">
+  <link rel="preload" href="/fonts/manrope-greek-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/manrope-greek-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/app.css">
   <style>
-    :root { --brand: #1f3a5f; }
-    body { background: #fff; }
-    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
-    header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 10; }
-    header.site .wrap { display: flex; align-items: center; gap: 1.5rem; min-height: 60px; }
-    .design { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
-    @media (max-width: 820px) { .design { grid-template-columns: 1fr; } }
-    .ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: .8rem; }
-    .ticks li { padding-left: 1.6rem; position: relative; color: var(--muted); }
-    .ticks li::before { content: ''; position: absolute; left: 0; top: .35rem; width: 14px; height: 8px; border-left: 2px solid var(--brand); border-bottom: 2px solid var(--brand); transform: rotate(-45deg); }
-    .ticks b { color: var(--text); }
-    .themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; }
-    .mini { background: var(--b); color: var(--t); border: 6px solid #1a1a1a; border-radius: 18px; padding: .9rem .75rem; display: flex; flex-direction: column; gap: .5rem; font-size: .78rem; min-height: 250px; }
-    .mini b { font-size: .95rem; }
-    .mini i { font-style: normal; color: var(--c); font-weight: 700; font-size: .9rem; margin-top: .3rem; }
-    .mini span { display: flex; justify-content: space-between; border-bottom: 1px solid color-mix(in srgb, var(--t) 14%, transparent); padding-bottom: .4rem; }
-    .mini em { font-style: normal; font-weight: 700; }
-    .mini u { white-space: nowrap; font-size: .72rem; text-decoration: none; margin-top: auto; background: var(--k); color: var(--b); border-radius: 6px; padding: .45rem; text-align: center; font-weight: 700; }
-    @media (max-width: 560px) { .mini { min-height: 200px; font-size: .7rem; } }
-    footer .foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; line-height: 1.6; }
-    footer .foot nav { display: flex; gap: 1rem; flex-wrap: wrap; }
-    footer .foot a { color: inherit; }
-    .wordmark { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; }
-    .wordmark img { display: block; height: 26px; width: auto; }
-    header.site nav { display: flex; gap: 1.2rem; margin-left: auto; align-items: center; }
-    header.site nav a { color: var(--muted); text-decoration: none; font-size: .92rem; }
-    header.site nav a.btn { color: var(--brand-ink); }
-    @media (max-width: 700px) { header.site nav a:not(.btn) { display: none; } }
+    /* Manrope, self-hosted (latin + greek). */
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/manrope-greek-400-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/manrope-greek-500-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/manrope-greek-600-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/manrope-greek-700-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 800; src: url(/fonts/manrope-greek-800-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/manrope-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/manrope-latin-500-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/manrope-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/manrope-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+    @font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 800; src: url(/fonts/manrope-latin-800-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
 
-    .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 3rem; align-items: center; padding: 3.5rem 0 3rem; }
-    .hero h1 { font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1; margin: 0 0 1rem; letter-spacing: -.03em; }
-    .hero p.lead { font-size: 1.12rem; color: var(--muted); margin: 0 0 1.5rem; max-width: 520px; }
-    .hero .ctas { display: flex; gap: .6rem; flex-wrap: wrap; }
-    .hero .note { color: var(--muted); font-size: .88rem; margin-top: 1rem; }
-    .phone { justify-self: center; width: 280px; border: 10px solid #1a1a1a; border-radius: 34px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,.12); }
-    .phone img { width: 100%; display: block; }
-    @media (max-width: 820px) { .hero { grid-template-columns: 1fr; padding-top: 2rem; } }
+    :root {
+      --navy: #1f3a5f; --navy-deep: #152a45; --terra: #d2643c; --terra-soft: #f6e3d9;
+      --cream: #f7f3ec; --sand: #efe8dc; --ink: #16202b; --text: #16202b; --muted: #5d6673; --line: #e6e0d6;
+      --brand: var(--navy); --font: Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      --r: 14px; --shadow: 0 1px 2px rgba(22,32,43,.06), 0 12px 32px rgba(22,32,43,.10);
+    }
+    html { scroll-behavior: smooth; }
+    body { background: #fff; font-size: 16px; line-height: 1.6; overflow-x: hidden; }
+    h1, h2, h3 { font-family: var(--font); color: var(--ink); }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+    .btn { border-radius: 10px; padding: .8rem 1.25rem; font-weight: 700; min-height: 48px; text-decoration: none; transition: transform .15s, box-shadow .15s, background .15s; }
+    .btn:hover { transform: translateY(-1px); filter: none; }
+    .btn.primary { background: var(--terra); color: #fff; box-shadow: 0 6px 16px rgba(210,100,60,.28); }
+    .btn.primary:hover { background: #c2572f; }
+    .btn.secondary { background: #fff; color: var(--ink); border-color: #d9d2c6; }
+    .btn.secondary:hover { background: #fff; border-color: var(--ink); }
+    .btn.sm { min-height: 40px; padding: .5rem 1rem; white-space: nowrap; }
+    .eyebrow { display: inline-block; font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--terra); margin-bottom: .8rem; }
+    h2 { font-size: clamp(1.75rem, 3.4vw, 2.5rem); line-height: 1.15; letter-spacing: -.025em; margin: 0 0 .9rem; font-weight: 800; }
+    .sub { color: var(--muted); font-size: 1.08rem; margin: 0 0 2.5rem; max-width: 640px; }
+    .center { text-align: center; }
+    .center .sub { margin-left: auto; margin-right: auto; }
+    section { padding: 88px 0; }
+    @media (max-width: 700px) { section { padding: 64px 0; } }
 
-    section { padding: 3.5rem 0; }
-    section.alt { background: #f6f6f4; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    h2 { font-size: 1.75rem; margin: 0 0 .5rem; letter-spacing: -.02em; }
-    .sub { color: var(--muted); margin: 0 0 2rem; max-width: 640px; }
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
-    .steps div b { display: block; font-size: 1.05rem; margin: .4rem 0 .3rem; }
-    .steps div p { margin: 0; color: var(--muted); }
-    .steps .n { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: .9rem; }
-    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem 2rem; }
-    .features b { display: block; margin-bottom: .25rem; }
-    .features p { margin: 0; color: var(--muted); font-size: .95rem; }
-    @media (max-width: 820px) { .steps, .features { grid-template-columns: 1fr; } }
-    .shots { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start; margin-top: 2rem; }
-    .shots figure { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; }
-    .shots img { width: 100%; display: block; }
-    .shots figcaption { font-size: .85rem; color: var(--muted); padding: .6rem .8rem; border-top: 1px solid var(--line); }
-    @media (max-width: 820px) { .shots { grid-template-columns: 1fr; } }
+    /* Header */
+    header.site { position: sticky; top: 0; z-index: 20; background: rgba(247,243,236,.86); backdrop-filter: saturate(1.4) blur(12px);
+      -webkit-backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid transparent; transition: border-color .2s, background .2s; }
+    header.site.scrolled { border-bottom-color: var(--line); background: rgba(255,255,255,.9); }
+    header.site .wrap { display: flex; align-items: center; gap: 1.5rem; min-height: 68px; }
+    .wordmark { display: inline-flex; text-decoration: none; }
+    .wordmark img { display: block; height: 28px; width: auto; }
+    header.site nav { display: flex; gap: 1.6rem; margin-left: auto; align-items: center; }
+    header.site nav a { color: var(--ink); text-decoration: none; font-size: .95rem; font-weight: 600; opacity: .8; }
+    header.site nav a:hover { opacity: 1; }
+    header.site nav a.btn { opacity: 1; color: #fff; }
+    @media (max-width: 900px) { header.site nav a.hide-m { display: none; } header.site nav { gap: 1rem; } }
+    @media (max-width: 420px) { .wordmark img { height: 22px; } header.site .wrap { gap: .8rem; } header.site nav { gap: .8rem; } header.site nav a { font-size: .88rem; } .btn.sm { padding: .5rem .8rem; } }
 
-    .billing { display: inline-flex; border: 1px solid #d6d6d6; border-radius: var(--radius); overflow: hidden; margin-bottom: 1.5rem; }
-    .billing button { border: 0; background: #fff; padding: .5rem 1rem; font-size: .9rem; color: var(--muted); }
-    .billing button.active { background: var(--text); color: #fff; }
-    .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: stretch; max-width: 780px; }
-    @media (max-width: 560px) { .plans { grid-template-columns: 1fr; } }
-    .plan { border: 1px solid var(--line); border-radius: 10px; padding: 1.3rem 1.2rem; display: flex; flex-direction: column; background: #fff; }
-    .plan.best { border: 2px solid var(--brand); position: relative; }
-    .plan.best::before { content: 'Δημοφιλέστερο'; position: absolute; top: -11px; left: 1.2rem; background: var(--brand); color: #fff; font-size: .72rem;
-      font-weight: 700; padding: .1rem .5rem; border-radius: 4px; }
-    .plan h3 { margin: 0; font-size: 1.1rem; }
-    .plan .for { color: var(--muted); font-size: .85rem; margin: .2rem 0 .9rem; min-height: 2.4em; }
-    .plan .price { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-    .plan .price small { font-size: .9rem; font-weight: 500; color: var(--muted); }
-    .plan .per { color: var(--muted); font-size: .82rem; min-height: 1.3em; margin-bottom: 1rem; }
-    .plan ul { list-style: none; padding: 0; margin: 0 0 1.2rem; font-size: .92rem; flex: 1; }
-    .plan li { padding: .3rem 0 .3rem 1.4rem; position: relative; }
-    .plan li::before { content: ''; position: absolute; left: .2rem; top: .75rem; width: 8px; height: 4px; border-left: 2px solid var(--green); border-bottom: 2px solid var(--green); transform: rotate(-45deg); }
-    .plan li.plus { font-weight: 600; }
-    .plan li.plus::before { border-color: var(--brand); }
-    .extras { margin-top: 1.5rem; font-size: .92rem; color: var(--muted); }
-    .extras b { color: var(--text); }
+    /* Hero */
+    .hero-bg { background: radial-gradient(1200px 500px at 85% -10%, #f3dccd 0%, transparent 60%), var(--cream); overflow: hidden; }
+    .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; padding: 64px 20px 88px; }
+    .hero h1 { font-size: clamp(2.2rem, 4.6vw, 3.6rem); line-height: 1.04; margin: 0 0 1.2rem; letter-spacing: -.035em; font-weight: 800; }
+    .hero h1 em { font-style: normal; color: var(--terra); }
+    .hero .lead { font-size: 1.18rem; color: var(--muted); margin: 0 0 2rem; max-width: 540px; }
+    .ctas { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .trust { list-style: none; padding: 0; margin: 1.6rem 0 0; display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; color: var(--muted); font-size: .92rem; font-weight: 600; }
+    .trust li { display: inline-flex; align-items: center; gap: .4rem; }
+    .trust .ic { color: #2f8a57; }
+    .audience { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.4rem; }
+    .audience span { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: .3rem .8rem; font-size: .85rem; font-weight: 600; color: var(--ink); }
+    .visual { position: relative; justify-self: center; }
+    .phone { width: 300px; background: #0f1720; padding: 10px; border-radius: 44px; box-shadow: 0 30px 60px rgba(22,32,43,.22), 0 0 0 1px rgba(0,0,0,.04); position: relative; z-index: 1; }
+    .phone img { display: block; width: 100%; border-radius: 34px; }
+    .float { position: absolute; z-index: 3; background: #fff; border-radius: 14px; box-shadow: var(--shadow); padding: .8rem 1rem; font-size: .85rem; line-height: 1.35; min-width: 200px; }
+    .float b { display: block; font-size: .95rem; color: var(--ink); }
+    .float small { color: var(--muted); }
+    .float .row { display: flex; align-items: center; gap: .7rem; }
+    .float .dot { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+    .float.f1 { top: 540px; left: -150px; }
+    .float.f1 .dot { background: var(--terra-soft); color: var(--terra); }
+    .float.f2 { top: 150px; right: -140px; }
+    .float.f2 .dot { background: #e2f2e8; color: #2f8a57; }
+    .float.f3 { bottom: 40px; left: -120px; min-width: 0; }
+    .float.f3 .dot { background: #e6edf6; color: var(--navy); }
+    @media (max-width: 1100px) { .float.f1 { left: -90px; } .float.f2 { right: -70px; } .float.f3 { left: -60px; } }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; padding: 40px 20px 64px; gap: 40px; }
+      .phone { width: 260px; }
+      .float { min-width: 0; font-size: .78rem; padding: .6rem .75rem; }
+      .float .dot { width: 30px; height: 30px; }
+      .float.f1 { left: -64px; top: 300px; } .float.f2 { right: -64px; top: auto; bottom: 90px; } .float.f3 { display: none; }
+    }
+    @media (max-width: 420px) { .float.f1 { left: -40px; } .float.f2 { right: -40px; } }
 
-    table.cmp { width: 100%; border-collapse: collapse; font-size: .92rem; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
-    table.cmp th, table.cmp td { text-align: left; padding: .65rem .8rem; border-bottom: 1px solid var(--line); }
-    table.cmp th { font-size: .8rem; color: var(--muted); font-weight: 600; background: #fafafa; }
-    table.cmp tr.us td { font-weight: 700; background: #f3f7fc; }
-    .table-scroll { overflow-x: auto; }
+    /* Stats */
+    .stats { background: var(--navy); color: #fff; padding: 36px 0; }
+    .stats .wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .stats div { display: flex; flex-direction: column; }
+    .stats b { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+    .stats span { color: rgba(255,255,255,.72); font-size: .92rem; }
+    @media (max-width: 700px) { .stats .wrap { grid-template-columns: 1fr 1fr; } .stats b { font-size: 1.6rem; } }
 
-    details { border-bottom: 1px solid var(--line); padding: .9rem 0; }
-    details summary { font-weight: 600; cursor: pointer; list-style: none; }
+    /* Steps */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: s; }
+    .step { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 28px; position: relative; }
+    .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+      background: var(--terra-soft); color: var(--terra); font-weight: 800; margin-bottom: 1rem; }
+    .step b { display: block; font-size: 1.15rem; margin-bottom: .4rem; }
+    .step p { margin: 0; color: var(--muted); }
+    @media (max-width: 820px) { .steps { grid-template-columns: 1fr; } }
+
+    /* Spotlights */
+    .spot { display: grid; grid-template-columns: 1fr 1.15fr; gap: 64px; align-items: center; }
+    .spot + .spot { margin-top: 110px; }
+    .spot.rev .spot-media { order: -1; }
+    .spot h3 { font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.2; letter-spacing: -.02em; margin: 0 0 .8rem; font-weight: 800; }
+    .spot p { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.2rem; }
+    .ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: .7rem; }
+    .ticks li { display: flex; gap: .7rem; align-items: flex-start; }
+    .ticks li .ic { color: var(--terra); margin-top: 3px; }
+    .spot-media { position: relative; min-width: 0; isolation: isolate; }
+    .spot-media.phone-media { display: flex; justify-content: center; }
+    .spot-media.phone-media .phone { width: 280px; }
+    .browser { background: #fff; border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; border: 1px solid var(--line); }
+    .browser .bar { display: flex; gap: 6px; padding: 10px 12px; background: #f1ede6; border-bottom: 1px solid var(--line); }
+    .browser .bar i { width: 10px; height: 10px; border-radius: 50%; background: #d9d2c6; }
+    .browser img { display: block; width: 100%; height: auto; }
+    .blob { position: absolute; inset: 8% -4% -6% 6%; background: var(--sand); border-radius: 32px; z-index: -1; }
+    .spot-media > *:not(.blob) { position: relative; }
+    @media (max-width: 900px) {
+      .spot { grid-template-columns: 1fr; gap: 36px; }
+      .spot.rev .spot-media { order: 0; }
+      .spot + .spot { margin-top: 80px; }
+      .blob { inset: 6% -2% -4% 2%; }
+      .spot-media.phone-media .phone { width: 250px; }
+    }
+
+    /* Feature grid */
+    .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .feat { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 22px; transition: border-color .15s, box-shadow .15s; }
+    .feat:hover { border-color: #d9cfc0; box-shadow: 0 8px 24px rgba(22,32,43,.06); }
+    .feat .fi { width: 40px; height: 40px; border-radius: 11px; background: #e9eef5; color: var(--navy); display: grid; place-items: center; margin-bottom: .9rem; }
+    .feat b { display: block; margin-bottom: .3rem; font-size: 1rem; }
+    .feat p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.55; }
+    @media (max-width: 1000px) { .features { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+    .bg-cream { background: var(--cream); }
+
+    /* Pricing */
+    .billing { display: inline-flex; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 2rem; }
+    .billing button { border: 0; background: transparent; padding: .55rem 1.1rem; font-size: .92rem; font-weight: 700; color: var(--muted); border-radius: 999px; }
+    .billing button.active { background: var(--ink); color: #fff; }
+    .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 820px; margin: 0 auto; text-align: left; }
+    @media (max-width: 680px) { .plans { grid-template-columns: 1fr; } }
+    .plan { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 30px 28px; display: flex; flex-direction: column; position: relative; }
+    .plan.best { border: 2px solid var(--terra); box-shadow: 0 18px 40px rgba(210,100,60,.14); }
+    .plan.best::before { content: 'Δημοφιλέστερο'; position: absolute; top: -13px; left: 28px; background: var(--terra); color: #fff; font-size: .74rem;
+      font-weight: 800; padding: .2rem .7rem; border-radius: 999px; letter-spacing: .02em; }
+    .plan h3 { margin: 0; font-size: 1.25rem; font-weight: 800; }
+    .plan .for { color: var(--muted); font-size: .92rem; margin: .25rem 0 1.2rem; min-height: 2.8em; }
+    .plan .price { font-size: 2.6rem; font-weight: 800; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .plan .price small { font-size: 1rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+    .plan .per { color: var(--muted); font-size: .88rem; min-height: 1.4em; margin: .5rem 0 1.4rem; }
+    .plan ul { list-style: none; padding: 1.2rem 0 0; margin: 0 0 1.6rem; flex: 1; border-top: 1px solid var(--line); display: grid; gap: .55rem; align-content: start; }
+    .plan li { display: flex; gap: .6rem; align-items: flex-start; font-size: .95rem; }
+    .plan li .ic { color: #2f8a57; margin-top: 3px; }
+    .plan li.plus { font-weight: 700; }
+    .extras { margin: 2rem auto 0; font-size: .92rem; color: var(--muted); max-width: 820px; }
+    .extras b { color: var(--ink); }
+
+    table.cmp { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .92rem; background: #fff; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; min-width: 680px; }
+    table.cmp th, table.cmp td { text-align: left; padding: .8rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.cmp tr:last-child td { border-bottom: 0; }
+    table.cmp th { font-size: .78rem; color: var(--muted); font-weight: 700; background: #faf8f4; text-transform: uppercase; letter-spacing: .04em; }
+    table.cmp tr.us td { font-weight: 700; background: #fdf4ef; }
+    table.cmp tr.us td:first-child { color: var(--terra); }
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--r); }
+    .cmp-wrap { max-width: 980px; margin: 72px auto 0; text-align: left; }
+    .cmp-wrap h3 { font-size: 1.3rem; margin: 0 0 1rem; }
+
+    /* FAQ */
+    .faq { display: grid; grid-template-columns: .8fr 1.2fr; gap: 48px; align-items: start; }
+    @media (max-width: 820px) { .faq { grid-template-columns: 1fr; gap: 16px; } }
+    details { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 10px; }
+    details summary { font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
     details summary::-webkit-details-marker { display: none; }
-    details summary::after { content: '+'; float: right; color: var(--muted); font-weight: 400; }
+    details summary::after { content: '+'; color: var(--terra); font-weight: 800; font-size: 1.2rem; line-height: 1.2; }
     details[open] summary::after { content: '−'; }
-    details p { color: var(--muted); margin: .5rem 0 0; }
-    .contact { text-align: center; }
-    .contact .ctas { justify-content: center; display: flex; gap: .6rem; flex-wrap: wrap; }
-    footer { border-top: 1px solid var(--line); padding: 1.5rem 0; color: var(--muted); font-size: .85rem; }
+    details p { color: var(--muted); margin: .6rem 0 0; }
+
+    /* CTA band */
+    .cta-band { background: radial-gradient(800px 300px at 90% 0%, rgba(210,100,60,.35), transparent 60%), var(--navy); color: #fff; border-radius: 28px;
+      padding: 64px 40px; text-align: center; }
+    .cta-band h2 { color: #fff; }
+    .cta-band .sub { color: rgba(255,255,255,.78); }
+    .cta-band .ctas { justify-content: center; }
+    .cta-band .btn.secondary { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
+    .cta-band .btn.secondary:hover { border-color: #fff; }
+    @media (max-width: 560px) { .cta-band { padding: 48px 22px; border-radius: 20px; } }
+
+    footer { background: var(--ink); color: rgba(255,255,255,.7); padding: 48px 0 36px; font-size: .88rem; margin-top: 88px; }
+    footer .foot { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap; line-height: 1.7; }
+    footer .foot img { height: 26px; width: auto; display: block; margin-bottom: .8rem; }
+    footer nav { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: flex-start; }
+    footer a { color: #fff; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
   </style>
 </head>
 <body>
-  <header class="site">
+  <header class="site" id="top">
     <div class="wrap">
-      <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="133" height="26"></a>
+      <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="144" height="28"></a>
       <nav>
-        <a href="#how">Πώς δουλεύει</a>
-        <a href="#features">Δυνατότητες</a>
-        <a href="#design">Εμφάνιση</a>
-        <a href="#pricing">Τιμές</a>
-        <a href="#faq">Ερωτήσεις</a>
+        <a class="hide-m" href="#how">Πώς δουλεύει</a>
+        <a class="hide-m" href="#features">Δυνατότητες</a>
+        <a class="hide-m" href="#pricing">Τιμές</a>
+        <a class="hide-m" href="#faq">Ερωτήσεις</a>
         <a href="/login">Σύνδεση</a>
-        <a class="btn sm" href="/signup">Ξεκινήστε δωρεάν</a>
+        <a class="btn primary sm" href="/signup">Δοκιμή δωρεάν</a>
       </nav>
     </div>
   </header>
 
   <main>
-    <div class="wrap hero">
-      <div>
-        <h1>Το μενού σας σε 8 γλώσσες. Η παραγγελία κατευθείαν στο πάσο.</h1>
-        <p class="lead">Ο πελάτης σκανάρει το QR του τραπεζιού, διαβάζει το μενού στη γλώσσα του, παραγγέλνει, καλεί τον σερβιτόρο
-          ή ζητά τον λογαριασμό. Για ταβέρνες, εστιατόρια, beach bars και ξενοδοχεία.</p>
-        <div class="ctas">
-          <a class="btn" href="/signup">Ξεκινήστε δωρεάν</a>
-          <a class="btn secondary" href="/demo">Δείτε το demo</a>
+    <div class="hero-bg">
+      <div class="wrap hero">
+        <div>
+          <div class="audience"><span>Ταβέρνες</span><span>Εστιατόρια</span><span>Beach bars</span><span>Ξενοδοχεία</span><span>Καφέ</span></div>
+          <h1>Μενού σε 8 γλώσσες. <em>Παραγγελία από το τραπέζι.</em></h1>
+          <p class="lead">Ο πελάτης σκανάρει το QR, διαβάζει το μενού στη γλώσσα του, παραγγέλνει και πληρώνει από το κινητό.
+            Εσείς σερβίρετε πιο γρήγορα, χωρίς λάθη και χωρίς προμήθειες.</p>
+          <div class="ctas">
+            <a class="btn primary" href="/signup">Ξεκινήστε δωρεάν</a>
+            <a class="btn secondary" href="/demo">Δείτε το demo</a>
+          </div>
+          <ul class="trust">
+            <li data-i="check">14 ημέρες δωρεάν</li>
+            <li data-i="check">Χωρίς κάρτα</li>
+            <li data-i="check">Χωρίς εγκατάσταση</li>
+          </ul>
         </div>
-        <p class="note">14 ημέρες δωρεάν, χωρίς κάρτα και χωρίς εγκατάσταση. Φτιάχνετε λογαριασμό και σε 5 λεπτά δέχεστε παραγγελίες.</p>
+        <div class="visual">
+          <div class="phone"><img src="/img/shot-menu.jpg" alt="Το μενού του πελάτη στο κινητό" width="390" height="844"></div>
+          <div class="float f1" aria-hidden="true"><div class="row"><span class="dot" data-i="bell"></span><div><b>Νέα παραγγελία</b><small>Τραπέζι 4 · 3 πιάτα</small></div></div></div>
+          <div class="float f2" aria-hidden="true"><div class="row"><span class="dot" data-i="card"></span><div><b>Πληρώθηκε 18,15 €</b><small>με φιλοδώρημα 10%</small></div></div></div>
+          <div class="float f3" aria-hidden="true"><div class="row"><span class="dot" data-i="globe"></span><div><b>Deutsch</b><small>αυτόματα</small></div></div></div>
+        </div>
       </div>
-      <div class="phone"><img src="/img/app-menu.jpg" alt="Το μενού του πελάτη στο κινητό"></div>
     </div>
 
-    <section class="alt" id="how">
+    <div class="stats">
       <div class="wrap">
-        <h2>Πώς δουλεύει</h2>
-        <p class="sub">Όλα γίνονται online, από τον υπολογιστή ή το κινητό σας. Δεν χρειάζεται εγκατάσταση, εφαρμογή στο κινητό του πελάτη ούτε καινούργιος εξοπλισμός.</p>
+        <div><b>8</b><span>γλώσσες μενού</span></div>
+        <div><b>0%</b><span>προμήθεια στις παραγγελίες</span></div>
+        <div><b>5′</b><span>για να στηθεί το κατάστημα</span></div>
+        <div><b>14</b><span>ημέρες δωρεάν δοκιμή</span></div>
+      </div>
+    </div>
+
+    <section id="how">
+      <div class="wrap">
+        <div class="center reveal">
+          <span class="eyebrow">Πώς δουλεύει</span>
+          <h2>Από την εγγραφή στην πρώτη παραγγελία, σε ένα απόγευμα</h2>
+          <p class="sub">Όλα γίνονται online, από τον υπολογιστή ή το κινητό σας. Δεν χρειάζεται εγκατάσταση, εφαρμογή για τον πελάτη ούτε καινούργιος εξοπλισμός.</p>
+        </div>
         <div class="steps">
-          <div><span class="n">1</span><b>Φτιάχνετε λογαριασμό</b><p>Με το e-mail σας, σε ένα λεπτό. Ξεκινάτε με έτοιμο δείγμα μενού σε 8 γλώσσες και αλλάζετε πιάτα και τιμές.</p></div>
-          <div><span class="n">2</span><b>Τυπώνετε τα QR</b><p>Ένα QR για κάθε τραπέζι, δωμάτιο ή ξαπλώστρα, σε αυτοκόλλητο, κάρτα ή επιτραπέζια πινακίδα, με το λογότυπό σας.</p></div>
-          <div><span class="n">3</span><b>Δέχεστε παραγγελίες</b><p>Ο σερβιτόρος τις εγκρίνει από το κινητό ή το tablet και η κουζίνα τις βλέπει στην οθόνη ή τις τυπώνει.</p></div>
+          <div class="step reveal"><b>Φτιάχνετε λογαριασμό</b><p>Με το e-mail σας, σε ένα λεπτό. Ξεκινάτε με έτοιμο δείγμα μενού σε 8 γλώσσες και αλλάζετε πιάτα και τιμές.</p></div>
+          <div class="step reveal"><b>Τυπώνετε τα QR</b><p>Ένα για κάθε τραπέζι, δωμάτιο ή ξαπλώστρα, σε αυτοκόλλητο, κάρτα ή επιτραπέζια πινακίδα, με το λογότυπό σας.</p></div>
+          <div class="step reveal"><b>Δέχεστε παραγγελίες</b><p>Ο σερβιτόρος τις εγκρίνει από το κινητό και η κουζίνα τις βλέπει στην οθόνη ή τις τυπώνει.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-cream">
+      <div class="wrap">
+        <div class="spot reveal">
+          <div>
+            <span class="eyebrow">Για τον πελάτη</span>
+            <h3>Παραγγέλνει και πληρώνει χωρίς να περιμένει</h3>
+            <p>Βλέπει πότε θα είναι έτοιμο το φαγητό του, καλεί τον σερβιτόρο με ένα πάτημα και πληρώνει με κάρτα, Apple Pay ή Google Pay.</p>
+            <ul class="ticks">
+              <li data-i="check"><span>Όλος ο λογαριασμός, μόνο τα δικά του πιάτα ή ίσα μερίδια</span></li>
+              <li data-i="check"><span>Φιλοδώρημα με ένα πάτημα</span></li>
+              <li data-i="check"><span>Τα χρήματα πάνε κατευθείαν στον λογαριασμό Viva Wallet σας</span></li>
+            </ul>
+          </div>
+          <div class="spot-media phone-media"><div class="blob"></div>
+            <div class="phone"><img src="/img/shot-pay.jpg" alt="Πληρωμή με κάρτα και διαχωρισμός λογαριασμού" width="390" height="745" loading="lazy"></div></div>
+        </div>
+
+        <div class="spot rev reveal">
+          <div>
+            <span class="eyebrow">Για την κουζίνα και το μπαρ</span>
+            <h3>Κάθε πόστο βλέπει μόνο ό,τι του αναλογεί</h3>
+            <p>Τα ποτά στο μπαρ, τα φαγητά στην κουζίνα. Χρονόμετρο σε κάθε παραγγελία, εκτύπωση σε θερμικό εκτυπωτή και ειδοποίηση όταν είναι έτοιμη.</p>
+            <ul class="ticks">
+              <li data-i="check"><span>Οθόνη σε οποιοδήποτε tablet ή υπολογιστή</span></li>
+              <li data-i="check"><span>Ο πελάτης βλέπει τον εκτιμώμενο χρόνο</span></li>
+              <li data-i="check"><span>Παραλαβή σε πακέτο με κωδικό</span></li>
+            </ul>
+          </div>
+          <div class="spot-media"><div class="blob"></div>
+            <div class="browser"><div class="bar"><i></i><i></i><i></i></div><img src="/img/shot-kitchen.jpg" alt="Οθόνη κουζίνας με παραγγελίες" width="1100" height="430" loading="lazy"></div></div>
+        </div>
+
+        <div class="spot reveal" id="design">
+          <div>
+            <span class="eyebrow">Η δική σας εικόνα</span>
+            <h3>Ένα μενού που μοιάζει με το κατάστημά σας</h3>
+            <p>Σχεδιάστε την εμπειρία από πάνω μέχρι κάτω, χωρίς γραφίστα. Κάθε αλλαγή φαίνεται αμέσως στην προεπισκόπηση και στα κινητά των πελατών.</p>
+            <ul class="ticks">
+              <li data-i="check"><span><b>Λογότυπο και εξώφυλλο</b> στο μενού, στις κάρτες QR και στην καρτέλα του browser</span></li>
+              <li data-i="check"><span><b>Χρώματα</b> για φόντο, κείμενο, κατηγορίες και κουμπιά, πάντα ευανάγνωστα</span></li>
+              <li data-i="check"><span><b>Πέντε γραμματοσειρές</b> με σωστά ελληνικά και <b>έτοιμα θέματα</b> όπως «Κρεμ ταβέρνα» και «Αιγαίο»</span></li>
+            </ul>
+          </div>
+          <div class="spot-media"><div class="blob"></div>
+            <div class="browser"><div class="bar"><i></i><i></i><i></i></div><img src="/img/shot-look.jpg" alt="Επεξεργασία εμφάνισης με ζωντανή προεπισκόπηση" width="1100" height="592" loading="lazy"></div></div>
+        </div>
+
+        <div class="spot rev reveal">
+          <div>
+            <span class="eyebrow">Για το προσωπικό</span>
+            <h3>Ο σερβιτόρος τα βλέπει όλα στο κινητό του</h3>
+            <p>Κλήσεις, νέες παραγγελίες και λογαριασμοί ανά τραπέζι. Κάθε σερβιτόρος μπαίνει με το δικό του PIN και βλέπει πρώτα τη ζώνη του.</p>
+            <ul class="ticks">
+              <li data-i="check"><span>Έγκριση παραγγελίας πριν πάει στην κουζίνα</span></li>
+              <li data-i="check"><span>Room service, ξαπλώστρες και χρέωση στο δωμάτιο</span></li>
+              <li data-i="check"><span>Δουλεύει με την ταμειακή σας όπως σήμερα (myDATA)</span></li>
+            </ul>
+          </div>
+          <div class="spot-media"><div class="blob"></div>
+            <div class="browser"><div class="bar"><i></i><i></i><i></i></div><img src="/img/app-waiter.jpg" alt="Οθόνη σερβιτόρου" loading="lazy"></div></div>
         </div>
       </div>
     </section>
 
     <section id="features">
       <div class="wrap">
-        <h2>Όλα όσα χρειάζεται ένα κατάστημα εστίασης</h2>
-        <p class="sub">Όλα περιλαμβάνονται σε κάθε πλάνο. Χωρίς κόστος ανά παραγγελία και χωρίς προμήθεια.</p>
+        <div class="center reveal">
+          <span class="eyebrow">Δυνατότητες</span>
+          <h2>Όλα όσα χρειάζεται ένα κατάστημα εστίασης</h2>
+          <p class="sub">Όλα περιλαμβάνονται σε κάθε πλάνο. Χωρίς κόστος ανά παραγγελία και χωρίς προμήθεια.</p>
+        </div>
         <div class="features">
-          <div><b>Μενού σε 8 γλώσσες</b><p>Ελληνικά, αγγλικά, γερμανικά, γαλλικά, ιταλικά, ισπανικά, ολλανδικά, πολωνικά. Ανοίγει αυτόματα στη γλώσσα του κινητού.</p></div>
-          <div><b>Παραγγελία από το τραπέζι</b><p>Καλάθι, σημειώσεις ανά πιάτο και επιλογές όπως «ψήσιμο» ή «έξτρα φέτα +1,50 €». Ο πελάτης βλέπει πότε θα είναι έτοιμη.</p></div>
-          <div><b>Πληρωμή από το κινητό</b><p>Όλος ο λογαριασμός, μόνο τα δικά του πιάτα ή ίσα μερίδια, με φιλοδώρημα. Τα χρήματα πάνε κατευθείαν στο Viva Wallet σας.</p></div>
-          <div><b>Κουζίνα και μπαρ χωριστά</b><p>Τα ποτά στην οθόνη και στον εκτυπωτή του μπαρ, τα φαγητά στην κουζίνα. Η παραγγελία είναι έτοιμη όταν τελειώσουν και τα δύο.</p></div>
-          <div><b>Προτάσεις στο καλάθι</b><p>«Θα σας άρεσε και…»: ποτά και γλυκά που προτείνετε εσείς, με ένα πάτημα. Ανεβάζει τη μέση παραγγελία.</p></div>
-          <div><b>Happy hour και ωράρια</b><p>Πρωινό, μεσημεριανό, room service ή μενού μπαρ που εμφανίζονται μόνα τους την ώρα τους. Τιμές happy hour με διαγραμμένη την κανονική.</p></div>
-          <div><b>Πιάτο ημέρας και απόθεμα</b><p>Ανακοίνωση στην κορυφή του μενού. Οι μερίδες μετρούν αντίστροφα και το πιάτο «τελειώνει» μόνο του.</p></div>
-          <div><b>Κάρτα πιστότητας</b><p>Κάθε επίσκεψη μετρά στο κινητό του πελάτη, χωρίς να δώσει στοιχεία. Στην 5η, ο σερβιτόρος βλέπει το δώρο.</p></div>
-          <div><b>Κριτικές στο Google</b><p>Αξιολόγηση μετά τον λογαριασμό: οι ικανοποιημένοι πελάτες πηγαίνουν στο Google, τα παράπονα έρχονται μόνο σε εσάς.</p></div>
-          <div><b>Ξενοδοχεία και παραλίες</b><p>Room service, ξαπλώστρες, διαφορετικό μενού ανά χώρο, χρέωση στο δωμάτιο και all-inclusive.</p></div>
-          <div><b>Παραλαβή και σύνδεσμος μενού</b><p>Το μενού σας για Instagram και Google Maps. Οι πελάτες παραγγέλνουν για παραλαβή χωρίς προμήθεια.</p></div>
-          <div><b>Ζώνες σερβιτόρων</b><p>Κάθε σερβιτόρος με το δικό του PIN βλέπει πρώτα τα τραπέζια της ζώνης του: βεράντα, σάλα, παραλία.</p></div>
-          <div><b>Στατιστικά που βοηθούν</b><p>Ποια πιάτα βλέπουν και δεν παραγγέλνουν, τζίρος, γλώσσες πελατών, ιστορικό και αποδείξεις σε Excel.</p></div>
-          <div><b>Η δική σας εικόνα</b><p>Λογότυπο, εξώφυλλο, χρώματα και γραμματοσειρά. Το μενού μοιάζει με το κατάστημά σας, όχι με εφαρμογή.</p></div>
-          <div><b>Πολλά καταστήματα</b><p>Ταβέρνα και beach bar από τον ίδιο λογαριασμό, το καθένα με δικό του μενού και προσωπικό.</p></div>
-          <div><b>Δουλεύει με την ταμειακή σας</b><p>Οι παραγγελίες περνούν από το προσωπικό, που τις καταχωρεί στην ταμειακή σας όπως σήμερα (myDATA).</p></div>
-        </div>
-        <div class="shots">
-          <figure><img src="/img/app-waiter.jpg" alt="Οθόνη σερβιτόρου" loading="lazy"><figcaption>Οθόνη σερβιτόρου: κλήσεις, έγκριση παραγγελιών, θέσεις</figcaption></figure>
-          <figure><img src="/img/app-receipt.jpg" alt="Απόδειξη λογαριασμού στο κινητό του πελάτη" loading="lazy"><figcaption>Αντίγραφο λογαριασμού στο κινητό του πελάτη</figcaption></figure>
+          <div class="feat"><span class="fi" data-i="globe"></span><b>Μενού σε 8 γλώσσες</b><p>Ανοίγει αυτόματα στη γλώσσα του κινητού: ελληνικά, αγγλικά, γερμανικά, γαλλικά, ιταλικά, ισπανικά, ολλανδικά, πολωνικά.</p></div>
+          <div class="feat"><span class="fi" data-i="bag"></span><b>Παραγγελία από το τραπέζι</b><p>Σημειώσεις ανά πιάτο και επιλογές όπως «ψήσιμο» ή «έξτρα φέτα +1,50 €».</p></div>
+          <div class="feat"><span class="fi" data-i="card"></span><b>Πληρωμή από το κινητό</b><p>Διαχωρισμός λογαριασμού και φιλοδώρημα, κατευθείαν στο Viva Wallet σας.</p></div>
+          <div class="feat"><span class="fi" data-i="flame"></span><b>Κουζίνα και μπαρ χωριστά</b><p>Κάθε πόστο με τη δική του οθόνη και εκτύπωση.</p></div>
+          <div class="feat"><span class="fi" data-i="plus"></span><b>Προτάσεις στο καλάθι</b><p>«Θα σας άρεσε και…»: ποτά και γλυκά με ένα πάτημα. Ανεβάζει τη μέση παραγγελία.</p></div>
+          <div class="feat"><span class="fi" data-i="clock"></span><b>Happy hour και ωράρια</b><p>Πρωινό, room service ή μενού μπαρ που εμφανίζονται μόνα τους την ώρα τους.</p></div>
+          <div class="feat"><span class="fi" data-i="alert"></span><b>Πιάτο ημέρας και απόθεμα</b><p>Ανακοίνωση στην κορυφή. Οι μερίδες μετρούν αντίστροφα και το πιάτο «τελειώνει» μόνο του.</p></div>
+          <div class="feat"><span class="fi" data-i="gift"></span><b>Κάρτα πιστότητας</b><p>Κάθε επίσκεψη μετρά στο κινητό του πελάτη, χωρίς να δώσει στοιχεία.</p></div>
+          <div class="feat"><span class="fi" data-i="star"></span><b>Κριτικές στο Google</b><p>Οι ικανοποιημένοι πελάτες πηγαίνουν στο Google, τα παράπονα έρχονται μόνο σε εσάς.</p></div>
+          <div class="feat"><span class="fi" data-i="bed"></span><b>Ξενοδοχεία και παραλίες</b><p>Διαφορετικό μενού ανά χώρο, χρέωση στο δωμάτιο και all-inclusive.</p></div>
+          <div class="feat"><span class="fi" data-i="link"></span><b>Σύνδεσμος και παραλαβή</b><p>Το μενού σας για Instagram και Google Maps, με παραγγελία για παραλαβή.</p></div>
+          <div class="feat"><span class="fi" data-i="users"></span><b>Ζώνες σερβιτόρων</b><p>Κάθε σερβιτόρος με δικό του PIN και τα τραπέζια της ζώνης του.</p></div>
+          <div class="feat"><span class="fi" data-i="chart"></span><b>Στατιστικά</b><p>Τζίρος, γλώσσες, πιάτα που βλέπουν και δεν παραγγέλνουν, εξαγωγή σε Excel.</p></div>
+          <div class="feat"><span class="fi" data-i="wifi"></span><b>Wi-Fi με QR</b><p>Ο πελάτης συνδέεται στο Wi-Fi σας από τις πληροφορίες του μενού.</p></div>
+          <div class="feat"><span class="fi" data-i="grid"></span><b>Πολλά καταστήματα</b><p>Ταβέρνα και beach bar από τον ίδιο λογαριασμό, το καθένα με δικό του μενού.</p></div>
+          <div class="feat"><span class="fi" data-i="printer"></span><b>Εκτύπωση δελτίων</b><p>Δελτία παραγγελίας και αντίγραφα λογαριασμού σε θερμικό εκτυπωτή 80 mm.</p></div>
         </div>
       </div>
     </section>
 
-    <section id="design">
-      <div class="wrap design">
-        <div>
-          <h2>Ένα μενού που μοιάζει με το κατάστημά σας</h2>
-          <p class="sub">Σχεδιάστε την εμπειρία από πάνω μέχρι κάτω, χωρίς γραφίστα. Κάθε αλλαγή φαίνεται αμέσως στην προεπισκόπηση και στα κινητά των πελατών.</p>
-          <ul class="ticks">
-            <li><b>Λογότυπο και εξώφυλλο</b> στην κορυφή του μενού, στις κάρτες QR και στην καρτέλα του browser</li>
-            <li><b>Χρώματα της επιλογής σας</b> για φόντο, κείμενο, τίτλους κατηγοριών και κουμπιά. Οι αποχρώσεις ταιριάζουν αυτόματα ώστε όλα να διαβάζονται άνετα</li>
-            <li><b>Πέντε γραμματοσειρές</b>, από σύγχρονη μέχρι παραδοσιακή, όλες με σωστά ελληνικά</li>
-            <li><b>Έτοιμα θέματα</b> όπως «Κρεμ ταβέρνα», «Αιγαίο» και «Σκούρο lounge», για να ξεκινήσετε με ένα κλικ</li>
-            <li><b>Φωτογραφία σε κάθε πιάτο</b>, με ίδιο στήσιμο σε όλο το μενού</li>
-          </ul>
-        </div>
-        <div class="themes" aria-hidden="true">
-          <div class="mini" style="--b:#ffffff;--t:#1a1a1a;--c:#1a1a1a;--k:#1f3a5f;font-family:system-ui,sans-serif">
-            <b>Το εστιατόριό σας</b><i>Ορεκτικά</i><span>Τζατζίκι<em>4,50 €</em></span><span>Φάβα<em>5,50 €</em></span><u>Καλάθι · 10,00 €</u></div>
-          <div class="mini" style="--b:#f6efe3;--t:#2b2118;--c:#8a4b2a;--k:#8a4b2a;font-family:Georgia,serif">
-            <b>Ταβέρνα στο λιμάνι</b><i>Ορεκτικά</i><span>Τζατζίκι<em>4,50 €</em></span><span>Φάβα<em>5,50 €</em></span><u>Καλάθι · 10,00 €</u></div>
-          <div class="mini" style="--b:#141414;--t:#f1ece3;--c:#d9b26f;--k:#d9b26f;font-family:'Palatino Linotype',Palatino,Georgia,serif">
-            <b>Lounge bar</b><i>Cocktails</i><span>Negroni<em>11,00 €</em></span><span>Spritz<em>9,00 €</em></span><u>Καλάθι · 20,00 €</u></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="alt" id="pricing">
-      <div class="wrap">
+    <section class="bg-cream" id="pricing">
+      <div class="wrap center">
+        <span class="eyebrow">Τιμές</span>
         <h2>Απλές τιμές, χωρίς δεσμεύσεις</h2>
-        <p class="sub">Όλες οι τιμές είναι ανά κατάστημα, χωρίς προμήθεια στις παραγγελίες. Με ετήσια πληρωμή οι 2 μήνες είναι δωρεάν.</p>
+        <p class="sub">Ανά κατάστημα, χωρίς προμήθεια στις παραγγελίες. Με ετήσια πληρωμή οι 2 μήνες είναι δωρεάν.</p>
         <div class="billing" id="billing">
           <button data-b="month" class="active">Μηνιαία</button>
-          <button data-b="year">Ετήσια (2 μήνες δώρο)</button>
+          <button data-b="year">Ετήσια · 2 μήνες δώρο</button>
         </div>
         <div class="plans" id="plans"></div>
-        <p class="extras">Όλα τα πλάνα χωρίς συμβόλαιο · Πάγωμα συνδρομής τους μήνες που το κατάστημα είναι κλειστό, χωρίς χρέωση ·
+        <p class="extras">Χωρίς συμβόλαιο · Πάγωμα συνδρομής τους μήνες που το κατάστημα είναι κλειστό, χωρίς χρέωση ·
           <b>Στήσιμο από εμάς:</b> €49 εφάπαξ (περνάμε μενού, μεταφράσεις και φωτογραφίες) · <b>Βάσεις QR από plexiglass:</b> €3 ανά τεμάχιο ·
           Οι τιμές δεν περιλαμβάνουν ΦΠΑ 24%.</p>
 
-        <h3 style="margin-top:2.5rem">Σύγκριση με την αγορά</h3>
-        <div class="table-scroll">
-          <table class="cmp">
-            <thead><tr><th>Λύση</th><th>Τιμή</th><th>Παραγγελία από το τραπέζι</th><th>Κλήση σερβιτόρου</th><th>Δική σας εμφάνιση</th><th>Γλώσσες</th></tr></thead>
-            <tbody>
-              <tr class="us"><td>Kalimenu</td><td>€14,90/μήνα</td><td>Ναι</td><td>Ναι</td><td>Πλήρης: χρώματα, γραμματοσειρές, λογότυπο</td><td>8</td></tr>
-              <tr><td>Ψηφιακά μενού με συνδρομή</td><td>€10–18/μήνα</td><td>Όχι</td><td>Συνήθως όχι</td><td>Συνήθως λογότυπο και ένα χρώμα</td><td>Ποικίλλει</td></tr>
-              <tr><td>Ψηφιακό μενού εφάπαξ</td><td>€150–160 εφάπαξ</td><td>Όχι</td><td>Όχι</td><td>Σχεδιάζεται μία φορά</td><td>Συνήθως 1–2</td></tr>
-              <tr><td>Διεθνή συστήματα παραγγελίας</td><td>από ~€45/μήνα</td><td>Ναι</td><td>Ναι</td><td>Ναι</td><td>Πολλές</td></tr>
-            </tbody>
-          </table>
+        <div class="cmp-wrap">
+          <h3>Σύγκριση με την αγορά</h3>
+          <div class="table-scroll">
+            <table class="cmp">
+              <thead><tr><th>Λύση</th><th>Τιμή</th><th>Παραγγελία από το τραπέζι</th><th>Κλήση σερβιτόρου</th><th>Δική σας εμφάνιση</th><th>Γλώσσες</th></tr></thead>
+              <tbody>
+                <tr class="us"><td>Kalimenu</td><td>€14,90/μήνα</td><td>Ναι</td><td>Ναι</td><td>Πλήρης: χρώματα, γραμματοσειρές, λογότυπο</td><td>8</td></tr>
+                <tr><td>Ψηφιακά μενού με συνδρομή</td><td>€10–18/μήνα</td><td>Όχι</td><td>Συνήθως όχι</td><td>Συνήθως λογότυπο και ένα χρώμα</td><td>Ποικίλλει</td></tr>
+                <tr><td>Ψηφιακό μενού εφάπαξ</td><td>€150–160 εφάπαξ</td><td>Όχι</td><td>Όχι</td><td>Σχεδιάζεται μία φορά</td><td>Συνήθως 1–2</td></tr>
+                <tr><td>Διεθνή συστήματα παραγγελίας</td><td>από ~€45/μήνα</td><td>Ναι</td><td>Ναι</td><td>Ναι</td><td>Πολλές</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted small">Ενδεικτικές τιμές της αγοράς, Σεπτέμβριος 2026.</p>
         </div>
-        <p class="muted small">Ενδεικτικές τιμές της αγοράς, Σεπτέμβριος 2026.</p>
       </div>
     </section>
 
     <section id="faq">
-      <div class="wrap" style="max-width:760px">
-        <h2>Συχνές ερωτήσεις</h2>
-        <details><summary>Χρειάζεται εγκατάσταση ή να έρθει κάποιος στο κατάστημα;</summary><p>Όχι. Κάνετε εγγραφή online, περνάτε το μενού από τον browser και τυπώνετε τα QR στον εκτυπωτή σας ή σε τυπογραφείο. Οι σερβιτόροι μπαίνουν από το κινητό τους με έναν σύνδεσμο και ένα PIN.</p></details>
-        <details><summary>Πώς λειτουργεί η δωρεάν δοκιμή;</summary><p>Για 14 ημέρες έχετε όλες τις δυνατότητες του πλάνου που διαλέξατε, χωρίς να δώσετε κάρτα. Αν δεν συνεχίσετε, το μενού σταματά να εμφανίζεται στους πελάτες, αλλά μενού, QR και ιστορικό μένουν αποθηκευμένα και ξαναδουλεύουν μόλις ενεργοποιήσετε συνδρομή.</p></details>
-        <details><summary>Χρειάζεται ο πελάτης να κατεβάσει εφαρμογή;</summary><p>Όχι. Σκανάρει το QR με την κάμερα και το μενού ανοίγει στον browser.</p></details>
-        <details><summary>Τι γίνεται με το myDATA και τις αποδείξεις;</summary><p>Από προεπιλογή κάθε παραγγελία περνάει από τον σερβιτόρο, που την καταχωρεί στην ταμειακή σας όπως κάνει σήμερα. Η απόδειξη λογαριασμού του Kalimenu δεν αντικαθιστά τη νόμιμη απόδειξη. Μπορείτε όμως να σημειώνετε πάνω της τον αριθμό ή το ΜΑΡΚ της νόμιμης απόδειξης.</p></details>
-        <details><summary>Είμαστε ανοιχτοί μόνο το καλοκαίρι. Πληρώνουμε όλο τον χρόνο;</summary><p>Όχι. Παγώνετε τη συνδρομή τους μήνες που είστε κλειστοί, χωρίς χρέωση. Μενού, QR και ιστορικό μένουν αποθηκευμένα και την επόμενη σεζόν συνεχίζετε με ένα κλικ.</p></details>
-        <details><summary>Χρειάζομαι tablet ή εκτυπωτή;</summary><p>Όχι απαραίτητα. Ο σερβιτόρος δουλεύει από το κινητό του. Για την κουζίνα αρκεί οποιοδήποτε tablet ή υπολογιστής, και αν έχετε θερμικό εκτυπωτή 80 mm, τυπώνει και δελτία.</p></details>
-        <details><summary>Μπορώ να αλλάζω τιμές και πιάτα μόνος μου;</summary><p>Ναι, από τη διαχείριση, όποτε θέλετε. Οι αλλαγές φαίνονται αμέσως χωρίς να ξανατυπώσετε τα QR.</p></details>
-        <details><summary>Υπάρχει δέσμευση;</summary><p>Όχι. Πληρώνετε μηνιαία και σταματάτε όποτε θέλετε. Με την ετήσια πληρωμή κερδίζετε 2 μήνες.</p></details>
-      </div>
-    </section>
-
-    <section class="alt contact" id="contact">
-      <div class="wrap">
-        <h2>Ξεκινήστε σήμερα, δωρεάν για 14 ημέρες</h2>
-        <p class="sub" style="margin-left:auto;margin-right:auto">Χωρίς κάρτα, χωρίς εγκατάσταση, χωρίς δέσμευση. Αν θέλετε βοήθεια, περνάμε εμείς το μενού σας.</p>
-        <div class="ctas" id="contactCtas">
-          <a class="btn" href="/signup">Δημιουργία λογαριασμού</a>
-          <a class="btn secondary" href="/demo">Δοκιμάστε το demo</a>
+      <div class="wrap faq">
+        <div class="reveal">
+          <span class="eyebrow">Ερωτήσεις</span>
+          <h2>Συχνές ερωτήσεις</h2>
+          <p class="sub">Δεν βρήκατε την απάντηση; Γράψτε μας και σας απαντάμε την ίδια μέρα.</p>
+        </div>
+        <div>
+          <details><summary>Χρειάζεται εγκατάσταση ή να έρθει κάποιος στο κατάστημα;</summary><p>Όχι. Κάνετε εγγραφή online, περνάτε το μενού από τον browser και τυπώνετε τα QR στον εκτυπωτή σας ή σε τυπογραφείο. Οι σερβιτόροι μπαίνουν από το κινητό τους με έναν σύνδεσμο και ένα PIN.</p></details>
+          <details><summary>Πώς λειτουργεί η δωρεάν δοκιμή;</summary><p>Για 14 ημέρες έχετε όλες τις δυνατότητες, χωρίς να δώσετε κάρτα. Αν δεν συνεχίσετε, το μενού σταματά να εμφανίζεται στους πελάτες, αλλά μενού, QR και ιστορικό μένουν αποθηκευμένα και ξαναδουλεύουν μόλις ενεργοποιήσετε συνδρομή.</p></details>
+          <details><summary>Χρειάζεται ο πελάτης να κατεβάσει εφαρμογή;</summary><p>Όχι. Σκανάρει το QR με την κάμερα και το μενού ανοίγει στον browser.</p></details>
+          <details><summary>Πώς πληρώνει ο πελάτης από το κινητό;</summary><p>Μέσω του δικού σας λογαριασμού Viva Wallet, με κάρτα, Apple Pay ή Google Pay. Τα χρήματα πάνε κατευθείαν σε εσάς. Αν δεν θέλετε πληρωμές από το κινητό, ο λογαριασμός κλείνει στο ταμείο όπως σήμερα.</p></details>
+          <details><summary>Τι γίνεται με το myDATA και τις αποδείξεις;</summary><p>Από προεπιλογή κάθε παραγγελία περνάει από τον σερβιτόρο, που την καταχωρεί στην ταμειακή σας όπως κάνει σήμερα. Η απόδειξη λογαριασμού του Kalimenu δεν αντικαθιστά τη νόμιμη απόδειξη. Μπορείτε όμως να σημειώνετε πάνω της τον αριθμό ή το ΜΑΡΚ της νόμιμης απόδειξης.</p></details>
+          <details><summary>Είμαστε ανοιχτοί μόνο το καλοκαίρι. Πληρώνουμε όλο τον χρόνο;</summary><p>Όχι. Παγώνετε τη συνδρομή τους μήνες που είστε κλειστοί, χωρίς χρέωση. Μενού, QR και ιστορικό μένουν αποθηκευμένα και την επόμενη σεζόν συνεχίζετε με ένα κλικ.</p></details>
+          <details><summary>Χρειάζομαι tablet ή εκτυπωτή;</summary><p>Όχι απαραίτητα. Ο σερβιτόρος δουλεύει από το κινητό του. Για την κουζίνα αρκεί οποιοδήποτε tablet ή υπολογιστής, και αν έχετε θερμικό εκτυπωτή 80 mm, τυπώνει και δελτία.</p></details>
+          <details><summary>Μπορώ να αλλάζω τιμές και πιάτα μόνος μου;</summary><p>Ναι, από τη διαχείριση, όποτε θέλετε. Οι αλλαγές φαίνονται αμέσως χωρίς να ξανατυπώσετε τα QR.</p></details>
+          <details><summary>Υπάρχει δέσμευση;</summary><p>Όχι. Πληρώνετε μηνιαία και σταματάτε όποτε θέλετε. Με την ετήσια πληρωμή κερδίζετε 2 μήνες.</p></details>
         </div>
       </div>
     </section>
+
+    <div class="wrap" id="contact">
+      <div class="cta-band reveal">
+        <h2>Ξεκινήστε σήμερα, δωρεάν για 14 ημέρες</h2>
+        <p class="sub">Χωρίς κάρτα, χωρίς εγκατάσταση, χωρίς δέσμευση. Αν θέλετε βοήθεια, περνάμε εμείς το μενού σας.</p>
+        <div class="ctas" id="contactCtas">
+          <a class="btn primary" href="/signup">Δημιουργία λογαριασμού</a>
+          <a class="btn secondary" href="/demo">Δοκιμάστε το demo</a>
+        </div>
+      </div>
+    </div>
   </main>
 
   <footer><div class="wrap foot">
-    <div>© <span id="year"></span> Kalimenu · <span data-company="name"></span> · ΑΦΜ <span data-company="vat"></span> · ΓΕΜΗ <span data-company="gemi"></span><br>
+    <div><img src="/brand/logo-white.svg" alt="Kalimenu" width="133" height="26">
+      © <span id="year"></span> Kalimenu · <span data-company="name"></span> · ΑΦΜ <span data-company="vat"></span> · ΓΕΜΗ <span data-company="gemi"></span><br>
       <span data-company="address"></span> · <span data-company="email"></span> · <span data-company="phone"></span></div>
     <nav><a href="/terms">Όροι χρήσης</a><a href="/privacy">Απόρρητο</a><a href="/dpa">Επεξεργασία δεδομένων</a><a href="/login">Σύνδεση</a></nav>
   </div></footer>
 
   <script type="module">
     import { fillCompany } from '/js/legal.js';
-    // Contact details come from the COMPANY_*/CONTACT_* settings on the hosting.
-    const company = await fillCompany();
-    const CONTACT = { phone: company.phone || '', email: company.email || '' };
+    import { icon } from '/js/icons.js';
+
+    // Icons: <el data-i="name"> gets the icon prepended.
+    document.querySelectorAll('[data-i]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.i, el.classList.contains('fi') ? 20 : 18)));
+
+    // Header border once the page scrolls, and a soft fade-in for sections.
+    const header = document.getElementById('top');
+    const onScroll = () => header.classList.toggle('scrolled', scrollY > 8);
+    addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      }), { rootMargin: '0px 0px -8% 0px' });
+      document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+    } else document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
 
     const PLANS = [
       { key: 'pro', name: 'Kalimenu', for: 'Έως 50 θέσεις: τραπέζια, δωμάτια, ξαπλώστρες', month: 1490, best: true,
@@ -292,8 +489,8 @@
         return `<div class="plan ${p.best ? 'best' : ''}">
           <h3>${p.name}</h3><div class="for">${p.for}</div>
           <div class="price">${price}</div><div class="per">${per}</div>
-          <ul>${p.items.map((it, i) => `<li class="${i === 0 && p.plus ? 'plus' : ''}">${it}</li>`).join('')}</ul>
-          <a class="btn ${p.best ? '' : 'secondary'} block" href="/signup?plan=${p.key}&interval=${billing}">14 ημέρες δωρεάν</a>
+          <ul>${p.items.map((it, i) => `<li class="${i === 0 && p.plus ? 'plus' : ''}">${icon('check', 16)}<span>${it}</span></li>`).join('')}</ul>
+          <a class="btn ${p.best ? 'primary' : 'secondary'} block" href="/signup?plan=${p.key}&interval=${billing}">14 ημέρες δωρεάν</a>
         </div>`;
       }).join('');
     }
@@ -303,10 +500,13 @@
       renderPlans();
     });
     renderPlans();
-    const ctas = document.getElementById('contactCtas');
-    if (CONTACT.phone) ctas.insertAdjacentHTML('afterbegin', `<a class="btn" href="tel:${CONTACT.phone.replace(/\s/g, '')}">Καλέστε μας: ${CONTACT.phone}</a>`);
-    if (CONTACT.email) ctas.insertAdjacentHTML('beforeend', `<a class="btn secondary" href="mailto:${CONTACT.email}?subject=Kalimenu">${CONTACT.email}</a>`);
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Contact details come from the COMPANY_*/CONTACT_* settings on the hosting.
+    const company = await fillCompany();
+    const ctas = document.getElementById('contactCtas');
+    if (company.phone) ctas.insertAdjacentHTML('beforeend', `<a class="btn secondary" href="tel:${company.phone.replace(/\s/g, '')}">Καλέστε μας: ${company.phone}</a>`);
+    if (company.email) ctas.insertAdjacentHTML('beforeend', `<a class="btn secondary" href="mailto:${company.email}?subject=Kalimenu">${company.email}</a>`);
   </script>
 </body>
 </html>

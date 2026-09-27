@@ -161,8 +161,13 @@ async function checkPassword(password, stored) {
 }
 const sha256 = (v) => createHash('sha256').update(String(v)).digest('hex');
 
-// Simple in-memory rate limiter
+// Simple in-memory rate limiter (old entries are dropped every 10 minutes so memory stays small).
 const hits = new Map();
+setInterval(() => {
+  const t = Date.now();
+  for (const [key, list] of hits) if (!list.length || t - list[list.length - 1] > 3600_000) hits.delete(key);
+  for (const [ch, subs] of channels) if (!subs.size) channels.delete(ch);
+}, 10 * 60_000).unref();
 function rateLimit(key, max, windowMs) {
   const t = Date.now();
   const list = (hits.get(key) || []).filter((x) => t - x < windowMs);
