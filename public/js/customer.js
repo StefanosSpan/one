@@ -1,12 +1,13 @@
 import { $, $$, esc, api, toast, sheet, stream } from './util.js';
-import { LANGUAGES, STRINGS, ALLERGEN_ICONS, pick, money } from './i18n.js';
+import { LANGUAGES, STRINGS, pick, money } from './i18n.js';
+import { icon, monogram } from './icons.js';
 
 const token = location.pathname.split('/').filter(Boolean)[1];
 const CART_KEY = `cart:${token}`;
 const LANG_KEY = 'lang';
 
 const S = {
-  data: null,          // menu + restaurant
+  data: null,
   lang: 'el',
   tab: 'menu',
   filter: 'all',
@@ -27,6 +28,8 @@ const t = (key) => STRINGS[S.lang]?.[key] ?? STRINGS.en[key] ?? key;
 const tr = (obj) => pick(obj, S.lang, S.data?.defaultLanguage);
 const fmt = (c) => money(c, S.lang);
 const itemById = (id) => S.data.items.find((i) => i.id === id);
+const spot = () => `${t(S.data.table.kind || 'table')} ${S.data.table.label}`;
+const callLabel = () => (S.data.table.kind === 'table' ? t('callWaiter') : t('callService'));
 
 function errorText(e) {
   if (e.code === 'too_many_requests') return t('tooMany');
@@ -44,20 +47,16 @@ async function boot() {
   } catch (e) {
     const lang = (navigator.language || 'en').slice(0, 2);
     S.lang = STRINGS[lang] ? lang : 'en';
-    $('#app').innerHTML = `<div class="empty"><div class="big-emoji">🔎</div><p>${esc(e.code === 'invalid_table' ? t('invalidTable') : t('error'))}</p></div>`;
+    $('#app').innerHTML = `<div class="empty">${icon('qr', 40)}<p>${esc(e.code === 'invalid_table' ? t('invalidTable') : t('error'))}</p></div>`;
     return;
   }
   S.lang = chooseLanguage();
   document.title = S.data.restaurant.name;
-  if (S.data.restaurant.logoUrl) $('#logo').innerHTML = `<img src="${esc(S.data.restaurant.logoUrl)}" alt="">`;
   $('#bottom').hidden = false;
   bindChrome();
   renderAll();
 
-  stream(`/api/public/table/${token}/stream`, {
-    state: onState,
-    menu: refreshMenu,
-  }, (online) => {
+  stream(`/api/public/table/${token}/stream`, { state: onState, menu: refreshMenu }, (online) => {
     const el = $('#offline');
     el.hidden = online;
     el.textContent = t('offline');
@@ -78,10 +77,8 @@ function chooseLanguage() {
 
 async function refreshMenu() {
   try {
-    const fresh = await api(`/api/public/table/${token}`);
-    S.data = fresh;
+    S.data = await api(`/api/public/table/${token}`);
     if (!S.data.languages.includes(S.lang)) S.lang = chooseLanguage();
-    // Drop cart lines whose items vanished.
     S.cart = S.cart.filter((l) => itemById(l.id));
     saveCart();
     renderAll(true);
@@ -94,9 +91,9 @@ function onState(state) {
   for (const o of state.orders) {
     const before = prev.get(o.id);
     if (before && before !== o.status) {
-      if (o.status === 'ready') { toast(`🍽️ ${t('status_ready')}`, 'ok'); navigator.vibrate?.(200); }
-      else if (o.status === 'accepted' && before === 'pending') toast(`✅ ${t('order')} #${o.id}: ${t('status_accepted')}`, 'ok');
-      else if (o.status === 'rejected') toast(`${t('order')} #${o.id}: ${t('status_rejected')}`, 'err');
+      if (o.status === 'ready') { toast(t('status_ready'), 'ok'); navigator.vibrate?.(200); }
+      else if (o.status === 'accepted' && before === 'pending') toast(`${t('order')} #${o.id} · ${t('status_accepted')}`, 'ok');
+      else if (o.status === 'rejected') toast(`${t('order')} #${o.id} · ${t('status_rejected')}`, 'err');
     }
   }
   renderBottom();
@@ -104,7 +101,7 @@ function onState(state) {
 }
 
 // ---------------------------------------------------------------------------
-// Chrome (header, tabs, bottom actions)
+// Chrome
 // ---------------------------------------------------------------------------
 function bindChrome() {
   $('#langBtn').addEventListener('click', openLanguages);
@@ -125,10 +122,12 @@ function switchTab(tab) {
 
 function renderAll(keepScroll = false) {
   const y = window.scrollY;
+  const r = S.data.restaurant;
   document.documentElement.lang = S.lang;
-  $('#rname').textContent = S.data.restaurant.name;
-  $('#tableBadge').textContent = `${t('table')} ${S.data.table.label}`;
-  $('#langBtn').innerHTML = `${LANGUAGES[S.lang].flag} <span>${S.lang.toUpperCase()}</span>`;
+  $('#logo').innerHTML = r.logoUrl ? `<img src="${esc(r.logoUrl)}" alt="">` : esc(monogram(r.name));
+  $('#rname').textContent = r.name;
+  $('#tableBadge').textContent = spot();
+  $('#langBtn').innerHTML = `${icon('globe', 16)}<span>${LANGUAGES[S.lang].short}</span>`;
   $$('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
   renderMain();
   renderBottom();
@@ -151,16 +150,30 @@ function renderBottom() {
   const waiterOpen = S.state.calls.some((c) => c.type === 'waiter');
   const billOpen = S.state.calls.some((c) => c.type === 'bill');
   $('#callBtn').classList.toggle('on', waiterOpen);
-  $('#callBtn b').textContent = waiterOpen ? t('waiterOnWay') : t('callWaiter');
+  $('#callBtn').innerHTML = `${icon(waiterOpen ? 'check' : 'bell', 16)}<b>${esc(waiterOpen ? t('waiterOnWay') : callLabel())}</b>`;
   $('#billBtn').classList.toggle('on', billOpen);
+  $('#billBtn').innerHTML = `${icon(billOpen ? 'check' : 'receipt', 16)}<b>${esc(t('requestBill'))}</b>`;
   $('#orderDot').hidden = !(S.state.orders.length > S.seenOrders && S.tab !== 'order')
     && !S.state.orders.some((o) => o.status === 'ready');
+}
+
+function cover(kicker, title, text) {
+  const url = S.data.restaurant.coverUrl;
+  return `<section class="cover ${url ? 'has-photo' : ''}">
+    ${url ? `<img class="cover-img" src="${esc(url)}" alt="">` : ''}
+    <div class="cover-inner">
+      <div class="kicker">${esc(kicker)}</div>
+      <h1>${esc(title)}</h1>
+      ${text ? `<p>${esc(text)}</p>` : ''}
+    </div>
+  </section>`;
 }
 
 // ---------------------------------------------------------------------------
 // Menu
 // ---------------------------------------------------------------------------
 const FILTERS = ['all', 'vegetarian', 'vegan', 'gluten_free', 'spicy'];
+const MARK = { vegetarian: 'V', vegan: 'VG', gluten_free: 'GF' };
 
 function visibleItems() {
   const q = S.query.trim().toLowerCase();
@@ -182,25 +195,20 @@ function renderMenu() {
   const cats = S.data.categories.filter((c) => items.some((i) => i.category_id === c.id));
 
   $('#app').innerHTML = `
-    <section class="hero">
-      <div class="kicker">✦ ${esc(t('menu'))} · ${esc(t('table'))} ${esc(S.data.table.label)}</div>
-      <h1>${esc(t('welcome'))}</h1>
-      <p>${esc(tr(r.description))}</p>
-    </section>
-    <div class="search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    ${cover(`${t('menu')} · ${spot()}`, r.name, tr(r.description))}
+    <div class="search">${icon('search', 18)}
       <input class="input" id="q" type="search" placeholder="${esc(t('search'))}" value="${esc(S.query)}"></div>
     <div class="chips" id="filters">
       ${usedFilters.map((f) => `<button class="chip ${S.filter === f ? 'active' : ''}" data-f="${f}">${esc(t(f))}</button>`).join('')}
     </div>
     <div class="catnav" id="catnav"><div class="chips">
-      ${cats.map((c) => `<button class="chip" data-cat="${c.id}">${esc(c.icon)} ${esc(tr(c.name))}</button>`).join('')}
+      ${cats.map((c) => `<button class="chip" data-cat="${c.id}">${esc(tr(c.name))}</button>`).join('')}
     </div></div>
     ${cats.length ? cats.map((c) => `
-      <h2 class="section-title" id="cat-${c.id}"><span>${esc(c.icon)}</span>${esc(tr(c.name))}</h2>
-      ${items.filter((i) => i.category_id === c.id).map(itemCard).join('')}
-    `).join('') : `<div class="empty">${esc(t('noResults'))}</div>`}
-    <p class="footnote">${esc(t('allergyNotice'))}<br>${esc(t('pricesVat'))}</p>
+      <h2 class="section-title" id="cat-${c.id}">${esc(tr(c.name))}</h2>
+      <div class="dish-list">${items.filter((i) => i.category_id === c.id).map(dishRow).join('')}</div>
+    `).join('') : `<div class="empty">${icon('search', 32)}<p>${esc(t('noResults'))}</p></div>`}
+    <p class="footnote">${esc(t('dietaryKey'))}<br>${esc(t('allergyNotice'))}<br>${esc(t('pricesVat'))}</p>
   `;
 
   const q = $('#q');
@@ -214,14 +222,13 @@ function renderMenu() {
   $$('#catnav .chip').forEach((b) => b.addEventListener('click', () => {
     $(`#cat-${b.dataset.cat}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
-  $$('.item').forEach((el) => el.addEventListener('click', (e) => {
+  $$('.dish').forEach((el) => el.addEventListener('click', (e) => {
     const id = Number(el.dataset.id);
     if (e.target.closest('.add')) quickAdd(id); else openItem(id);
   }));
   setupScrollSpy();
 }
 
-// Highlight the category currently on screen in the sticky category bar.
 let spy;
 function setupScrollSpy() {
   spy?.disconnect();
@@ -230,7 +237,7 @@ function setupScrollSpy() {
   const activate = (id) => {
     chips.forEach((c) => c.classList.toggle('active', c.dataset.cat === id));
     const active = chips.find((c) => c.dataset.cat === id);
-    active?.parentElement.scrollTo({ left: active.offsetLeft - 16, behavior: 'smooth' });
+    if (active) active.parentElement.scrollTo({ left: Math.max(0, active.offsetLeft - active.parentElement.offsetLeft - 24), behavior: 'smooth' });
   };
   activate(chips[0].dataset.cat);
   spy = new IntersectionObserver((entries) => {
@@ -240,31 +247,37 @@ function setupScrollSpy() {
   $$('.section-title').forEach((s) => spy.observe(s));
 }
 
-function thumb(i, cls = 'thumb') {
-  return `<div class="${cls}">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" loading="lazy">` : esc(i.emoji || '🍽️')}</div>`;
+function marks(i, withChef = true) {
+  const out = [];
+  if (withChef && i.tags.includes('popular')) out.push(`<span class="mark chef">${icon('star', 11)} ${esc(t('chefsChoice'))}</span>`);
+  if (i.tags.includes('new')) out.push(`<span class="mark chef">${esc(t('new'))}</span>`);
+  for (const k of ['vegan', 'vegetarian', 'gluten_free']) {
+    if (i.tags.includes(k) && !(k === 'vegetarian' && i.tags.includes('vegan'))) {
+      out.push(`<span class="mark diet" title="${esc(t(k))}">${MARK[k]}</span>`);
+    }
+  }
+  if (i.tags.includes('spicy')) out.push(`<span class="mark spicy">${icon('flame', 11)} ${esc(t('spicy'))}</span>`);
+  return out.length ? `<div class="marks">${out.join('')}</div>` : '';
 }
 
-function tagBadges(i) {
-  const icon = { popular: '★', vegan: '🌱', vegetarian: '🌿', gluten_free: 'GF', spicy: '🌶', new: '✦' };
-  return i.tags.length ? `<div class="tags">${i.tags.map((tg) => `<span class="tag ${tg}">${icon[tg] || ''} ${esc(t(tg))}</span>`).join('')}</div>` : '';
-}
-
-function itemCard(i) {
+function dishRow(i) {
   const inCart = S.cart.filter((l) => l.id === i.id).reduce((s, l) => s + l.qty, 0);
+  const addBtn = i.available
+    ? `<span class="add ${inCart ? 'in-cart' : ''}" role="button" aria-label="${esc(t('add'))}">${inCart ? inCart : icon('plus', 16)}</span>`
+    : '';
   return `
-    <button class="item card ${i.available ? '' : 'off'}" data-id="${i.id}">
-      ${thumb(i)}
-      <div class="item-body">
-        <div class="item-name">${esc(tr(i.name))}</div>
-        <div class="item-desc">${esc(tr(i.description))}</div>
-        ${tagBadges(i)}
-        <div class="item-foot">
-          <span class="price">${fmt(i.price_cents)}</span>
-          ${i.available
-            ? `<span class="add ${inCart ? 'in-cart' : ''}" role="button" aria-label="${esc(t('add'))}">${inCart ? `×${inCart}` : '+'}</span>`
-            : `<span class="badge gray">${esc(t('unavailable'))}</span>`}
-        </div>
+    <button class="dish ${i.available ? '' : 'off'} ${i.image_url ? 'with-photo' : ''}" data-id="${i.id}">
+      <div class="dish-text">
+        <div class="dish-head"><span class="dish-name">${esc(tr(i.name))}</span>
+          ${i.image_url ? '' : `<span class="dish-price">${fmt(i.price_cents)}</span>`}</div>
+        ${tr(i.description) ? `<div class="dish-desc">${esc(tr(i.description))}</div>` : ''}
+        ${marks(i)}
+        ${i.image_url ? `<div class="dish-price">${fmt(i.price_cents)}</div>` : ''}
+        ${i.available ? '' : `<span class="soldout">${esc(t('unavailable'))}</span>`}
       </div>
+      ${i.image_url
+        ? `<div class="dish-photo"><img src="${esc(i.image_url)}" alt="" loading="lazy">${addBtn}</div>`
+        : addBtn}
     </button>`;
 }
 
@@ -274,9 +287,7 @@ function addToCart(id, qty, note = '') {
   else S.cart.push({ id, qty, note });
   saveCart();
   renderBottom();
-  if (S.tab === 'menu') {
-    const y = window.scrollY; renderMenu(); window.scrollTo({ top: y });
-  }
+  if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); }
 }
 
 function quickAdd(id) {
@@ -291,19 +302,17 @@ function openItem(id) {
   if (!i) return;
   let qty = 1;
   const { el, close } = sheet(`
-    ${thumb(i, 'sheet-hero')}
-    <div class="sheet-head"><h2>${esc(tr(i.name))}</h2><span class="price">${fmt(i.price_cents)}</span></div>
-    <p class="muted" style="margin-top:0">${esc(tr(i.description))}</p>
-    ${tagBadges(i)}
-    ${i.allergens.length ? `
-      <p class="small" style="margin:.8rem 0 .3rem"><b>${esc(t('allergens'))}</b></p>
-      <div class="allergen-row">${i.allergens.map((a) => `<span class="allergen">${ALLERGEN_ICONS[a] || ''} ${esc(t(`allergen_${a}`))}</span>`).join('')}</div>` : ''}
+    ${i.image_url ? `<div class="sheet-photo"><img src="${esc(i.image_url)}" alt=""></div>` : ''}
+    <div class="sheet-head"><h2>${esc(tr(i.name))}</h2><span class="dish-price">${fmt(i.price_cents)}</span></div>
+    ${tr(i.description) ? `<p class="muted" style="margin-top:0">${esc(tr(i.description))}</p>` : ''}
+    ${marks(i)}
+    ${i.allergens.length ? `<p class="allergens"><span>${esc(t('allergens'))}</span>${i.allergens.map((a) => esc(t(`allergen_${a}`))).join(' · ')}</p>` : ''}
     ${i.available ? `
-      <label class="field" style="margin-top:1rem"><input class="input" id="inote" maxlength="200" placeholder="${esc(t('itemNote'))}"></label>
+      <label class="field" style="margin-top:1.1rem"><input class="input" id="inote" maxlength="200" placeholder="${esc(t('itemNote'))}"></label>
       <div class="sheet-actions">
-        <div class="qty"><button id="minus" aria-label="-">−</button><span id="qv">1</span><button id="plus" aria-label="+">+</button></div>
+        <div class="qty"><button id="minus" aria-label="-">${icon('minus', 16)}</button><span id="qv">1</span><button id="plus" aria-label="+">${icon('plus', 16)}</button></div>
         <button class="btn" id="addBtn"></button>
-      </div>` : `<p><span class="badge gray">${esc(t('unavailable'))}</span></p>
+      </div>` : `<p class="soldout">${esc(t('unavailable'))}</p>
       <button class="btn secondary block" data-close>${esc(t('close'))}</button>`}
   `);
   if (!i.available) return;
@@ -315,28 +324,32 @@ function openItem(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Cart & ordering
+// Cart
 // ---------------------------------------------------------------------------
 function openCart() {
-  const { el, close } = sheet('<div id="cartBody"></div>');
+  const { el, close } = sheet('<div id="cartBody"></div>', {
+    onClose: () => { if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); } },
+  });
   let orderNote = '';
   const render = () => {
     const total = S.cart.reduce((s, l) => s + (itemById(l.id)?.price_cents || 0) * l.qty, 0);
     $('#cartBody', el).innerHTML = `
-      <div class="sheet-head"><h2>${esc(t('yourCart'))}</h2><button class="icon-btn" data-close aria-label="${esc(t('close'))}">✕</button></div>
+      <div class="sheet-head"><h2>${esc(t('yourCart'))}</h2><button class="icon-btn" data-close aria-label="${esc(t('close'))}">${icon('x')}</button></div>
+      <p class="muted small" style="margin:-.4rem 0 .4rem">${esc(S.data.restaurant.name)} · ${esc(spot())}</p>
       ${S.cart.length ? S.cart.map((l, idx) => {
         const i = itemById(l.id);
         return `<div class="cart-line">
-          <div class="grow"><b>${esc(tr(i.name))}</b>${l.note ? `<div class="note">📝 ${esc(l.note)}</div>` : ''}
+          ${i.image_url ? `<img class="cart-thumb" src="${esc(i.image_url)}" alt="">` : ''}
+          <div class="grow"><b>${esc(tr(i.name))}</b>${l.note ? `<div class="note">${esc(l.note)}</div>` : ''}
             <div class="muted small">${fmt(i.price_cents * l.qty)}</div></div>
-          <div class="qty"><button data-dec="${idx}">−</button><span>${l.qty}</span><button data-inc="${idx}">+</button></div>
+          <div class="qty"><button data-dec="${idx}">${icon('minus', 15)}</button><span>${l.qty}</span><button data-inc="${idx}">${icon('plus', 15)}</button></div>
         </div>`;
-      }).join('') : `<div class="empty">🛒<br>${esc(t('emptyCart'))}</div>`}
+      }).join('') : `<div class="empty">${icon('bag', 32)}<p>${esc(t('emptyCart'))}</p></div>`}
       ${S.cart.length ? `
         <label class="field" style="margin-top:1rem"><textarea class="input" id="onote" rows="2" maxlength="300" placeholder="${esc(t('orderNote'))}">${esc(orderNote)}</textarea></label>
         <div class="total-row"><span>${esc(t('total'))}</span><span>${fmt(total)}</span></div>
-        <button class="btn block" id="send">${esc(t('sendOrder'))} · ${fmt(total)}</button>
-        <p class="muted small" style="text-align:center">⚠️ ${esc(t('allergyNotice'))}</p>` : ''}
+        <button class="btn block" id="send">${esc(t('sendOrder'))}</button>
+        <p class="muted small" style="text-align:center">${esc(t('allergyNotice'))}</p>` : ''}
     `;
     $('#onote', el)?.addEventListener('input', (e) => { orderNote = e.target.value; });
     $$('[data-dec]', el).forEach((b) => b.onclick = () => {
@@ -367,45 +380,44 @@ function openCart() {
     });
   };
   render();
-  const onClose = () => { if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); } };
-  el.closest('.sheet-backdrop').addEventListener('click', (e) => { if (e.target.matches('.sheet-backdrop,[data-close]')) onClose(); });
 }
 
 // ---------------------------------------------------------------------------
 // Orders & bill
 // ---------------------------------------------------------------------------
 const STEPS = ['pending', 'accepted', 'preparing', 'ready', 'served'];
-const STATUS_BADGE = { pending: 'amber', accepted: '', preparing: '', ready: 'green', served: 'gray', rejected: 'red' };
 
 function renderOrder() {
   const { orders, bill } = S.state;
   if (!orders.length) {
-    $('#app').innerHTML = `<div class="empty"><div class="big-emoji">🍽️</div><p>${esc(t('noOrders'))}</p>
-      <button class="btn" id="goMenu">📖 ${esc(t('menu'))}</button></div>`;
+    $('#app').innerHTML = `<h1 class="page-title">${esc(t('myOrder'))}</h1>
+      <div class="empty">${icon('receipt', 36)}<p>${esc(t('noOrders'))}</p>
+      <button class="btn" id="goMenu">${esc(t('menu'))}</button></div>`;
     $('#goMenu').onclick = () => switchTab('menu');
     return;
   }
   $('#app').innerHTML = `
     <h1 class="page-title">${esc(t('myOrder'))}</h1>
+    <p class="muted small" style="margin:0 0 .5rem">${esc(spot())}</p>
     ${[...orders].reverse().map((o) => {
       const step = STEPS.indexOf(o.status);
       return `<div class="card order-card">
         <div class="order-head"><b>${esc(t('order'))} #${o.id}</b>
-          <span class="badge ${STATUS_BADGE[o.status]}">${esc(t(`status_${o.status}`))}</span></div>
+          <span class="status s-${o.status}">${esc(t(`status_${o.status}`))}</span></div>
         ${o.status !== 'rejected' ? `<div class="progress">${STEPS.map((_, i) => `<i class="${i <= step ? 'on' : ''}"></i>`).join('')}</div>` : ''}
-        ${o.items.map((i) => `<div class="line"><span>${i.qty}× ${esc(tr(i.name))}${i.note ? `<br><span class="muted small">📝 ${esc(i.note)}</span>` : ''}</span>
+        ${o.items.map((i) => `<div class="line"><span>${i.qty} × ${esc(tr(i.name))}${i.note ? `<br><span class="muted small">${esc(i.note)}</span>` : ''}</span>
           <span>${fmt(i.price * i.qty)}</span></div>`).join('')}
-        ${o.note ? `<p class="muted small">💬 ${esc(o.note)}</p>` : ''}
+        ${o.note ? `<p class="muted small">${icon('message', 13)} ${esc(o.note)}</p>` : ''}
       </div>`;
     }).join('')}
     <div class="card bill">
       <div class="total-row" style="margin-top:0"><span>${esc(t('total'))}</span><span>${fmt(bill.total)}</span></div>
       ${bill.paid ? `<div class="line"><span>${esc(t('paidLabel'))}</span><span>− ${fmt(bill.paid)}</span></div>
         <div class="line"><b>${esc(t('due'))}</b><b>${fmt(bill.due)}</b></div>` : ''}
-      ${bill.total > 0 && bill.due === 0 ? `<p class="badge green" style="font-size:.9rem">✅ ${esc(t('paid'))}</p>` : ''}
-      <div style="display:flex;gap:.5rem;margin-top:.8rem">
-        <button class="btn secondary" style="flex:1" id="more">➕ ${esc(t('orderMore'))}</button>
-        ${bill.due > 0 ? `<button class="btn" style="flex:1" id="payBtn">🧾 ${esc(t('requestBill'))}</button>` : ''}
+      ${bill.total > 0 && bill.due === 0 ? `<p class="paid-note">${icon('check', 16)} ${esc(t('paid'))}</p>` : ''}
+      <div class="bill-actions">
+        <button class="btn secondary" id="more">${esc(t('orderMore'))}</button>
+        ${bill.due > 0 ? `<button class="btn" id="payBtn">${esc(t('requestBill'))}</button>` : ''}
       </div>
     </div>`;
   $('#more').onclick = () => switchTab('menu');
@@ -416,7 +428,7 @@ async function callWaiter() {
   if (S.state.calls.some((c) => c.type === 'waiter')) { toast(t('waiterCalled')); return; }
   try {
     await api(`/api/public/table/${token}/calls`, { method: 'POST', body: { type: 'waiter' } });
-    toast(`🙋 ${t('waiterCalled')}`, 'ok');
+    toast(t('waiterCalled'), 'ok');
   } catch (e) { toast(errorText(e), 'err'); }
 }
 
@@ -424,13 +436,13 @@ function openBill() {
   const { bill } = S.state;
   const online = S.data.onlinePayments === 'demo' && bill.due > 0;
   const { el, close } = sheet(`
-    <div class="sheet-head"><h2>${esc(t('yourBill'))}</h2><button class="icon-btn" data-close>✕</button></div>
+    <div class="sheet-head"><h2>${esc(t('yourBill'))}</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
     ${bill.total ? `<div class="total-row" style="margin-top:0"><span>${esc(t('due'))}</span><span>${fmt(bill.due)}</span></div>` : ''}
     <p class="muted">${esc(t('howPay'))}</p>
     <div class="pay-options">
-      <button class="pay-option" data-m="cash"><span>💶</span>${esc(t('payCash'))}</button>
-      <button class="pay-option" data-m="card"><span>💳</span>${esc(t('payCard'))}</button>
-      ${online ? `<button class="pay-option" data-m="online"><span>📱</span>${esc(t('payOnline'))}</button>` : ''}
+      <button class="pay-option" data-m="cash"><span>${icon('cash', 22)}</span>${esc(t('payCash'))}</button>
+      <button class="pay-option" data-m="card"><span>${icon('card', 22)}</span>${esc(t('payCard'))}</button>
+      ${online ? `<button class="pay-option" data-m="online"><span>${icon('phonePay', 22)}</span>${esc(t('payOnline'))}</button>` : ''}
     </div>
   `);
   $$('.pay-option', el).forEach((b) => b.onclick = async () => {
@@ -439,7 +451,7 @@ function openBill() {
     try {
       await api(`/api/public/table/${token}/calls`, { method: 'POST', body: { type: 'bill', paymentMethod: m } });
       close();
-      toast(`🧾 ${t('billRequested')}`, 'ok');
+      toast(t('billRequested'), 'ok');
     } catch (e) { toast(errorText(e), 'err'); }
   });
 }
@@ -447,17 +459,17 @@ function openBill() {
 function openOnlinePay() {
   const { bill } = S.state;
   const { el, close } = sheet(`
-    <div class="sheet-head"><h2>📱 ${esc(t('payOnline'))}</h2><button class="icon-btn" data-close>✕</button></div>
+    <div class="sheet-head"><h2>${esc(t('payOnline'))}</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
     <div class="total-row"><span>${esc(t('due'))}</span><span>${fmt(bill.due)}</span></div>
-    <p class="badge amber" style="font-size:.85rem;padding:.4rem .7rem">🧪 ${esc(t('paymentDemoNote'))}</p>
-    <button class="btn block success" id="doPay" style="margin-top:1rem">${esc(t('confirmPay'))} ${fmt(bill.due)}</button>
+    <p class="demo-note">${esc(t('paymentDemoNote'))}</p>
+    <button class="btn block" id="doPay" style="margin-top:1rem">${esc(t('confirmPay'))} ${fmt(bill.due)}</button>
   `);
   $('#doPay', el).onclick = async (e) => {
     e.target.disabled = true;
     try {
       await api(`/api/public/table/${token}/pay`, { method: 'POST', body: {} });
       close();
-      toast(`✅ ${t('paid')}`, 'ok');
+      toast(t('paid'), 'ok');
     } catch (err) { toast(errorText(err), 'err'); e.target.disabled = false; }
   };
 }
@@ -467,18 +479,20 @@ function openOnlinePay() {
 // ---------------------------------------------------------------------------
 function renderInfo() {
   const r = S.data.restaurant;
-  const card = (ic, title, body) => `<div class="card info-card"><div class="ic">${ic}</div><div><h3>${esc(title)}</h3>${body}</div></div>`;
+  const row = (ic, title, body) => `<div class="info-row"><div class="info-ic">${icon(ic, 20)}</div><div><h3>${esc(title)}</h3>${body}</div></div>`;
   $('#app').innerHTML = `
-    <section class="hero"><div class="kicker">${esc(t('info'))}</div><h1>${esc(r.name)}</h1><p>${esc(tr(r.description))}</p></section>
-    ${tr(r.hours) ? card('🕒', t('hours'), `<p>${esc(tr(r.hours))}</p>`) : ''}
-    ${r.wifiName ? card('📶', t('wifi'), `<p>${esc(t('network'))}: <b>${esc(r.wifiName)}</b></p>
-      ${r.wifiPassword ? `<p>${esc(t('password'))}: <span class="wifi-pass">${esc(r.wifiPassword)}</span>
-      <button class="btn ghost sm" id="copyWifi">${esc(t('copy'))}</button></p>` : ''}`) : ''}
-    ${r.address ? card('📍', t('address'), `<p>${esc(r.address)}</p>${r.mapsUrl ? `<a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener">${esc(t('openMaps'))} →</a>` : ''}`) : ''}
-    ${r.phone ? card('📞', t('phone'), `<p><a href="tel:${esc(r.phone.replace(/\s/g, ''))}">${esc(r.phone)}</a></p>`) : ''}
-    ${r.instagram ? card('📸', 'Instagram', `<p><a href="${esc(r.instagram)}" target="_blank" rel="noopener">${esc(r.instagram.replace(/^https?:\/\/(www\.)?/, ''))}</a></p>`) : ''}
-    ${r.reviewUrl ? card('⭐', t('leaveReview'), `<p><a href="${esc(r.reviewUrl)}" target="_blank" rel="noopener">Google / TripAdvisor →</a></p>`) : ''}
-    ${card('⚠️', t('allergens'), `<p class="muted">${esc(t('allergyNotice'))}</p>`)}
+    ${cover(t('info'), r.name, tr(r.description))}
+    <div class="card info-card">
+      ${tr(r.hours) ? row('clock', t('hours'), `<p>${esc(tr(r.hours))}</p>`) : ''}
+      ${r.wifiName ? row('wifi', t('wifi'), `<p>${esc(t('network'))}: <b>${esc(r.wifiName)}</b></p>
+        ${r.wifiPassword ? `<p>${esc(t('password'))}: <span class="wifi-pass">${esc(r.wifiPassword)}</span>
+        <button class="link-btn" id="copyWifi">${icon('copy', 14)} ${esc(t('copy'))}</button></p>` : ''}`) : ''}
+      ${r.address ? row('pin', t('address'), `<p>${esc(r.address)}</p>${r.mapsUrl ? `<a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener">${esc(t('openMaps'))}</a>` : ''}`) : ''}
+      ${r.phone ? row('phone', t('phone'), `<p><a href="tel:${esc(r.phone.replace(/\s/g, ''))}">${esc(r.phone)}</a></p>`) : ''}
+      ${r.instagram ? row('instagram', 'Instagram', `<p><a href="${esc(r.instagram)}" target="_blank" rel="noopener">${esc(r.instagram.replace(/^https?:\/\/(www\.)?/, ''))}</a></p>`) : ''}
+      ${r.reviewUrl ? row('star', t('leaveReview'), `<p><a href="${esc(r.reviewUrl)}" target="_blank" rel="noopener">Google · TripAdvisor</a></p>`) : ''}
+      ${row('alert', t('allergens'), `<p class="muted">${esc(t('allergyNotice'))}</p>`)}
+    </div>
   `;
   $('#copyWifi')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(r.wifiPassword); toast(t('copied'), 'ok'); } catch { /* ignore */ }
@@ -490,9 +504,9 @@ function renderInfo() {
 // ---------------------------------------------------------------------------
 function openLanguages() {
   const { el, close } = sheet(`
-    <div class="sheet-head"><h2>🌍 ${esc(t('language'))}</h2><button class="icon-btn" data-close>✕</button></div>
+    <div class="sheet-head"><h2>${esc(t('language'))}</h2><button class="icon-btn" data-close>${icon('x')}</button></div>
     <div class="langs">${S.data.languages.map((l) => `
-      <button class="lang-opt ${l === S.lang ? 'active' : ''}" data-l="${l}"><span>${LANGUAGES[l].flag}</span>${esc(LANGUAGES[l].name)}</button>`).join('')}
+      <button class="lang-opt ${l === S.lang ? 'active' : ''}" data-l="${l}"><span class="code">${LANGUAGES[l].short}</span>${esc(LANGUAGES[l].name)}</button>`).join('')}
     </div>`);
   $$('.lang-opt', el).forEach((b) => b.onclick = () => {
     S.lang = b.dataset.l;

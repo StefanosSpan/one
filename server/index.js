@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import {
   db, now, newToken, tx, getSettings, setSetting,
-  mapCategory, mapItem, mapTable, UPLOAD_DIR,
+  mapCategory, mapItem, mapTable, UPLOAD_DIR, SPOT_KINDS,
 } from './db.js';
 import { LANGS } from './seed.js';
 
@@ -130,13 +130,13 @@ function publicRestaurant(s = getSettings()) {
     name: r.name, description: r.description || {}, hours: r.hours || {},
     address: r.address, phone: r.phone, email: r.email, mapsUrl: r.mapsUrl,
     wifiName: r.wifiName, wifiPassword: r.wifiPassword, instagram: r.instagram,
-    reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '',
+    reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
   };
 }
 
 function loadOrders(where, params = []) {
   const orders = db.prepare(`
-    SELECT o.*, t.label AS table_label FROM orders o JOIN tables t ON t.id = o.table_id
+    SELECT o.*, t.label AS table_label, t.kind AS table_kind FROM orders o JOIN tables t ON t.id = o.table_id
     WHERE ${where} ORDER BY o.id`).all(...params);
   if (!orders.length) return [];
   const ids = orders.map((o) => o.id);
@@ -144,7 +144,7 @@ function loadOrders(where, params = []) {
   const byOrder = new Map(ids.map((id) => [id, []]));
   for (const it of items) byOrder.get(it.order_id).push({ ...it, name: JSON.parse(it.name) });
   return orders.map((o) => ({
-    id: o.id, tableId: o.table_id, tableLabel: o.table_label, status: o.status, note: o.note,
+    id: o.id, tableId: o.table_id, tableLabel: o.table_label, tableKind: o.table_kind, status: o.status, note: o.note,
     lang: o.lang, total: o.total_cents, paid: !!o.paid, closed: !!o.closed,
     createdAt: o.created_at, updatedAt: o.updated_at,
     items: byOrder.get(o.id).map((i) => ({ itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note })),
@@ -154,9 +154,9 @@ function loadOrders(where, params = []) {
 const loadOrder = (id) => loadOrders('o.id = ?', [id])[0];
 
 function loadCalls(where = "c.status = 'open'", params = []) {
-  return db.prepare(`SELECT c.*, t.label AS table_label FROM calls c JOIN tables t ON t.id = c.table_id
+  return db.prepare(`SELECT c.*, t.label AS table_label, t.kind AS table_kind FROM calls c JOIN tables t ON t.id = c.table_id
     WHERE ${where} ORDER BY c.id`).all(...params)
-    .map((c) => ({ id: c.id, tableId: c.table_id, tableLabel: c.table_label, type: c.type,
+    .map((c) => ({ id: c.id, tableId: c.table_id, tableLabel: c.table_label, tableKind: c.table_kind, type: c.type,
       paymentMethod: c.payment_method, status: c.status, createdAt: c.created_at }));
 }
 
@@ -199,7 +199,7 @@ app.get('/api/public/table/:token', wrap((req, res) => {
     onlinePayments: s.onlinePayments,
     requireApproval: s.requireApproval,
     currency: s.currency,
-    table: { label: table.label },
+    table: { label: table.label, kind: table.kind },
     categories: db.prepare('SELECT * FROM categories WHERE active = 1 ORDER BY sort, id').all().map(mapCategory),
     items: db.prepare(`SELECT i.* FROM items i JOIN categories c ON c.id = i.category_id
       WHERE c.active = 1 ORDER BY i.sort, i.id`).all().map(mapItem)
@@ -324,7 +324,7 @@ app.get('/api/staff/overview', requireStaff(), wrap((req, res) => {
     const mine = orders.filter((o) => o.tableId === t.id && o.status !== 'rejected');
     const total = mine.reduce((a, o) => a + o.total, 0);
     const paid = mine.filter((o) => o.paid).reduce((a, o) => a + o.total, 0);
-    return { id: t.id, label: t.label, active: t.active, orders: mine.length, total, paid,
+    return { id: t.id, label: t.label, kind: t.kind, active: t.active, orders: mine.length, total, paid,
       calls: calls.filter((c) => c.tableId === t.id).map((c) => c.type) };
   });
   res.json({ role: req.role, requireApproval: s.requireApproval, tables: tableSummaries, orders, calls });
@@ -418,7 +418,7 @@ admin.put('/settings', wrap((req, res) => {
       hours: cleanI18n(r.hours, 200),
       address: cleanText(r.address, 200), phone: cleanText(r.phone, 40), email: cleanText(r.email, 120),
       mapsUrl: cleanText(r.mapsUrl, 500), wifiName: cleanText(r.wifiName, 60), wifiPassword: cleanText(r.wifiPassword, 60),
-      instagram: cleanText(r.instagram, 200), reviewUrl: cleanText(r.reviewUrl, 500), logoUrl: cleanText(r.logoUrl, 500),
+      instagram: cleanText(r.instagram, 200), reviewUrl: cleanText(r.reviewUrl, 500), logoUrl: cleanText(r.logoUrl, 500), coverUrl: cleanText(r.coverUrl, 500),
     });
   }
   if (Array.isArray(b.languages)) {
@@ -554,11 +554,12 @@ admin.get('/tables', (req, res) => {
 admin.post('/tables', wrap((req, res) => {
   const b = req.body || {};
   const count = Math.min(Math.max(Math.trunc(Number(b.count) || 1), 1), 100);
-  const ins = db.prepare('INSERT INTO tables (label, token) VALUES (?, ?)');
+  const kind = SPOT_KINDS.includes(b.kind) ? b.kind : 'table';
+  const ins = db.prepare('INSERT INTO tables (label, token, kind) VALUES (?, ?, ?)');
   tx(() => {
-    if (count === 1 && cleanText(b.label, 20)) return ins.run(cleanText(b.label, 20), newToken());
-    const max = db.prepare('SELECT COUNT(*) AS n FROM tables').get().n;
-    for (let i = 1; i <= count; i++) ins.run(String(max + i), newToken());
+    if (count === 1 && cleanText(b.label, 20)) return ins.run(cleanText(b.label, 20), newToken(), kind);
+    const max = db.prepare('SELECT COUNT(*) AS n FROM tables WHERE kind = ?').get(kind).n;
+    for (let i = 1; i <= count; i++) ins.run(String(max + i), newToken(), kind);
   });
   res.status(201).json({ ok: true });
 }));
@@ -566,7 +567,9 @@ admin.post('/tables', wrap((req, res) => {
 admin.put('/tables/:id', wrap((req, res) => {
   const label = cleanText(req.body?.label, 20);
   if (!label) fail(400, 'Δώστε όνομα τραπεζιού');
-  db.prepare('UPDATE tables SET label = ?, active = ? WHERE id = ?').run(label, req.body?.active === false ? 0 : 1, Number(req.params.id));
+  const kind = SPOT_KINDS.includes(req.body?.kind) ? req.body.kind : 'table';
+  db.prepare('UPDATE tables SET label = ?, active = ?, kind = ? WHERE id = ?')
+    .run(label, req.body?.active === false ? 0 : 1, kind, Number(req.params.id));
   res.json({ ok: true });
 }));
 
@@ -622,11 +625,11 @@ app.get('/staff/qr', page('staff/qr.html'));
 
 // Demo landing page needs a real table link.
 app.get('/api/demo', (req, res) => {
-  const t = db.prepare('SELECT label, token FROM tables WHERE active = 1 ORDER BY id LIMIT 3').all();
+  const t = db.prepare('SELECT label, token, kind FROM tables WHERE active = 1 ORDER BY id LIMIT 3').all();
   const { pins } = getSettings();
   // Only reveal PINs while the demo defaults are still in use.
   const isDemo = pins.admin === '1234' && pins.waiter === '1111' && pins.kitchen === '2222';
-  res.json({ tables: t.map((x) => ({ label: x.label, url: `/t/${x.token}` })), pins: isDemo ? pins : null });
+  res.json({ tables: t.map((x) => ({ label: x.label, kind: x.kind, url: `/t/${x.token}` })), pins: isDemo ? pins : null });
 });
 
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d' }));
@@ -647,7 +650,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   app.listen(PORT, '0.0.0.0', () => {
     const lan = Object.values(networkInterfaces()).flat()
       .find((i) => i && i.family === 'IPv4' && !i.internal)?.address;
-    console.log(`\n  🍽️  Taverna QR τρέχει!\n`);
+    console.log(`\n  Taverna QR τρέχει\n`);
     console.log(`  Στον υπολογιστή:  http://localhost:${PORT}`);
     if (lan) console.log(`  Από κινητό (ίδιο Wi-Fi): http://${lan}:${PORT}`);
     console.log(`\n  PIN demo → Admin: 1234 · Σερβιτόρος: 1111 · Κουζίνα: 2222\n`);

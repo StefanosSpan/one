@@ -77,6 +77,12 @@ CREATE INDEX IF NOT EXISTS idx_orders_table ON orders(table_id, closed);
 CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 `);
 
+// Lightweight migrations for databases created by older versions.
+const hasColumn = (table, col) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
+if (!hasColumn('tables', 'kind')) db.exec("ALTER TABLE tables ADD COLUMN kind TEXT NOT NULL DEFAULT 'table'");
+
+export const SPOT_KINDS = ['table', 'room', 'sunbed'];
+
 export const now = () => new Date().toISOString();
 export const newToken = () => randomBytes(9).toString('base64url');
 

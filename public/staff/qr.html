@@ -3,50 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Εκτύπωση QR τραπεζιών</title>
+  <title>Εκτύπωση QR</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/app.css">
   <style>
     body { background: #fff; }
-    .toolbar { padding: 1rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
-    .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62mm, 1fr)); gap: 6mm; padding: 6mm; }
-    .qcard { border: 1px solid #d9d2c3; border-radius: 6mm; padding: 6mm 5mm; text-align: center; break-inside: avoid;
-      background: linear-gradient(180deg, #fffdf8, #f8f1e4); }
-    .qcard .rn { font-family: 'Fraunces', Georgia, serif; font-size: 15pt; font-weight: 700; color: #14213d; }
-    .qcard .tn { display: inline-block; margin: 2mm 0 3mm; padding: 1mm 4mm; border-radius: 99px; background: #14213d; color: #f4e3c1;
-      font-weight: 600; font-size: 11pt; letter-spacing: .04em; }
-    .qcard .qr { width: 42mm; height: 42mm; margin: 0 auto; background: #fff; padding: 2mm; border-radius: 3mm; }
+    .toolbar { padding: 1rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+    .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64mm, 1fr)); gap: 6mm; padding: 6mm; }
+    .qcard { border: 1px solid #ddd5c5; border-radius: 4mm; padding: 7mm 5mm 6mm; text-align: center; break-inside: avoid; background: #fffdf9; position: relative; }
+    .qcard::before { content: ''; position: absolute; inset: 2mm; border: .3mm solid #c9a45c; border-radius: 2.5mm; opacity: .6; pointer-events: none; }
+    .qcard .rn { font-family: var(--serif); font-size: 15pt; font-weight: 500; color: #141d31; }
+    .qcard .tn { margin: 1.5mm 0 4mm; font-size: 7.5pt; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #9c7a36; }
+    .qcard .qr { width: 40mm; height: 40mm; margin: 0 auto; }
     .qcard .qr svg { width: 100%; height: 100%; }
-    .qcard .cta { font-size: 9.5pt; font-weight: 600; margin-top: 3mm; color: #14213d; }
-    .qcard .sub { font-size: 8pt; color: #6b6558; margin-top: 1mm; line-height: 1.35; }
-    .qcard .flags { font-size: 11pt; margin-top: 2mm; letter-spacing: 1px; }
+    .qcard .cta { font-family: var(--serif); font-size: 10.5pt; margin-top: 3.5mm; color: #141d31; }
+    .qcard .sub { font-size: 7pt; color: #6f6a60; margin-top: 1mm; letter-spacing: .02em; }
+    .qcard .codes { font-size: 6.5pt; margin-top: 2.5mm; letter-spacing: .2em; color: #9c7a36; font-weight: 600; }
     @media print { .toolbar { display: none; } .sheetgrid { padding: 0; } @page { margin: 10mm; } }
   </style>
 </head>
 <body>
   <div id="toasts"></div>
   <div class="toolbar">
-    <button class="btn" onclick="print()">🖨️ Εκτύπωση</button>
-    <span class="muted small">Εκτυπώστε σε αυτοκόλλητο ή χαρτόνι και τοποθετήστε ένα σε κάθε τραπέζι. Κάθε QR αντιστοιχεί σε συγκεκριμένο τραπέζι.</span>
+    <button class="btn" onclick="print()">Εκτύπωση</button>
+    <span class="muted small">Εκτυπώστε σε αυτοκόλλητο ή χαρτόνι. Κάθε QR αντιστοιχεί σε συγκεκριμένη θέση (τραπέζι, δωμάτιο ή ξαπλώστρα).</span>
   </div>
   <div class="sheetgrid" id="grid"><div class="spinner"></div></div>
   <script type="module">
     import { api, esc } from '/js/util.js';
     import { LANGUAGES } from '/js/i18n.js';
+    const KIND = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
     try {
       const [tables, s] = await Promise.all([api('/api/admin/tables'), api('/api/admin/settings')]);
-      const flags = s.languages.map((l) => LANGUAGES[l].flag).join(' ');
+      const codes = s.languages.map((l) => LANGUAGES[l].short).join(' · ');
       const active = tables.filter((t) => t.active);
       const svgs = await Promise.all(active.map((t) => fetch(`/api/admin/tables/${t.id}/qr.svg`).then((r) => r.text())));
       document.getElementById('grid').innerHTML = active.map((t, i) => `
         <div class="qcard">
           <div class="rn">${esc(s.restaurant.name)}</div>
-          <div class="tn">ΤΡΑΠΕΖΙ ${esc(t.label)}</div>
+          <div class="tn">${esc(KIND[t.kind] || KIND.table)} ${esc(t.label)}</div>
           <div class="qr">${svgs[i]}</div>
-          <div class="cta">Σκανάρετε για μενού & παραγγελία</div>
-          <div class="sub">Scan for menu & ordering · Speisekarte & Bestellen · Menu & commande</div>
-          <div class="flags">${flags}</div>
+          <div class="cta">Σκανάρετε για μενού και παραγγελία</div>
+          <div class="sub">Scan for menu &amp; ordering</div>
+          <div class="codes">${codes}</div>
         </div>`).join('');
     } catch {
       location.href = '/staff?next=/staff/qr';

@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Taverna QR – Demo</title>
+  <title>Taverna QR · Demo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/app.css">
   <style>
     body { background: radial-gradient(1200px 600px at 80% -10%, #22335e 0%, transparent 60%), #0e1629; color: #f5efe3; min-height: 100vh; }
     .wrap { max-width: 980px; margin: 0 auto; padding: 3.5rem 1.25rem; }
     .eyebrow { color: var(--gold); letter-spacing: .18em; text-transform: uppercase; font-size: .78rem; font-weight: 600; }
-    h1 { font-family: var(--serif); font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.05; margin: .6rem 0 1rem; font-weight: 700; }
+    h1 { font-family: var(--serif); font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.05; margin: .6rem 0 1rem; font-weight: 500; }
     h1 em { color: var(--gold); font-style: italic; }
     .lead { color: #c9c1b1; font-size: 1.1rem; max-width: 620px; }
     .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-top: 2.5rem; }
     .c { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 20px; padding: 1.3rem;
       text-decoration: none; color: inherit; transition: .2s; display: block; }
     .c:hover { transform: translateY(-3px); border-color: var(--gold); background: rgba(255,255,255,.07); }
-    .c .i { font-size: 1.8rem; }
+    .c .i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(201,164,92,.5); color: var(--gold); }
     .c h3 { font-family: var(--serif); margin: .6rem 0 .3rem; font-size: 1.25rem; font-weight: 600; }
     .c p { margin: 0; color: #b3ab9b; font-size: .92rem; }
     .pins { margin-top: 2rem; color: #b3ab9b; font-size: .92rem; }
@@ -27,8 +27,8 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="eyebrow">Taverna QR · Demo</div>
-    <h1>Το μενού σας, <em>σε κάθε γλώσσα</em>,<br>σε κάθε τραπέζι.</h1>
+    <div class="eyebrow">Taverna QR · Εστιατόρια &amp; Ξενοδοχεία</div>
+    <h1>Το μενού σας, <em>σε κάθε γλώσσα</em>,<br>σε κάθε τραπέζι και δωμάτιο.</h1>
     <p class="lead">Ο πελάτης σκανάρει το QR του τραπεζιού, διαβάζει το μενού στη γλώσσα του, παραγγέλνει, καλεί τον σερβιτόρο
       ή ζητά τον λογαριασμό. Η παραγγελία φτάνει στο πάσο με τον αριθμό του τραπεζιού.</p>
     <div class="cards" id="cards"></div>
@@ -36,14 +36,15 @@
   </div>
   <script type="module">
     import { api, esc } from '/js/util.js';
+    import { icon } from '/js/icons.js';
     const d = await api('/api/demo');
     const t = d.tables[0];
     document.getElementById('cards').innerHTML = [
-      ['📱', 'Μενού πελάτη', `Τραπέζι ${esc(t?.label ?? '')} – όπως μετά το σκανάρισμα του QR`, t?.url],
-      ['🧑‍🍳', 'Σερβιτόρος', 'Εγκρίσεις, κλήσεις, λογαριασμοί, τραπέζια', '/staff/waiter'],
-      ['🔥', 'Κουζίνα – Πάσο', 'Οθόνη κουζίνας με ζωντανές παραγγελίες', '/staff/kitchen'],
-      ['⚙️', 'Διαχείριση', 'Μενού, μεταφράσεις, τραπέζια & QR, στατιστικά', '/staff/admin'],
-    ].map(([i, h, p, href]) => `<a class="c" href="${href}" target="_blank"><div class="i">${i}</div><h3>${h}</h3><p>${p}</p></a>`).join('');
+      ['phonePay', 'Μενού επισκέπτη', `Όπως το βλέπει ο πελάτης μετά το σκανάρισμα του QR`, t?.url],
+      ['users', 'Σερβιτόρος', 'Εγκρίσεις, κλήσεις, λογαριασμοί, θέσεις', '/staff/waiter'],
+      ['flame', 'Κουζίνα · Πάσο', 'Οθόνη κουζίνας με ζωντανές παραγγελίες', '/staff/kitchen'],
+      ['sliders', 'Διαχείριση', 'Μενού, φωτογραφίες, μεταφράσεις, QR, στατιστικά', '/staff/admin'],
+    ].map(([i, h, p, href]) => `<a class="c" href="${href}" target="_blank"><div class="i">${icon(i, 22)}</div><h3>${h}</h3><p>${p}</p></a>`).join('');
     if (d.pins) document.getElementById('pins').innerHTML =
       `PIN demo → Admin <b>${d.pins.admin}</b> · Σερβιτόρος <b>${d.pins.waiter}</b> · Κουζίνα <b>${d.pins.kitchen}</b>`;
   </script>

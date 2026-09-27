@@ -1,5 +1,6 @@
 // Shared helpers for staff screens (login check, top bar, live connection).
 import { api, esc, stream, unlockAudio } from './util.js';
+import { icon } from './icons.js';
 
 const HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
 
@@ -16,20 +17,25 @@ export async function requireLogin(allowed) {
 
 export function topBar(me, current, title) {
   const links = me.role === 'admin'
-    ? [['waiter', '🧑‍🍳 Σερβιτόρος'], ['kitchen', '🔥 Κουζίνα'], ['admin', '⚙️ Διαχείριση']]
+    ? [['waiter', 'users', 'Σερβιτόρος'], ['kitchen', 'flame', 'Κουζίνα'], ['admin', 'sliders', 'Διαχείριση']]
     : [];
   const bar = document.createElement('header');
   bar.className = 'bar';
   bar.innerHTML = `<div class="bar-inner">
-    <div class="title"><span class="conn" id="conn"></span>${esc(title)} <span class="muted small" style="color:#9ca3af">· ${esc(me.restaurant || '')}</span></div>
-    ${links.map(([k, l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${l}</a>`).join('')}
-    <button id="soundBtn" title="Ήχος ειδοποιήσεων">🔇 Ήχος</button>
-    <button id="logout">Έξοδος</button>
+    <div class="title"><span class="conn" id="conn"></span>${esc(title)}<span class="venue">${esc(me.restaurant || '')}</span></div>
+    ${links.map(([k, ic, l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${icon(ic, 16)}<span>${l}</span></a>`).join('')}
+    <button id="soundBtn" title="Ήχος ειδοποιήσεων"></button>
+    <button id="logout" title="Έξοδος">${icon('logout', 16)}<span>Έξοδος</span></button>
   </div>`;
   document.body.prepend(bar);
   let soundOn = false;
   const sb = bar.querySelector('#soundBtn');
-  const setSound = (on) => { soundOn = on; sb.textContent = on ? '🔔 Ήχος' : '🔇 Ήχος'; if (on) unlockAudio(); };
+  const setSound = (on) => {
+    soundOn = on;
+    sb.innerHTML = `${icon(on ? 'volume' : 'volumeOff', 16)}<span>${on ? 'Ήχος ενεργός' : 'Ήχος'}</span>`;
+    if (on) unlockAudio();
+  };
+  setSound(false);
   sb.onclick = () => setSound(!soundOn);
   // Browsers only allow sound after a user gesture: enable on first tap anywhere.
   document.addEventListener('pointerdown', () => { if (!soundOn) setSound(true); }, { once: true });
@@ -47,5 +53,11 @@ export function liveStaff(onChange) {
   });
 }
 
-export const LANG_FLAGS = { el: '🇬🇷', en: '🇬🇧', de: '🇩🇪', fr: '🇫🇷', it: '🇮🇹', es: '🇪🇸', nl: '🇳🇱', pl: '🇵🇱' };
+export const LANG_CODES = { el: 'EL', en: 'EN', de: 'DE', fr: 'FR', it: 'IT', es: 'ES', nl: 'NL', pl: 'PL' };
+export const KIND = {
+  table: { one: 'Τραπέζι', short: 'Τρ.', icon: 'utensils' },
+  room: { one: 'Δωμάτιο', short: 'Δωμ.', icon: 'bed' },
+  sunbed: { one: 'Ξαπλώστρα', short: 'Ξαπλ.', icon: 'pin' },
+};
+export const spotName = (kind, label, short = false) => `${(KIND[kind] || KIND.table)[short ? 'short' : 'one']} ${label}`;
 export const itemName = (name) => name?.el || name?.en || Object.values(name || {})[0] || '';

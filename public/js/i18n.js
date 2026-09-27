@@ -1,17 +1,18 @@
 // Customer-facing UI translations. Add a language by adding a new block with the same keys.
 export const LANGUAGES = {
-  el: { name: 'Ελληνικά', flag: '🇬🇷' },
-  en: { name: 'English', flag: '🇬🇧' },
-  de: { name: 'Deutsch', flag: '🇩🇪' },
-  fr: { name: 'Français', flag: '🇫🇷' },
-  it: { name: 'Italiano', flag: '🇮🇹' },
-  es: { name: 'Español', flag: '🇪🇸' },
-  nl: { name: 'Nederlands', flag: '🇳🇱' },
-  pl: { name: 'Polski', flag: '🇵🇱' },
+  el: { name: 'Ελληνικά', short: 'EL' },
+  en: { name: 'English', short: 'EN' },
+  de: { name: 'Deutsch', short: 'DE' },
+  fr: { name: 'Français', short: 'FR' },
+  it: { name: 'Italiano', short: 'IT' },
+  es: { name: 'Español', short: 'ES' },
+  nl: { name: 'Nederlands', short: 'NL' },
+  pl: { name: 'Polski', short: 'PL' },
 };
 
 export const STRINGS = {
   el: {
+    room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα', callService: 'Εξυπηρέτηση', chefsChoice: 'Πρόταση του σεφ', dietaryKey: 'V Χορτοφαγικό · VG Vegan · GF Χωρίς γλουτένη',
     menu: 'Μενού', myOrder: 'Παραγγελία', info: 'Πληροφορίες', table: 'Τραπέζι', search: 'Αναζήτηση πιάτου…',
     all: 'Όλα', vegetarian: 'Χορτοφαγικό', vegan: 'Vegan', gluten_free: 'Χωρίς γλουτένη', spicy: 'Πικάντικο',
     popular: 'Δημοφιλές', new: 'Νέο', add: 'Προσθήκη', addToCart: 'Προσθήκη στο καλάθι',
@@ -43,6 +44,7 @@ export const STRINGS = {
     allergen_lupin: 'Λούπινο', allergen_molluscs: 'Μαλάκια',
   },
   en: {
+    room: 'Room', sunbed: 'Sunbed', callService: 'Service', chefsChoice: 'Chef’s choice', dietaryKey: 'V Vegetarian · VG Vegan · GF Gluten-free',
     menu: 'Menu', myOrder: 'My order', info: 'Info', table: 'Table', search: 'Search dishes…',
     all: 'All', vegetarian: 'Vegetarian', vegan: 'Vegan', gluten_free: 'Gluten-free', spicy: 'Spicy',
     popular: 'Popular', new: 'New', add: 'Add', addToCart: 'Add to cart',
@@ -74,6 +76,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupin', allergen_molluscs: 'Molluscs',
   },
   de: {
+    room: 'Zimmer', sunbed: 'Liege', callService: 'Service', chefsChoice: 'Empfehlung des Küchenchefs', dietaryKey: 'V Vegetarisch · VG Vegan · GF Glutenfrei',
     menu: 'Speisekarte', myOrder: 'Bestellung', info: 'Info', table: 'Tisch', search: 'Gerichte suchen…',
     all: 'Alle', vegetarian: 'Vegetarisch', vegan: 'Vegan', gluten_free: 'Glutenfrei', spicy: 'Scharf',
     popular: 'Beliebt', new: 'Neu', add: 'Hinzufügen', addToCart: 'In den Warenkorb',
@@ -105,6 +108,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupinen', allergen_molluscs: 'Weichtiere',
   },
   fr: {
+    room: 'Chambre', sunbed: 'Transat', callService: 'Service', chefsChoice: 'Suggestion du chef', dietaryKey: 'V Végétarien · VG Végan · GF Sans gluten',
     menu: 'Menu', myOrder: 'Commande', info: 'Infos', table: 'Table', search: 'Rechercher un plat…',
     all: 'Tout', vegetarian: 'Végétarien', vegan: 'Végan', gluten_free: 'Sans gluten', spicy: 'Épicé',
     popular: 'Populaire', new: 'Nouveau', add: 'Ajouter', addToCart: 'Ajouter au panier',
@@ -136,6 +140,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupin', allergen_molluscs: 'Mollusques',
   },
   it: {
+    room: 'Camera', sunbed: 'Lettino', callService: 'Servizio', chefsChoice: 'Consigliato dallo chef', dietaryKey: 'V Vegetariano · VG Vegano · GF Senza glutine',
     menu: 'Menù', myOrder: 'Ordine', info: 'Info', table: 'Tavolo', search: 'Cerca un piatto…',
     all: 'Tutti', vegetarian: 'Vegetariano', vegan: 'Vegano', gluten_free: 'Senza glutine', spicy: 'Piccante',
     popular: 'Popolare', new: 'Novità', add: 'Aggiungi', addToCart: 'Aggiungi al carrello',
@@ -167,6 +172,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupini', allergen_molluscs: 'Molluschi',
   },
   es: {
+    room: 'Habitación', sunbed: 'Tumbona', callService: 'Servicio', chefsChoice: 'Recomendación del chef', dietaryKey: 'V Vegetariano · VG Vegano · GF Sin gluten',
     menu: 'Carta', myOrder: 'Pedido', info: 'Info', table: 'Mesa', search: 'Buscar plato…',
     all: 'Todo', vegetarian: 'Vegetariano', vegan: 'Vegano', gluten_free: 'Sin gluten', spicy: 'Picante',
     popular: 'Popular', new: 'Nuevo', add: 'Añadir', addToCart: 'Añadir al carrito',
@@ -198,6 +204,7 @@ export const STRINGS = {
     allergen_lupin: 'Altramuces', allergen_molluscs: 'Moluscos',
   },
   nl: {
+    room: 'Kamer', sunbed: 'Ligbed', callService: 'Service', chefsChoice: 'Aanrader van de chef', dietaryKey: 'V Vegetarisch · VG Veganistisch · GF Glutenvrij',
     menu: 'Menu', myOrder: 'Bestelling', info: 'Info', table: 'Tafel', search: 'Zoek een gerecht…',
     all: 'Alles', vegetarian: 'Vegetarisch', vegan: 'Veganistisch', gluten_free: 'Glutenvrij', spicy: 'Pittig',
     popular: 'Populair', new: 'Nieuw', add: 'Toevoegen', addToCart: 'In winkelmand',
@@ -229,6 +236,7 @@ export const STRINGS = {
     allergen_lupin: 'Lupine', allergen_molluscs: 'Weekdieren',
   },
   pl: {
+    room: 'Pokój', sunbed: 'Leżak', callService: 'Obsługa', chefsChoice: 'Polecane przez szefa kuchni', dietaryKey: 'V Wegetariańskie · VG Wegańskie · GF Bez glutenu',
     menu: 'Menu', myOrder: 'Zamówienie', info: 'Informacje', table: 'Stolik', search: 'Szukaj dania…',
     all: 'Wszystko', vegetarian: 'Wegetariańskie', vegan: 'Wegańskie', gluten_free: 'Bez glutenu', spicy: 'Ostre',
     popular: 'Popularne', new: 'Nowość', add: 'Dodaj', addToCart: 'Dodaj do koszyka',
@@ -261,10 +269,6 @@ export const STRINGS = {
   },
 };
 
-export const ALLERGEN_ICONS = {
-  gluten: '🌾', crustaceans: '🦐', eggs: '🥚', fish: '🐟', peanuts: '🥜', soy: '🫛', milk: '🥛', nuts: '🌰',
-  celery: '🥬', mustard: '🟡', sesame: '⚪', sulphites: '🍷', lupin: '🌼', molluscs: '🦑',
-};
 
 // Pick the best translation from a {lang: text} object.
 export function pick(obj, lang, fallback = 'el') {
