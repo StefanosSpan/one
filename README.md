@@ -160,7 +160,29 @@ npm run superadmin -- you@example.com 'ένας-μεγάλος-κωδικός'
 
 ### Πληρωμή από το κινητό (Viva Wallet)
 
-Κάθε κατάστημα συνδέει τον δικό του λογαριασμό [Viva Wallet](https://www.viva.com), οπότε τα χρήματα πάνε κατευθείαν σε εκείνο:
+Τα χρήματα πάνε πάντα κατευθείαν στον λογαριασμό Viva του καταστήματος. Υπάρχουν δύο τρόποι σύνδεσης.
+
+#### α. «Σύνδεση με Viva» με ένα κουμπί (ISV partner, προτείνεται)
+
+Το Kalimenu γίνεται συνεργάτης της Viva (ISV Partner program) και ο ιδιοκτήτης δεν βλέπει ποτέ κλειδιά:
+1. **Αίτηση:** στη [φόρμα ISV της Viva](https://www.viva.com/en-eu/vendor-solutions/software-vendors). Μετά την έγκριση ανοίγετε
+   λογαριασμό επιχείρησης (production) και δοκιμαστικό στο demo.vivapayments.com, και ζητάτε από τη Viva να τους ορίσει ως ISV.
+2. **Στοιχεία προς τη Viva:** λογότυπο (PNG 341×250, διάφανο), σύντομη περιγραφή, επαφή πωλήσεων/υποστήριξης και σύνδεσμο
+   στη σελίδα τιμών: `https://kalimenu.gr/#pricing` (εκεί γράφεται αν υπάρχει προμήθεια ανά πληρωμή).
+3. **Κλειδιά ISV και πηγή πληρωμών:** από τον λογαριασμό ISV παίρνετε Client ID και Client Secret, και φτιάχνετε πηγή πληρωμών για ISV
+   με Success URL και Failure URL `https://kalimenu.gr/pay/viva/return`.
+4. **Render → Environment:** `VIVA_ISV_CLIENT_ID`, `VIVA_ISV_CLIENT_SECRET`, `VIVA_ISV_SOURCE_CODE`, `VIVA_ISV_ENV` (`demo`, μετά `live`)
+   και προαιρετικά `VIVA_ISV_FEE_PERCENT` / `VIVA_ISV_FEE_CENTS` (η προμήθεια του Kalimenu, ποτέ στο φιλοδώρημα· η Viva την αποδίδει
+   σε εσάς μέσα στις 10 πρώτες εργάσιμες του επόμενου μήνα).
+
+Ο ιδιοκτήτης: Διαχείριση → Ρυθμίσεις → «Viva Wallet · σύνδεση με ένα κουμπί» → **Σύνδεση με Viva**. Ανοίγει η σελίδα της Viva, όπου
+φτιάχνει ή συνδέει λογαριασμό και η Viva κάνει τον έλεγχο στοιχείων. Γυρνώντας, το Kalimenu βρίσκει μόνο του το Merchant ID και ενεργοποιεί
+τις πληρωμές. Στο δοκιμαστικό περιβάλλον η σελίδα εγγραφής της Viva δεν λειτουργεί, οπότε για δοκιμή μπαίνει χειροκίνητα το Merchant ID
+ενός δοκιμαστικού λογαριασμού.
+
+#### β. Με τα δικά του κλειδιά
+
+Κάθε κατάστημα συνδέει τον δικό του λογαριασμό [Viva Wallet](https://www.viva.com) με κλειδιά API:
 1. **Κλειδιά:** στο Viva → Settings → API Access, αντιγράψτε το **Client ID** και το **Client Secret** των Smart Checkout Credentials.
 2. **Πηγή πληρωμών:** στο Viva → Sales → Online Payments → Websites/Apps, φτιάξτε νέα πηγή πληρωμών.
    - Success URL και Failure URL: `https://kalimenu.gr/pay/viva/return`
@@ -170,7 +192,9 @@ npm run superadmin -- you@example.com 'ένας-μεγάλος-κωδικός'
 
 Κάθε πληρωμή επιβεβαιώνεται με το Viva πριν μετρήσει. Το Client Secret δεν εμφανίζεται ποτέ ξανά στη Διαχείριση.
 
-> Η σύνδεση με το Viva έγινε με βάση την τεκμηρίωση του Smart Checkout. Ελέγξτε τη με δοκιμαστικό λογαριασμό πριν τη χρησιμοποιήσουν πελάτες.
+> Η σύνδεση με το Viva έγινε με βάση την τεκμηρίωση του Smart Checkout και του ISV Payment API (δημιουργία συνδεδεμένου λογαριασμού
+> `POST /isv/v1/accounts`, παραγγελία `POST /checkout/v2/isv/orders?merchantId=` με `isvAmount`, έλεγχος
+> `GET /checkout/v2/isv/transactions/{id}?merchantId=`). Ελέγξτε τη με δοκιμαστικό λογαριασμό πριν τη χρησιμοποιήσουν πελάτες.
 
 ## Λογότυπο
 

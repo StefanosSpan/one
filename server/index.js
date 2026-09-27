@@ -13,7 +13,7 @@ import {
 import { LANGS } from './seed.js';
 import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
-import { vivaCreateOrder, vivaVerify } from './payments.js';
+import { vivaCreateOrder, vivaVerify, isvConfig, isvCreateAccount, isvGetAccount } from './payments.js';
 import { sendMail } from './mail.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
@@ -582,13 +582,22 @@ function paymentSettings(venue) {
   let provider = p.provider || (venue.settings.onlinePayments === 'demo' ? 'demo' : 'off');
   if (provider === 'demo' && !canUseDemoPayments(venue)) provider = 'off';
   if (provider === 'viva' && !(p.clientId && p.clientSecret)) provider = 'off';
+  if (provider === 'viva-connect' && !(isvConfig() && p.isv?.merchantId)) provider = 'off';
   return { ...p, provider, tips: Array.isArray(p.tips) ? p.tips : [0, 5, 10, 15], roomCharge: !!p.roomCharge };
+}
+
+// Settings used to talk to Viva for this venue: Kalimenu's ISV keys for the venue's merchant (Viva Connect), or the venue's own keys.
+function vivaCfg(venue) {
+  const p = paymentSettings(venue);
+  if (p.provider === 'viva-connect') return { ...isvConfig(), merchantId: p.isv.merchantId };
+  return { clientId: p.clientId, clientSecret: p.clientSecret, sourceCode: p.sourceCode, environment: p.environment };
 }
 
 const publicPayments = (venue, table) => {
   const p = paymentSettings(venue);
   if (!features(venue).ordering) return { provider: 'off', tips: [], roomCharge: false };
-  return { provider: p.provider, tips: p.tips, roomCharge: p.roomCharge && table.kind === 'room' };
+  // Guests only need to know that the bill is paid through Viva, not how the venue is connected.
+  return { provider: p.provider === 'viva-connect' ? 'viva' : p.provider, tips: p.tips, roomCharge: p.roomCharge && table.kind === 'room' };
 };
 
 // Marks a payment paid: dishes it covered, orders fully paid, staff and guests notified.
@@ -649,12 +658,11 @@ app.post('/api/public/table/:token/pay', wrap(async (req, res) => {
   const payment = await db.get('SELECT * FROM payments WHERE id = ?', [id]);
 
   if (provider === 'viva') {
-    const p = paymentSettings(venue);
-    const order = await vivaCreateOrder(p, {
+    const order = await vivaCreateOrder(vivaCfg(venue), {
       amount, tip, lang: req.body?.lang, reference: `KM-${venue.id}-${id}`,
       description: `${venue.name} · ${table.label}`.slice(0, 100),
     });
-    await db.run('UPDATE payments SET ref = ? WHERE id = ?', [order.orderCode, id]);
+    await db.run('UPDATE payments SET ref = ?, fee_cents = ? WHERE id = ?', [order.orderCode, order.fee, id]);
     return res.json({ ok: true, url: order.url });
   }
   // Room charge (settled on check-out) and the demo provider are confirmed straight away.
@@ -671,7 +679,7 @@ app.get('/pay/viva/return', wrap(async (req, res) => {
   const table = await db.get('SELECT token FROM tables WHERE id = ?', [payment.table_id]);
   let ok = false;
   if (venue && req.query.t) {
-    const check = await vivaVerify(paymentSettings(venue), String(req.query.t)).catch(() => ({ ok: false }));
+    const check = await vivaVerify(vivaCfg(venue), String(req.query.t)).catch(() => ({ ok: false }));
     ok = check.ok && check.orderCode === orderCode && check.amount >= payment.amount_cents + payment.tip_cents;
     if (ok) {
       await db.run('UPDATE payments SET transaction_id = ? WHERE id = ?', [String(req.query.t).slice(0, 80), payment.id]);
@@ -1028,6 +1036,9 @@ const adminSettings = async (req) => {
   const { clientSecret, ...pay } = paymentSettings(req.venue);
   s.payments = { ...(payments || {}), ...pay, clientSecret: '', hasSecret: !!clientSecret, returnUrl: `${baseUrl(req)}/pay/viva/return` };
   delete s.payments.clientSecret;
+  s.payments.chosen = payments?.provider || pay.provider; // what the owner picked, even while it is not ready yet
+  const isv = isvConfig();
+  s.vivaConnect = isv ? { available: true, environment: isv.environment, feePercent: isv.feePercent, feeCents: isv.feeCents } : { available: false };
   return { ...s, zones: await zonesOf(req.venue.id), defaultPrepMinutes: s.defaultPrepMinutes || 15, staff: s.staff || [], stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
     staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, menuUrl: `${baseUrl(req)}/m/${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
 };
@@ -1089,9 +1100,11 @@ admin.put('/settings', wrap(async (req, res) => {
   if (b.payments && typeof b.payments === 'object') {
     const p = b.payments;
     const prev = cur.payments || {};
-    const provider = ['off', 'viva'].includes(p.provider) || (p.provider === 'demo' && canUseDemoPayments(req.venue)) ? p.provider : 'off';
+    const provider = ['off', 'viva'].includes(p.provider) || (p.provider === 'viva-connect' && isvConfig())
+      || (p.provider === 'demo' && canUseDemoPayments(req.venue)) ? p.provider : 'off';
     await set('payments', {
       provider, environment: p.environment === 'live' ? 'live' : 'demo',
+      isv: prev.isv || null, // changed only through the Viva Connect routes below
       clientId: cleanText(p.clientId ?? prev.clientId, 200), sourceCode: cleanText(p.sourceCode ?? prev.sourceCode, 20),
       // The secret is write-only: an empty field keeps the stored one.
       clientSecret: p.clientSecret ? cleanText(p.clientSecret, 200) : prev.clientSecret || '',
@@ -1137,6 +1150,53 @@ admin.put('/settings', wrap(async (req, res) => {
   req.venue = await getVenue(v);
   broadcastMenuUpdate(req.venue);
   res.json(await adminSettings(req));
+}));
+
+// Viva Connect: the owner connects (or creates) their Viva account with one button; Viva handles the verification.
+const needIsv = () => { const cfg = isvConfig(); if (!cfg) fail(400, 'Η σύνδεση με Viva δεν είναι διαθέσιμη'); return cfg; };
+const saveIsv = async (venue, isv, provider) => {
+  const cur = venue.settings.payments || {};
+  await setSetting(venue.id, 'payments', { tips: [0, 5, 10, 15], ...cur, provider: provider ?? cur.provider ?? 'off', isv });
+};
+
+admin.post('/payments/viva-connect', wrap(async (req, res) => {
+  demoGuard(req);
+  const cfg = needIsv();
+  const prev = req.venue.settings.payments?.isv;
+  // Demo environment only: Viva's onboarding page works only in production, so a demo merchant id is typed in.
+  if (req.body?.merchantId !== undefined) {
+    if (cfg.environment !== 'demo') fail(400, 'Το Merchant ID ορίζεται αυτόματα από τη Viva');
+    const merchantId = cleanText(req.body.merchantId, 60);
+    if (!/^[0-9a-f-]{8,60}$/i.test(merchantId)) fail(400, 'Μη έγκυρο Merchant ID');
+    await saveIsv(req.venue, { ...(prev || {}), merchantId, verified: true, connectedAt: now() }, 'viva-connect');
+    return res.json({ ok: true, isv: (await getVenue(req.venue.id)).settings.payments.isv });
+  }
+  const email = cleanText(req.body?.email, 120).toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail(400, 'Συμπληρώστε ένα έγκυρο e-mail');
+  if (!rateLimit(`isv:${req.venue.id}`, 5, 3600_000)) fail(429, 'Πολλές προσπάθειες. Δοκιμάστε ξανά σε λίγο.');
+  const acc = await isvCreateAccount(cfg, { email, returnUrl: `${baseUrl(req)}/staff/admin?tab=settings&viva=return` });
+  await saveIsv(req.venue, { accountId: acc.accountId, email, redirectUrl: acc.redirectUrl, merchantId: '', verified: false, createdAt: now() });
+  res.json({ ok: true, redirectUrl: acc.redirectUrl });
+}));
+
+admin.post('/payments/viva-connect/refresh', wrap(async (req, res) => {
+  const cfg = needIsv();
+  const isv = req.venue.settings.payments?.isv;
+  if (!isv?.accountId) return res.json({ isv: isv || null });
+  const acc = await isvGetAccount(cfg, isv.accountId);
+  const next = { ...isv, merchantId: acc.merchantId || isv.merchantId || '', verified: acc.verified, redirectUrl: acc.redirectUrl || isv.redirectUrl };
+  if (next.merchantId && !isv.merchantId) next.connectedAt = now();
+  // Switch the menu to Viva payments as soon as the account is connected, unless the owner chose otherwise.
+  const provider = next.merchantId && !isv.merchantId && (req.venue.settings.payments?.provider || 'off') === 'off' ? 'viva-connect' : undefined;
+  await saveIsv(req.venue, next, provider);
+  res.json({ isv: next });
+}));
+
+admin.delete('/payments/viva-connect', wrap(async (req, res) => {
+  demoGuard(req);
+  const cur = req.venue.settings.payments || {};
+  await saveIsv(req.venue, null, cur.provider === 'viva-connect' ? 'off' : cur.provider);
+  res.json({ ok: true });
 }));
 
 admin.get('/menu', wrap(async (req, res) => {

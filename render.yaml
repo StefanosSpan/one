@@ -34,6 +34,16 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
+      - key: VIVA_ISV_CLIENT_ID      # Viva ISV partner keys: "Connect with Viva" button for venues
+        sync: false
+      - key: VIVA_ISV_CLIENT_SECRET
+        sync: false
+      - key: VIVA_ISV_SOURCE_CODE
+        sync: false
+      - key: VIVA_ISV_ENV            # demo while testing, live afterwards
+        value: demo
+      - key: VIVA_ISV_FEE_PERCENT    # Kalimenu fee per guest payment (0 = none); state it on the pricing page
+        value: "0"
       - key: MAIL_FROM
         value: Kalimenu <hello@kalimenu.gr>
       - key: NOTIFY_EMAIL        # where new sign-ups are announced

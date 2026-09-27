@@ -191,6 +191,7 @@ CREATE TABLE IF NOT EXISTS payments (
   closed         INTEGER DEFAULT 0,        -- 1 once the spot's bill has been settled
   guest_id       TEXT DEFAULT '',
   created_at     TEXT NOT NULL,
+  fee_cents      INTEGER DEFAULT 0,        -- Kalimenu's fee kept by Viva (Viva Connect)
   paid_at        TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_payments_table ON payments(table_id, closed);

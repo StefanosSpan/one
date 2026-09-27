@@ -979,8 +979,76 @@ function renderStore() {
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
+
+// Viva Connect: the owner connects their Viva account with one button. Viva handles sign-up and verification.
+function drawConnect(s, vc) {
+  const box = $('#connectBox');
+  const isv = s.payments.isv || null;
+  const fee = [vc.feePercent ? `${String(vc.feePercent).replace('.', ',')}%` : '', vc.feeCents ? euro(vc.feeCents) : ''].filter(Boolean).join(' + ');
+  const feeNote = `<p class="small muted" style="margin:.5rem 0 0">${fee ? `Χρέωση Kalimenu ανά πληρωμή: <b>${fee}</b> (όχι στο φιλοδώρημα).` : 'Το Kalimenu δεν κρατά προμήθεια από τις πληρωμές.'}
+    Ισχύουν οι χρεώσεις της Viva για τις κάρτες. Τα χρήματα πάνε στον λογαριασμό Viva σας και από εκεί στην τράπεζά σας.</p>`;
+  const demoField = vc.environment === 'demo' ? `<details style="margin-top:.6rem"><summary class="small">Δοκιμαστικό περιβάλλον: σύνδεση με Merchant ID</summary>
+    <p class="small muted">Στο δοκιμαστικό περιβάλλον η σελίδα εγγραφής της Viva δεν ανοίγει. Βάλτε το Merchant ID του δοκιμαστικού σας λογαριασμού
+      (demo.vivapayments.com → Settings → API Access).</p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"><input class="input" id="isvMerchant" placeholder="Merchant ID" value="${esc(isv?.merchantId || '')}" style="max-width:340px">
+    <button class="btn secondary" id="isvMerchantSave">Αποθήκευση</button></div></details>` : '';
+  let body;
+  if (isv?.merchantId) {
+    body = `<b style="color:var(--green)">${icon('check', 16)} Συνδεδεμένο με Viva</b>
+      <p class="small" style="margin:.3rem 0 .6rem">Λογαριασμός ${esc(isv.email || '')}${isv.verified ? '' : ' · <b>η Viva ελέγχει ακόμα τα στοιχεία σας</b>. Οι πληρωμές ενεργοποιούνται μόλις ολοκληρωθεί ο έλεγχος.'}</p>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"><button class="btn secondary sm" id="isvRefresh">${icon('refresh', 16)} Έλεγχος κατάστασης</button>
+      <button class="btn ghost sm" id="isvDisconnect">Αποσύνδεση</button></div>`;
+  } else if (isv?.accountId) {
+    body = `<b>Σχεδόν έτοιμο: ολοκληρώστε την εγγραφή στη Viva</b>
+      <p class="small" style="margin:.3rem 0 .6rem">Στη σελίδα της Viva συμπληρώνετε τα στοιχεία της επιχείρησης και το IBAN σας (ή συνδέεστε αν έχετε ήδη λογαριασμό).
+        Μετά γυρίστε εδώ και πατήστε «Έλεγχος κατάστασης».</p>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"><a class="btn sm" href="${esc(isv.redirectUrl || '#')}" target="_blank" rel="noopener">${icon('external', 16)} Συνέχεια στη Viva</a>
+      <button class="btn secondary sm" id="isvRefresh">${icon('refresh', 16)} Έλεγχος κατάστασης</button>
+      <button class="btn ghost sm" id="isvDisconnect">Ακύρωση</button></div>`;
+  } else {
+    body = `<b>Σύνδεση με Viva σε 3 βήματα</b>
+      <ol class="small" style="margin:.4rem 0 .6rem;padding-left:1.1rem">
+        <li>Πατάτε «Σύνδεση με Viva».</li>
+        <li>Στη σελίδα της Viva φτιάχνετε λογαριασμό (ή μπαίνετε στον υπάρχοντα) και δίνετε τα στοιχεία της επιχείρησης και το IBAN σας.</li>
+        <li>Γυρίζετε εδώ. Μόλις η Viva εγκρίνει τον λογαριασμό, οι πελάτες πληρώνουν από το κινητό.</li>
+      </ol>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"><input class="input" id="isvEmail" type="email" placeholder="E-mail επιχείρησης" value="${esc(s.restaurant?.email || '')}" style="max-width:280px">
+      <button class="btn" id="isvStart">Σύνδεση με Viva</button></div>`;
+  }
+  box.innerHTML = body + demoField + feeNote;
+  const run = async (fn) => { try { await fn(); } catch (err) { toast(err.message, 'err'); } };
+  $('#isvStart', box)?.addEventListener('click', () => run(async () => {
+    const win = window.open('', '_blank'); // opened on the click, so popup blockers allow it
+    const r = await api('/api/admin/payments/viva-connect', { method: 'POST', body: { email: $('#isvEmail').value.trim() } })
+      .catch((err) => { win?.close(); throw err; });
+    if (win) win.location = r.redirectUrl; else location.href = r.redirectUrl;
+    render();
+  }));
+  $('#isvRefresh', box)?.addEventListener('click', () => run(async () => {
+    const r = await api('/api/admin/payments/viva-connect/refresh', { method: 'POST' });
+    toast(r.isv?.merchantId ? 'Ο λογαριασμός Viva συνδέθηκε' : 'Η εγγραφή στη Viva δεν έχει ολοκληρωθεί ακόμα', r.isv?.merchantId ? 'ok' : '');
+    render();
+  }));
+  $('#isvDisconnect', box)?.addEventListener('click', () => run(async () => {
+    if (!confirm('Αποσύνδεση από τη Viva; Οι πελάτες δεν θα μπορούν να πληρώνουν από το κινητό.')) return;
+    await api('/api/admin/payments/viva-connect', { method: 'DELETE' });
+    render();
+  }));
+  $('#isvMerchantSave', box)?.addEventListener('click', () => run(async () => {
+    await api('/api/admin/payments/viva-connect', { method: 'POST', body: { merchantId: $('#isvMerchant').value.trim() } });
+    toast('Αποθηκεύτηκε', 'ok'); render();
+  }));
+  // Coming back from Viva, or still waiting: check the status once.
+  if (isv?.accountId && !isv.merchantId && !drawConnect.checked) {
+    drawConnect.checked = true;
+    api('/api/admin/payments/viva-connect/refresh', { method: 'POST' }).then((r) => { if (r.isv?.merchantId) render(); }).catch(() => {});
+  }
+}
+
 function renderSettings() {
   const s = settings;
+  const vc = s.vivaConnect || { available: false };
+  const chosen = s.payments.chosen === 'off' && s.payments.clientId ? 'viva' : s.payments.chosen || 'off';
   const dbInfo = s.database === 'postgres'
     ? 'PostgreSQL (ορίζεται με τη μεταβλητή DATABASE_URL).'
     : 'SQLite, στο αρχείο <code>data/taverna.db</code> του server. Για online φιλοξενία ορίστε <code>DATABASE_URL</code> ώστε να χρησιμοποιηθεί PostgreSQL.';
@@ -995,11 +1063,13 @@ function renderSettings() {
     <h3>Πληρωμή από το κινητό του πελάτη</h3>
     <p class="muted small" style="margin-top:0">Ο πελάτης πληρώνει όλο τον λογαριασμό, μόνο τα δικά του πιάτα ή ίσο μερίδιο, με φιλοδώρημα.
       Τα χρήματα πάνε κατευθείαν στον δικό σας λογαριασμό Viva Wallet.</p>
-    <select class="input" id="payProvider" style="max-width:380px">
-      <option value="off" ${s.payments.provider === 'off' ? 'selected' : ''}>Απενεργοποιημένη (μετρητά ή κάρτα στη θέση)</option>
-      <option value="viva" ${s.payments.provider === 'viva' || (s.payments.provider === 'off' && s.payments.clientId) ? 'selected' : ''}>Viva Wallet</option>
-      ${s.demoPaymentsAllowed ? `<option value="demo" ${s.payments.provider === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (χωρίς χρέωση)</option>` : ''}
+    <select class="input" id="payProvider" style="max-width:420px">
+      <option value="off" ${chosen === 'off' ? 'selected' : ''}>Απενεργοποιημένη (μετρητά ή κάρτα στη θέση)</option>
+      ${vc.available ? `<option value="viva-connect" ${chosen === 'viva-connect' ? 'selected' : ''}>Viva Wallet · σύνδεση με ένα κουμπί (προτείνεται)</option>` : ''}
+      <option value="viva" ${chosen === 'viva' ? 'selected' : ''}>${vc.available ? 'Viva Wallet · με δικά μου κλειδιά API' : 'Viva Wallet'}</option>
+      ${s.demoPaymentsAllowed ? `<option value="demo" ${chosen === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (χωρίς χρέωση)</option>` : ''}
     </select>
+    ${vc.available ? `<div id="connectBox" class="note-box" style="margin-top:.7rem"></div>` : ''}
     <div id="vivaBox" class="note-box" style="margin-top:.7rem">
       <b>Σύνδεση Viva Wallet</b>
       <ol class="small" style="margin:.4rem 0 .6rem;padding-left:1.1rem">
@@ -1127,9 +1197,13 @@ function renderSettings() {
     stations.push({ id: id.slice(0, 20), name }); drawStations();
   };
   drawStations();
-  const syncViva = () => { $('#vivaBox').hidden = $('#payProvider').value !== 'viva'; };
+  const syncViva = () => {
+    $('#vivaBox').hidden = $('#payProvider').value !== 'viva';
+    if ($('#connectBox')) $('#connectBox').hidden = $('#payProvider').value !== 'viva-connect';
+  };
   $('#payProvider').onchange = syncViva;
   syncViva();
+  if (vc.available) drawConnect(s, vc);
   $('#copyMenu').onclick = async () => {
     try { await navigator.clipboard.writeText(s.menuUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#menuUrl').select(); }
   };
