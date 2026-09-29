@@ -382,12 +382,15 @@ async function loadOrders(venueId, where, params = [], { order = 'o.id', limit }
     id: o.id, tableId: o.table_id, tableLabel: o.table_label, tableKind: o.table_kind, status: o.status, note: o.note,
     lang: o.lang, total: o.total_cents, paid: !!o.paid, closed: !!o.closed,
     createdAt: o.created_at, updatedAt: o.updated_at,
-    tableZone: o.table_zone || '', etaAt: o.eta_at || '', channel: o.channel || 'table', guestId: o.guest_id || '',
+    tableZone: o.table_zone || '', etaAt: o.eta_at || '', acceptedAt: o.accepted_at || '', channel: o.channel || 'table', guestId: o.guest_id || '',
+    takenBy: o.taken_by || '', voids: parseList(o.voids),
     customer: o.channel === 'takeaway' ? { name: o.customer_name, phone: o.customer_phone, pickupAt: o.pickup_at } : null,
     items: byOrder.get(o.id).map((i) => ({ id: i.id, itemId: i.item_id, name: i.name, qty: i.qty, price: i.price_cents, note: i.note, options: i.options,
       station: i.station || 'kitchen', ready: !!i.ready, paidQty: Number(i.paid_qty) || 0 })),
   }));
 }
+
+const parseList = (v) => { try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; } catch { return []; } };
 
 const loadOrder = async (venueId, id) => (await loadOrders(venueId, 'o.id = ?', [id]))[0];
 
@@ -404,10 +407,13 @@ async function paidFor(tableId) {
   return Number(paid);
 }
 
+// On the bill: everything except rejected orders and orders still waiting for the staff's approval.
+const isBillable = (o) => o.status !== 'rejected' && o.status !== 'pending';
+
 async function tableState(table) {
   const orders = await loadOrders(table.venue_id, 'o.table_id = ? AND o.closed = 0', [table.id]);
-  const billable = orders.filter((o) => o.status !== 'rejected');
-  const total = billable.reduce((s, o) => s + o.total, 0);
+  const billable = orders.filter(isBillable);
+  const total = billable.reduce((sum, o) => sum + o.total, 0);
   const paid = Math.min(await paidFor(table.id), total);
   const calls = await loadCalls(table.venue_id, "c.status = 'open' AND c.table_id = ?", [table.id]);
   return { orders, calls, bill: { total, paid, due: total - paid } };
@@ -491,7 +497,8 @@ app.post('/api/public/table/:token/orders', wrap(async (req, res) => {
 }));
 
 // Validates and stores an order (prices from the server, stock, stations). `extra` holds takeaway details.
-async function placeOrder(venue, table, body, extra = null) {
+// `staff`: name of the staff member who took the order at the table (goes straight to the kitchen).
+async function placeOrder(venue, table, body, extra = null, { staff = '' } = {}) {
   const lines = Array.isArray(body.items) ? body.items : [];
   if (!lines.length || lines.length > 40) fail(400, 'empty_order');
 
@@ -513,7 +520,7 @@ async function placeOrder(venue, table, body, extra = null) {
     prepared.push({ item, qty, unit, chosen, note: cleanText(l.note, 200), station: visible.get(item.category_id).station || 'kitchen' });
   }
   const total = prepared.reduce((s, p) => s + p.unit * p.qty, 0);
-  const status = venue.settings.requireApproval ? 'pending' : 'accepted';
+  const status = venue.settings.requireApproval && !staff ? 'pending' : 'accepted';
   const lang = LANGS.includes(body.lang) ? body.lang : 'el';
   let stockChanged = false;
 
@@ -521,9 +528,9 @@ async function placeOrder(venue, table, body, extra = null) {
     const ts = now();
     const guestId = /^[\w-]{8,40}$/.test(body.guestId || '') ? body.guestId : '';
     const id = await t.insert(`INSERT INTO orders (venue_id, table_id, status, note, lang, total_cents, created_at, updated_at, guest_id,
-      channel, customer_name, customer_phone, pickup_at, pickup_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(body.note, 300), lang, total, ts, ts, guestId,
-      extra ? 'takeaway' : 'table', extra?.name || '', extra?.phone || '', extra?.pickupAt || '', extra?.code || '']);
+      channel, customer_name, customer_phone, pickup_at, pickup_code, taken_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venue.id, table.id, status, cleanText(body.note, 300), lang, total, ts, ts, guestId,
+      extra ? 'takeaway' : 'table', extra?.name || '', extra?.phone || '', extra?.pickupAt || '', extra?.code || '', cleanText(staff, 60)]);
     for (const p of prepared) {
       await t.insert('INSERT INTO order_items (order_id, item_id, name, qty, price_cents, note, options, station) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [id, p.item.id, JSON.stringify(p.item.name), p.qty, p.unit, p.note, JSON.stringify(p.chosen), p.station]);
@@ -695,7 +702,7 @@ async function settlePayment(payment, venue) {
   if (!done) return;
   const table = mapTable(await db.get('SELECT * FROM tables WHERE id = ?', [payment.table_id]));
   const { bill } = await tableState(table);
-  if (bill.due <= 0) await db.run("UPDATE orders SET paid = 1 WHERE table_id = ? AND closed = 0 AND status != 'rejected'", [table.id]);
+  if (bill.due <= 0) await db.run("UPDATE orders SET paid = 1 WHERE table_id = ? AND closed = 0 AND status NOT IN ('rejected', 'pending')", [table.id]);
   emit(staffChannel(venue), 'table:paid', { tableId: table.id, tableLabel: table.label, amount: payment.amount_cents,
     tip: payment.tip_cents, method: payment.method, due: bill.due });
   await notifyTable(table.id);
@@ -716,7 +723,7 @@ app.post('/api/public/table/:token/pay', wrap(async (req, res) => {
   let amount = state.bill.due;
   let lines = [];
   if (mode === 'items') {
-    const open = new Map(state.orders.filter((o) => o.status !== 'rejected').flatMap((o) => o.items).map((i) => [i.id, i]));
+    const open = new Map(state.orders.filter(isBillable).flatMap((o) => o.items).map((i) => [i.id, i]));
     lines = (Array.isArray(req.body.items) ? req.body.items : []).slice(0, 100).map(([id, qty]) => {
       const it = open.get(Number(id));
       const n = Math.trunc(Number(qty));
@@ -862,7 +869,7 @@ app.get('/api/staff/overview', requireStaff(), wrap(async (req, res) => {
   const calls = await loadCalls(v);
   const tableSummaries = tables.map((t) => {
     const mine = orders.filter((o) => o.tableId === t.id && o.status !== 'rejected');
-    const total = mine.reduce((a, o) => a + o.total, 0);
+    const total = mine.filter(isBillable).reduce((a, o) => a + o.total, 0);
     const paid = Math.min(paidBy.get(t.id) || 0, total);
     return { id: t.id, label: t.label, kind: t.kind, zone: t.zone, active: t.active, orders: mine.length, total, paid,
       calls: calls.filter((c) => c.tableId === t.id).map((c) => c.type) };
@@ -893,6 +900,7 @@ app.post('/api/staff/orders/:id/status', requireStaff(), wrap(async (req, res) =
     fail(403, 'Δεν επιτρέπεται από την κουζίνα');
   }
   await db.run('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?', [next, now(), order.id]);
+  if (next === 'rejected' && await db.tx((t) => restoreStock(t, order.items.map((i) => [i.itemId, i.qty])))) broadcastMenuUpdate(req.venue);
   if (next === 'accepted' && order.status === 'pending') await startClock(req.venue, order.id);
   if (next === 'ready') await db.run('UPDATE order_items SET ready = 1 WHERE order_id = ?', [order.id]);
   if (next === 'preparing' || next === 'accepted') await db.run('UPDATE order_items SET ready = 0 WHERE order_id = ? AND ? = 1', [order.id, order.status === 'ready' ? 1 : 0]);
@@ -948,6 +956,98 @@ app.post('/api/staff/calls/:id/done', requireStaff('waiter'), wrap(async (req, r
 }));
 
 // ---------------------------------------------------------------------------
+// Waiter at the table: taking an order for the guests, correcting an order, moving a party to another spot.
+// ---------------------------------------------------------------------------
+// Portions of dishes that keep stock go back when an order (or part of it) is cancelled.
+// Returns true when some stock changed. `lines` are [itemId, qty] pairs.
+async function restoreStock(t, lines) {
+  let changed = false;
+  for (const [itemId, qty] of lines) {
+    const row = itemId && await t.get('SELECT stock FROM items WHERE id = ?', [itemId]);
+    if (row?.stock == null) continue;
+    await t.run('UPDATE items SET stock = stock + ? WHERE id = ?', [qty, itemId]);
+    // It was sold out because its stock ran out: it can be ordered again.
+    if (Number(row.stock) === 0) await t.run('UPDATE items SET available = 1 WHERE id = ?', [itemId]);
+    changed = true;
+  }
+  return changed;
+}
+
+const STAFF_ROLE_NAMES = { admin: 'Διαχείριση', waiter: 'Σερβιτόρος', kitchen: 'Κουζίνα' };
+const staffName = (req) => req.member?.name || STAFF_ROLE_NAMES[req.role] || '';
+
+async function staffTable(req, id = req.params.id) {
+  const table = mapTable(await db.get("SELECT * FROM tables WHERE id = ? AND venue_id = ? AND kind != 'takeaway'", [Number(id) || 0, req.venue.id]));
+  if (!table) fail(404, 'Η θέση δεν βρέθηκε');
+  return table;
+}
+
+// The menu as offered at this spot right now (hours, zones, all-inclusive and happy hour prices applied).
+app.get('/api/staff/tables/:id/menu', requireStaff('waiter'), wrap(async (req, res) => {
+  const table = await staffTable(req);
+  const { categories, items } = await menuFor(req.venue, table);
+  res.json({
+    categories: categories.map((c) => ({ id: c.id, name: c.name, icon: c.icon })),
+    items: items.filter((i) => i.available).map((i) => ({ id: i.id, categoryId: i.category_id, name: i.name, price: i.price_cents,
+      options: i.options, lowStock: i.lowStock, happy: i.happy, included: i.included })),
+  });
+}));
+
+// An order taken by the waiter: already approved, it goes straight to the kitchen and onto the bill.
+app.post('/api/staff/tables/:id/orders', requireStaff('waiter'), wrap(async (req, res) => {
+  const table = await staffTable(req);
+  if (!table.active) fail(409, 'Η θέση είναι ανενεργή');
+  if (!features(req.venue).ordering) fail(403, 'Οι παραγγελίες είναι κλειστές (δεν υπάρχει ενεργή συνδρομή)');
+  const b = req.body || {};
+  res.status(201).json(await placeOrder(req.venue, table, { items: b.items, note: b.note, lang: 'el' }, null, { staff: staffName(req) }));
+}));
+
+// Correction: fewer portions of a dish, or the dish removed (wrong entry, the guest changed their mind, returned dish).
+// Every correction is kept on the order with who made it, so the owner sees it in the order history.
+app.post('/api/staff/orders/:id/void', requireStaff('waiter'), wrap(async (req, res) => {
+  const order = await loadOrder(req.venue.id, Number(req.params.id) || 0);
+  if (!order || order.closed) fail(404, 'Η παραγγελία δεν βρέθηκε');
+  if (order.status === 'rejected') fail(409, 'Η παραγγελία έχει ήδη ακυρωθεί');
+  const line = order.items.find((i) => i.id === Number(req.body?.line));
+  if (!line) fail(404, 'Το πιάτο δεν βρέθηκε');
+  const qty = Math.trunc(Number(req.body?.qty));
+  if (!(qty >= 1)) fail(400, 'Μη έγκυρη ποσότητα');
+  if (qty > line.qty - line.paidQty) fail(409, line.paidQty ? 'Μέρος του πιάτου έχει ήδη πληρωθεί από το κινητό' : 'Μη έγκυρη ποσότητα');
+  const reason = cleanText(req.body?.reason, 120);
+  const stockChanged = await db.tx(async (t) => {
+    if (qty === line.qty) await t.run('DELETE FROM order_items WHERE id = ?', [line.id]);
+    else await t.run('UPDATE order_items SET qty = qty - ? WHERE id = ?', [qty, line.id]);
+    const { total, n } = await t.get('SELECT COALESCE(SUM(qty * price_cents), 0) AS total, COUNT(*) AS n FROM order_items WHERE order_id = ?', [order.id]);
+    const voids = [...order.voids, { name: line.name, options: line.options, qty, price: line.price, reason, by: staffName(req), at: now() }];
+    await t.run('UPDATE orders SET total_cents = ?, voids = ?, status = ?, updated_at = ? WHERE id = ?',
+      [Number(total), JSON.stringify(voids.slice(-100)), Number(n) ? order.status : 'rejected', now(), order.id]);
+    // Portions that were never cooked go back to stock.
+    return ['pending', 'accepted'].includes(order.status) && restoreStock(t, [[line.itemId, qty]]);
+  });
+  if (stockChanged) broadcastMenuUpdate(req.venue);
+  res.json(await orderChanged(req.venue, order.id));
+}));
+
+// The party moves to another spot: open orders, payments made from the phone and open calls go with them.
+app.post('/api/staff/tables/:id/move', requireStaff('waiter'), wrap(async (req, res) => {
+  const from = await staffTable(req);
+  const to = await staffTable(req, req.body?.to);
+  if (from.id === to.id) fail(400, 'Διαλέξτε άλλη θέση');
+  if (!to.active) fail(409, 'Η θέση είναι ανενεργή');
+  const { n } = await db.get('SELECT COUNT(*) AS n FROM orders WHERE table_id = ? AND closed = 0', [from.id]);
+  if (!Number(n)) fail(409, 'Δεν υπάρχουν ανοιχτές παραγγελίες για μεταφορά');
+  await db.tx(async (t) => {
+    await t.run('UPDATE orders SET table_id = ?, updated_at = ? WHERE table_id = ? AND closed = 0', [to.id, now(), from.id]);
+    await t.run('UPDATE payments SET table_id = ? WHERE table_id = ? AND closed = 0', [to.id, from.id]);
+    await t.run("UPDATE calls SET table_id = ? WHERE table_id = ? AND status = 'open'", [to.id, from.id]);
+  });
+  emit(staffChannel(req.venue), 'order:update', { moved: [from.id, to.id] });
+  await notifyTable(from.id);
+  await notifyTable(to.id);
+  res.json({ ok: true, to: { id: to.id, label: to.label, kind: to.kind } });
+}));
+
+// ---------------------------------------------------------------------------
 // Receipts (bills). Stored permanently; NOT fiscal documents – the legal receipt comes from the cash register.
 // ---------------------------------------------------------------------------
 const PAYMENTS = ['cash', 'card', 'online', 'room'];
@@ -991,7 +1091,10 @@ app.post('/api/staff/tables/:id/close', requireStaff('waiter'), wrap(async (req,
   const v = req.venue.id;
   const table = mapTable(await db.get('SELECT * FROM tables WHERE id = ? AND venue_id = ?', [id, v]));
   if (!table) fail(404, 'Το τραπέζι δεν βρέθηκε');
-  const orders = (await loadOrders(v, 'o.table_id = ? AND o.closed = 0', [id])).filter((o) => o.status !== 'rejected');
+  const open = await loadOrders(v, 'o.table_id = ? AND o.closed = 0', [id]);
+  const orders = open.filter(isBillable);
+  // Orders nobody approved were never made: they close as rejected and their portions go back to stock.
+  const unapproved = open.filter((o) => o.status === 'pending');
   const pays = await db.all("SELECT method, amount_cents, tip_cents FROM payments WHERE table_id = ? AND closed = 0 AND status = 'paid'", [id]);
   const total = orders.reduce((sum, o) => sum + o.total, 0);
   const paidOnPhone = pays.reduce((sum, p) => sum + p.amount_cents, 0);
@@ -1002,11 +1105,16 @@ app.post('/api/staff/tables/:id/close', requireStaff('waiter'), wrap(async (req,
   const fiscalRef = cleanText(req.body?.fiscalRef, 80);
   const receipt = await db.tx(async (t) => {
     const r = orders.length ? await issueReceipt(t, table, orders, { payment, fiscalRef, tip, guestIds }) : null;
+    for (const o of unapproved) {
+      await t.run("UPDATE orders SET status = 'rejected' WHERE id = ?", [o.id]);
+      await restoreStock(t, o.items.map((i) => [i.itemId, i.qty]));
+    }
     await t.run('UPDATE payments SET closed = 1 WHERE table_id = ? AND closed = 0', [id]);
     await t.run('UPDATE orders SET closed = 1, paid = 1, updated_at = ? WHERE table_id = ? AND closed = 0', [now(), id]);
     await t.run("UPDATE calls SET status = 'done' WHERE table_id = ? AND status = 'open'", [id]);
     return r;
   });
+  if (unapproved.length) broadcastMenuUpdate(req.venue);
   emit(staffChannel(req.venue), 'table:closed', { tableId: id });
   // The guest gets a link to a digital copy of the bill.
   if (receipt) emit(`table:${v}:${id}`, 'receipt', { number: receipt.number, url: `/r/${receipt.token}` });
@@ -1540,18 +1648,18 @@ admin.get('/stats', wrap(async (req, res) => {
   const since = start.toISOString();
   const v = req.venue.id;
   const agg = await db.get(`SELECT COUNT(*) AS orders, COALESCE(SUM(total_cents), 0) AS revenue
-    FROM orders WHERE venue_id = ? AND created_at >= ? AND status != 'rejected'`, [v, since]);
+    FROM orders WHERE venue_id = ? AND created_at >= ? AND status NOT IN ('rejected', 'pending')`, [v, since]);
   agg.orders = Number(agg.orders);
   agg.revenue = Number(agg.revenue);
   const top = (await db.all(`SELECT oi.item_id, MIN(oi.name) AS name, SUM(oi.qty) AS qty, SUM(oi.qty * oi.price_cents) AS revenue
     FROM order_items oi JOIN orders o ON o.id = oi.order_id
-    WHERE o.venue_id = ? AND o.created_at >= ? AND o.status != 'rejected'
+    WHERE o.venue_id = ? AND o.created_at >= ? AND o.status NOT IN ('rejected', 'pending')
     GROUP BY oi.item_id ORDER BY qty DESC LIMIT 8`, [v, since]))
     .map((r) => ({ ...r, qty: Number(r.qty), revenue: Number(r.revenue), name: JSON.parse(r.name) }));
-  const langs = (await db.all(`SELECT lang, COUNT(*) AS n FROM orders WHERE venue_id = ? AND created_at >= ? AND status != 'rejected'
+  const langs = (await db.all(`SELECT lang, COUNT(*) AS n FROM orders WHERE venue_id = ? AND created_at >= ? AND status NOT IN ('rejected', 'pending')
     GROUP BY lang ORDER BY n DESC`, [v, since])).map((r) => ({ ...r, n: Number(r.n) }));
   const byDay = (await db.all(`SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS orders, SUM(total_cents) AS revenue
-    FROM orders WHERE venue_id = ? AND created_at >= ? AND status != 'rejected' GROUP BY substr(created_at, 1, 10) ORDER BY day`, [v, since]))
+    FROM orders WHERE venue_id = ? AND created_at >= ? AND status NOT IN ('rejected', 'pending') GROUP BY substr(created_at, 1, 10) ORDER BY day`, [v, since]))
     .map((r) => ({ ...r, orders: Number(r.orders), revenue: Number(r.revenue) }));
   const { n: rejected } = await db.get("SELECT COUNT(*) AS n FROM orders WHERE venue_id = ? AND created_at >= ? AND status = 'rejected'", [v, since]);
   res.json({ days, ...agg, avg: agg.orders ? Math.round(agg.revenue / agg.orders) : 0, rejected: Number(rejected), top, langs, byDay });
@@ -1581,10 +1689,11 @@ async function historyQuery(req) {
 
 admin.get('/orders', wrap(async (req, res) => {
   const orders = await historyQuery(req);
-  const counted = orders.filter((o) => o.status !== 'rejected');
+  // Orders still waiting for approval are not counted yet (they are not on any bill).
+  const counted = orders.filter(isBillable);
   res.json({
     orders,
-    summary: { count: counted.length, revenue: counted.reduce((s, o) => s + o.total, 0), rejected: orders.length - counted.length },
+    summary: { count: counted.length, revenue: counted.reduce((s, o) => s + o.total, 0), rejected: orders.filter((o) => o.status === 'rejected').length },
   });
 }));
 
@@ -1592,12 +1701,13 @@ admin.get('/orders.csv', wrap(async (req, res) => {
   const orders = await historyQuery(req);
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const money = (c) => (c / 100).toFixed(2).replace('.', ',');
-  const rows = [['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Κατάσταση', 'Γλώσσα', 'Πιάτα', 'Σημείωση', 'Σύνολο (€)', 'Εξοφλήθηκε']];
+  const rows = [['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Κατάσταση', 'Γλώσσα', 'Πιάτα', 'Σημείωση', 'Σύνολο (€)', 'Εξοφλήθηκε', 'Καταχώριση', 'Διορθώσεις']];
   for (const o of [...orders].reverse()) {
     const d = new Date(o.createdAt);
     rows.push([o.id, d.toLocaleDateString('el-GR'), d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }),
       `${KIND_EL[o.tableKind] || ''} ${o.tableLabel}`, STATUS_EL[o.status] || o.status, o.lang.toUpperCase(),
-      o.items.map((i) => `${i.qty}x ${i.name.el || i.name.en || ''}${i.options.length ? ` (${i.options.map((x) => x.choice.el || x.choice.en).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? 'Ναι' : 'Όχι']);
+      o.items.map((i) => `${i.qty}x ${i.name.el || i.name.en || ''}${i.options.length ? ` (${i.options.map((x) => x.choice.el || x.choice.en).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? 'Ναι' : 'Όχι',
+      o.takenBy || 'Πελάτης (QR)', o.voids.map((v) => `-${v.qty}x ${v.name.el || v.name.en || ''} (${v.by}${v.reason ? `: ${v.reason}` : ''})`).join(', ')]);
   }
   // Semicolons + BOM so Excel in Greek locale opens it with correct columns and characters.
   const csv = `﻿${rows.map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;

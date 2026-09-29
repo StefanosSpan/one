@@ -1,4 +1,5 @@
 import { $, $$, esc, api, toast, beep } from './util.js';
+import { icon } from './icons.js';
 import { requireLogin, topBar, liveStaff, itemName, optionNames, spotName } from './staff.js';
 
 const me = await requireLogin(['kitchen']);
@@ -32,7 +33,8 @@ function start() {
   document.querySelector('#soundBtn').before(stSel);
   const mine = (o) => (station === 'all' ? o.items : o.items.filter((i) => i.station === station));
   const apBtn = document.createElement('button');
-  const drawAp = () => { apBtn.innerHTML = `<span>Αυτόματη εκτύπωση: ${autoPrint ? 'ναι' : 'όχι'}</span>`; };
+  apBtn.title = 'Αυτόματη εκτύπωση νέων παραγγελιών';
+  const drawAp = () => { apBtn.innerHTML = `${icon('printer', 16)}<span>Αυτόματη εκτύπωση: ${autoPrint ? 'ναι' : 'όχι'}</span>`; apBtn.classList.toggle('on', autoPrint); };
   apBtn.onclick = () => { autoPrint = !autoPrint; try { localStorage.setItem(AUTO_KEY, autoPrint ? '1' : '0'); } catch { /* ignore */ } drawAp(); };
   drawAp();
   document.querySelector('#soundBtn').before(apBtn);
@@ -51,11 +53,26 @@ function start() {
     setTimeout(done, 60_000); // safety net if the print dialog never reports back
   };
   let orders = [];
+  let waiting = 0; // orders the waiter has not approved yet
   let known = null;
+
+  // A kitchen screen stays on: the tablet must not go to sleep during service.
+  let wake = null;
+  const keepAwake = async () => { try { if (!wake && document.visibilityState === 'visible') { wake = await navigator.wakeLock?.request('screen'); wake?.addEventListener('release', () => { wake = null; }); } } catch { /* not supported */ } };
+  document.addEventListener('visibilitychange', keepAwake);
+  keepAwake();
+
+  // Browsers play sound only after a tap: remind the kitchen once, until someone touches the screen.
+  const hint = document.createElement('button');
+  hint.className = 'sound-hint';
+  hint.innerHTML = `${icon('volume', 18)} Πατήστε εδώ για να ακούγεται ήχος σε κάθε νέα παραγγελία`;
+  document.querySelector('.bar').after(hint);
+  document.addEventListener('pointerdown', () => { hint.remove(); keepAwake(); }, { once: true });
 
   async function load() {
     try { ({ orders } = await api('/api/staff/overview')); } catch { return; }
     orders = orders.filter((o) => mine(o).length);
+    waiting = orders.filter((o) => o.status === 'pending').length;
     const incoming = new Set(orders.filter((o) => o.status === 'accepted').map((o) => o.id));
     if (known && autoPrint) {
       for (const id of incoming) if (!known.has(id) && !printed.has(id)) { printed.add(id); printQueue.push(id); }
@@ -83,17 +100,20 @@ function start() {
     return `<span class="eta ${m < 0 ? 'late' : ''}">${m >= 0 ? `~${m}′` : `+${-m}′`}</span>`;
   };
 
+  // Time counts from when the order reached the kitchen (after the waiter's approval).
+  const since = (o) => o.acceptedAt || o.createdAt;
   function ticket(o, actions) {
-    const e = elapsed(o.createdAt);
-    return `<div class="ticket s-${o.status} ${e.late && o.status !== 'ready' ? 'late' : ''}">
+    const e = elapsed(since(o));
+    return `<div class="ticket s-${o.status} ${e.late && o.status !== 'ready' ? 'late' : ''}" data-status="${o.status}">
       <div class="ticket-head"><span class="tbl">${o.channel === 'takeaway' ? `Παραλαβή · ${esc(o.customer?.name || '')}` : esc(spotName(o.tableKind, o.tableLabel))}</span>${eta(o)}
-        <span class="elapsed" data-since="${esc(o.createdAt)}"><span>${e.text}</span></span></div>
+        <span class="elapsed" data-since="${esc(since(o))}"><span>${e.text}</span></span></div>
       <div class="ticket-body">
-        <div class="meta">#${o.id} · <a class="print-link" href="/staff/print/order/${o.id}${station !== 'all' ? `?station=${encodeURIComponent(station)}` : ''}" target="_blank">Εκτύπωση</a>
+        <div class="meta">#${o.id}${o.takenBy ? ` · ${esc(o.takenBy)}` : ''} · <a class="print-link" href="/staff/print/order/${o.id}${station !== 'all' ? `?station=${encodeURIComponent(station)}` : ''}" target="_blank">Εκτύπωση</a>
           ${o.status !== 'ready' ? ` · <button class="linklike" data-eta="${o.id}">+5′</button>` : ''}</div>
         <div class="items">${mine(o).map((i) => `<div><span class="q">${i.qty}×</span>${esc(itemName(i.name))}
           ${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</div>`).join('')}</div>
         ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
+        ${o.voids?.length ? `<div class="kvoid">Ακυρώθηκε: ${esc(o.voids.map((v) => `${v.qty}× ${itemName(v.name)}`).join(', '))}</div>` : ''}
         <div class="row">${actions}</div>
       </div>
     </div>`;
@@ -106,7 +126,7 @@ function start() {
     const ready = orders.filter((o) => o.status === 'ready' || (doneHere(o) && o.status !== 'served'));
     const col = (title, list, fn) => `<section class="kcol"><h2><span>${title}</span><span class="n">${list.length}</span></h2>
       ${list.length ? list.map(fn).join('') : '<p class="kempty">Καμία παραγγελία</p>'}</section>`;
-    $('#app').innerHTML = `<div class="kcols">
+    $('#app').innerHTML = `${waiting ? `<p class="kwaiting">${waiting === 1 ? '1 παραγγελία περιμένει' : `${waiting} παραγγελίες περιμένουν`} έγκριση από τον σερβιτόρο</p>` : ''}<div class="kcols">
       ${col('Νέες', neu, (o) => ticket(o, `
         <button class="btn secondary sm" data-id="${o.id}" data-s="preparing">Έναρξη</button>
         <button class="btn success sm" data-id="${o.id}" data-s="ready">Έτοιμο</button>`))}
@@ -124,6 +144,8 @@ function start() {
     $$('[data-since]').forEach((el) => {
       const e = elapsed(el.dataset.since);
       el.querySelector('span').textContent = e.text;
+      const t = el.closest('.ticket');
+      t.classList.toggle('late', e.late && t.dataset.status !== 'ready');
     });
   }, 1000);
 

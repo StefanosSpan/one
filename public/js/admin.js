@@ -42,6 +42,7 @@ function start() {
   const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['look', 'Εμφάνιση'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
   $$('#tabs button').forEach((b) => b.onclick = () => go(b.dataset.tab));
+  $('#tabs .active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   liveStaff((evt) => { if ((tab === 'dash' || tab === 'history') && evt.startsWith('order')) render(); });
   render();
 }
@@ -61,6 +62,7 @@ async function venueSwitcher() {
 function go(next) {
   tab = next;
   $$('#tabs button').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
+  $('#tabs .active')?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   history.replaceState(null, '', tab === 'dash' ? location.pathname : `?tab=${tab}`);
   render();
 }
@@ -407,14 +409,16 @@ async function renderHistory() {
       <div class="stat"><div class="l">Απορρίφθηκαν</div><div class="v">${summary.rejected}</div></div>
     </div>
     <div class="table-wrap">
-      <table class="data">
+      <table class="data cards-hist">
         <thead><tr><th>#</th><th>Ημερομηνία</th><th>Θέση</th><th>Πιάτα</th><th>Γλώσσα</th><th>Κατάσταση</th><th class="num">Σύνολο</th></tr></thead>
         <tbody>
           ${orders.length ? orders.map((o) => `<tr>
             <td>${o.id}</td>
             <td style="white-space:nowrap">${when(o.createdAt)}</td>
             <td style="white-space:nowrap">${esc((KIND[o.tableKind] || KIND.table).one)} ${esc(o.tableLabel)}</td>
-            <td class="items">${o.items.map((i) => `${i.qty}× ${esc(itemName(i.name))}${optionNames(i) ? ` (${esc(optionNames(i))})` : ''}`).join(', ')}${o.note ? `<br><i>${esc(o.note)}</i>` : ''}</td>
+            <td class="items">${o.items.map((i) => `${i.qty}× ${esc(itemName(i.name))}${optionNames(i) ? ` (${esc(optionNames(i))})` : ''}`).join(', ')}${o.note ? `<br><i>${esc(o.note)}</i>` : ''}
+              ${o.takenBy ? `<br><span class="muted small">Καταχώριση: ${esc(o.takenBy)}</span>` : ''}
+              ${o.voids.map((v) => `<br><span class="voided">Αφαιρέθηκε ${v.qty}× ${esc(itemName(v.name))} (${euro(v.qty * v.price)}) · ${esc(v.by)}${v.reason ? ` · ${esc(v.reason)}` : ''}</span>`).join('')}</td>
             <td>${esc(o.lang.toUpperCase())}</td>
             <td><span class="badge ${o.status === 'rejected' ? 'red' : o.status === 'served' ? 'green' : 'gray'}">${STATUS_LABEL[o.status]}</span>${o.paid ? ' <span class="badge green">Εξοφλήθηκε</span>' : ''}</td>
             <td class="num">${euro(o.total)}</td>
@@ -450,7 +454,7 @@ async function renderReceipts() {
       <div class="stat"><div class="l">Κάρτα / Online</div><div class="v">${euro(summary.byPayment.card + summary.byPayment.online)}</div></div>
     </div>
     <div class="table-wrap">
-      <table class="data">
+      <table class="data cards-rec">
         <thead><tr><th>Αριθμός</th><th>Ημερομηνία</th><th>Θέση</th><th>Πληρωμή</th><th>Αρ. απόδειξης ταμειακής / ΜΑΡΚ</th><th class="num">Σύνολο</th><th></th></tr></thead>
         <tbody>
           ${receipts.length ? receipts.map((r) => `<tr>
@@ -505,13 +509,13 @@ async function renderMenu() {
           <button class="mini" data-cedit="${c.id}" title="Επεξεργασία">${icon('edit', 15)}</button>
           <button class="btn sm" data-iadd="${c.id}">Πιάτο</button>
         </div>
-        ${list.map((i, ii) => `<div class="list-item ${i.available ? '' : 'off'}">
-          <div class="thumb-sm">${i.image_url ? `<img src="${esc(i.image_url)}" alt="">` : icon('image', 18)}</div>
+        ${list.map((i, ii) => `<div class="list-item rich ${i.available ? '' : 'off'}">
+          <div class="thumb-sm">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" onerror="this.remove()">` : icon('image', 18)}</div>
           <div class="grow"><b>${esc(itemName(i.name))}</b>
             <span class="muted small">${esc(i.description?.el || i.description?.en || '')}</span>
             <div class="langs-mini">${settings.languages.map((l) => `<span class="${i.name[l] ? 'ok' : ''}" title="${LANGUAGES[l].name}">${LANGUAGES[l].short}</span>`).join('')}</div>
           </div>
-          <b class="price">${euro(i.price_cents)}${i.happy_price_cents != null ? `<small class="muted"> HH ${euro(i.happy_price_cents)}</small>` : ''}
+          <b class="price lead2">${euro(i.price_cents)}${i.happy_price_cents != null ? `<small class="muted"> HH ${euro(i.happy_price_cents)}</small>` : ''}
             ${i.stock != null ? `<small class="badge ${i.stock ? 'gray' : 'red'}">${i.stock} μερ.</small>` : ''}</b>
           <label class="toggle" title="Διαθέσιμο"><input type="checkbox" data-avail="${i.id}" ${i.available ? 'checked' : ''}><span></span></label>
           <button class="mini" data-imove="${c.id}:${ii}" data-dir="-1">${icon('up', 15)}</button>
@@ -754,13 +758,13 @@ async function renderTables() {
       <button class="btn secondary sm" id="bulkAi">All-inclusive…</button>
     </div>
     <div class="cat-block">
-      ${tables.map((t) => `<div class="list-item ${t.active ? '' : 'off'}">
+      ${tables.map((t) => `<div class="list-item rich wide-lead ${t.active ? '' : 'off'}">
         <input type="checkbox" class="sel" value="${t.id}">
         <img class="qr-img" src="/api/admin/tables/${t.id}/qr.svg?v=${esc(t.token)}" alt="QR">
         <div class="grow"><b>${esc((KIND[t.kind] || KIND.table).one)} ${esc(t.label)}</b>
           ${t.zone ? `<span class="badge gray">${esc(t.zone)}</span>` : ''}${t.all_inclusive ? '<span class="badge amber">All-inclusive</span>' : ''}
-          <a class="small" href="${esc(t.url)}" target="_blank" style="word-break:break-all">${esc(t.url)}</a></div>
-        <label class="toggle" title="Ενεργή"><input type="checkbox" data-active="${t.id}" ${t.active ? 'checked' : ''}><span></span></label>
+          <a class="small url-line" href="${esc(t.url)}" target="_blank">${esc(t.url.replace(/^https?:\/\//, ''))}</a></div>
+        <label class="toggle lead2" title="Ενεργή"><input type="checkbox" data-active="${t.id}" ${t.active ? 'checked' : ''}><span></span></label>
         <a class="btn secondary sm" href="/staff/qr?ids=${t.id}" target="_blank" title="Εκτύπωση μόνο αυτού του QR">Εκτύπωση</a>
         <a class="btn secondary sm" href="/api/admin/tables/${t.id}/qr.png?ecl=H" download title="Λήψη εικόνας PNG για τυπογραφείο">PNG</a>
         <button class="mini" data-rename="${t.id}" title="Επεξεργασία">${icon('edit', 15)}</button>

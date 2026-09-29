@@ -764,7 +764,8 @@ function openBill() {
 // Pay from the phone: whole bill, only my dishes, or an equal share; with an optional tip.
 function openPay() {
   const pay = S.data.payments || {};
-  const lines = S.state.orders.filter((o) => o.status !== 'rejected').flatMap((o) => o.items)
+  // Only approved orders are on the bill.
+  const lines = S.state.orders.filter((o) => o.status !== 'rejected' && o.status !== 'pending').flatMap((o) => o.items)
     .map((i) => ({ ...i, left: i.qty - (i.paidQty || 0) })).filter((i) => i.left > 0);
   const st = { mode: 'all', picks: new Map(), people: 2, tip: 0 };
   const { el, close } = sheet('<div id="payBody"></div>');

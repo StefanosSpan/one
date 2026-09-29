@@ -51,7 +51,9 @@ const ADDED_COLUMNS = [['accounts', 'terms_version', "TEXT DEFAULT ''"], ['accou
   ['orders', 'pickup_code', "TEXT DEFAULT ''"],
   ['receipts', 'guest_ids', "TEXT DEFAULT '[]'"],
   ['receipts', 'tip_cents', "INTEGER DEFAULT 0"],
-  ['payments', 'fee_cents', "INTEGER DEFAULT 0"]];
+  ['payments', 'fee_cents', "INTEGER DEFAULT 0"],
+  ['orders', 'taken_by', "TEXT DEFAULT ''"],
+  ['orders', 'voids', "TEXT DEFAULT '[]'"]];
 async function addColumns(api, columns) {
   for (const [table, column, ddl] of ADDED_COLUMNS) {
     if (!(await columns(table)).includes(column)) await api.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);

@@ -23,9 +23,9 @@ export function topBar(me, current, title) {
   bar.className = 'bar';
   bar.innerHTML = `<div class="bar-inner">
     <div class="title"><span class="conn" id="conn"></span>${esc(title)}<span class="venue">${esc(me.restaurant || '')}${me.member ? ` · ${esc(me.member.name)}` : ''}</span></div>
-    ${links.map(([k, , l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}">${l}</a>`).join('')}
+    ${links.map(([k, ic, l]) => `<a href="${HOME[k]}" class="${k === current ? 'active' : ''}" title="${l}">${icon(ic, 16)}<span>${l}</span></a>`).join('')}
     <button id="soundBtn" title="Ήχος ειδοποιήσεων"></button>
-    <button id="logout" title="Έξοδος"><span>Έξοδος</span></button>
+    <button id="logout" title="Έξοδος">${icon('logout', 16)}<span>Έξοδος</span></button>
   </div>`;
   document.body.prepend(bar);
   let soundOn = false;

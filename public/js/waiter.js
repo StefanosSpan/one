@@ -9,6 +9,13 @@ const STATUS = {
   pending: ['Προς έγκριση', 'amber'], accepted: ['Στην κουζίνα', ''], preparing: ['Ετοιμάζεται', ''],
   ready: ['Έτοιμη', 'green'], served: ['Σερβιρίστηκε', 'gray'], rejected: ['Απορρίφθηκε', 'red'],
 };
+// Server codes shown in Greek on the staff screens.
+const ERRORS = {
+  item_unavailable: 'Κάποιο πιάτο δεν είναι πια διαθέσιμο (εξαντλήθηκε ή δεν σερβίρεται αυτή την ώρα)',
+  option_required: 'Λείπει μια υποχρεωτική επιλογή', bad_option: 'Μη έγκυρη επιλογή', empty_order: 'Προσθέστε τουλάχιστον ένα πιάτο',
+  bad_quantity: 'Μη έγκυρη ποσότητα', unknown_item: 'Το πιάτο δεν υπάρχει πια στο μενού',
+};
+const errText = (e) => ERRORS[e.message] || e.message;
 
 function start() {
   const bar = topBar(me, 'waiter', 'Σερβιτόρος');
@@ -20,7 +27,7 @@ function start() {
   if (myZones.length) {
     const zb = document.createElement('button');
     zb.className = 'zone-toggle';
-    const draw = () => { zb.innerHTML = `<span>${onlyMine ? `Ζώνες: ${esc(myZones.join(', '))}` : 'Όλες οι ζώνες'}</span>`; };
+    const draw = () => { zb.innerHTML = `${icon('pin', 16)}<span>${onlyMine ? `Ζώνες: ${esc(myZones.join(', '))}` : 'Όλες οι ζώνες'}</span>`; };
     zb.onclick = () => { onlyMine = !onlyMine; draw(); render(); };
     draw();
     document.querySelector('#soundBtn').before(zb);
@@ -45,24 +52,28 @@ function start() {
   }
 
   const act = async (fn, okMsg) => {
-    try { await fn(); if (okMsg) toast(okMsg, 'ok'); await load(); } catch (e) { toast(e.message, 'err'); }
+    try { await fn(); if (okMsg) toast(okMsg, 'ok'); await load(); return true; } catch (e) { toast(errText(e), 'err'); return false; }
   };
   const setStatus = (id, status) => act(() => api(`/api/staff/orders/${id}/status`, { method: 'POST', body: { status } }));
 
-  function orderPanel(o, buttons) {
+  function orderPanel(o, buttons, { fix = false } = {}) {
     const cls = o.status === 'pending' ? 'warn' : o.status === 'ready' ? 'good' : '';
+    const voided = o.voids?.length ? o.voids.map((v) => `${v.qty}× ${itemName(v.name)}`).join(', ') : '';
     return `<div class="panel ${cls}">
       <div class="panel-head"><span class="tbl">${esc(spotName(o.tableKind, o.tableLabel))}${o.customer ? ` · ${esc(o.customer.name)}` : ''}</span>
-        <span class="meta">#${o.id} · <span class="lang">${LANG_CODES[o.lang] || ''}</span> · ${timeAgo(o.createdAt)}</span></div>
+        <span class="meta">#${o.id} · ${o.takenBy ? `${esc(o.takenBy)}` : `<span class="lang">${LANG_CODES[o.lang] || ''}</span> QR`} · ${timeAgo(o.createdAt)}</span></div>
       ${o.items.map((i) => `<div class="oline"><span><b>${i.qty}×</b> ${esc(itemName(i.name))}${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}${i.note ? `<span class="inote">${esc(i.note)}</span>` : ''}</span>
         <span class="muted">${euro(i.qty * i.price)}</span></div>`).join('')}
       ${o.note ? `<div class="onote">${esc(o.note)}</div>` : ''}
+      ${voided ? `<div class="voided">Αφαιρέθηκαν: ${esc(voided)}</div>` : ''}
       ${o.loyaltyReward ? `<div class="loyal-note">Κάρτα πιστότητας: δικαιούται <b>${esc(o.loyaltyReward.el || o.loyaltyReward.en || 'δώρο')}</b>
         <button class="btn secondary sm" data-redeem="${o.id}">Δόθηκε</button></div>` : ''}
       ${o.customer ? `<div class="onote">Παραλαβή${o.customer.pickupAt ? ` στις ${new Date(o.customer.pickupAt).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}` : ' το συντομότερο'}
         · <a href="tel:${esc(o.customer.phone)}">${esc(o.customer.phone)}</a></div>` : ''}
       <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span>
-        <span class="foot-right"><a class="print-link" href="/staff/print/order/${o.id}" target="_blank">Εκτύπωση δελτίου</a><b>${euro(o.total)}</b></span></div>
+        <span class="foot-right">${fix && o.status !== 'rejected' ? `<button class="linklike" data-fix="${o.id}">Διόρθωση</button>` : ''}
+          <a class="print-link" href="/staff/print/order/${o.id}" target="_blank">Δελτίο</a><b>${euro(o.total)}</b></span></div>
+      ${o.status === 'pending' && fix ? '<p class="muted small" style="margin:.4rem 0 0">Δεν χρεώνεται μέχρι να εγκριθεί.</p>' : ''}
       ${buttons ? `<div class="row">${buttons}</div>` : ''}
     </div>`;
   }
@@ -89,11 +100,15 @@ function start() {
     const pending = orders.filter((o) => o.status === 'pending');
     const ready = orders.filter((o) => o.status === 'ready');
     const inKitchen = orders.filter((o) => o.status === 'accepted' || o.status === 'preparing');
+    const waitingAt = new Set(pending.map((o) => o.tableId));
+    const jump = (id, label, n, hot) => `<a href="#${id}" class="chip ${hot && n ? 'hot' : ''}">${label}${n != null ? ` <b>${n}</b>` : ''}</a>`;
 
     $('#app').innerHTML = `
+      <nav class="jump">${jump('s-calls', 'Κλήσεις', calls.length, true)}${data.requireApproval ? jump('s-pending', 'Έγκριση', pending.length, true) : ''}
+        ${jump('s-ready', 'Έτοιμα', ready.length, true)}${jump('s-kitchen', 'Κουζίνα', inKitchen.length)}${jump('s-tables', 'Θέσεις')}</nav>
       <div class="grid">
         <section class="col">
-          <h2>Κλήσεις <span class="n">${calls.length}</span></h2>
+          <h2 id="s-calls">Κλήσεις <span class="n">${calls.length}</span></h2>
           ${calls.length ? calls.map((c) => `<div class="panel alert">
             <div class="panel-head"><span class="tbl">${esc(spotName(c.tableKind, c.tableLabel))}</span><span class="meta">${timeAgo(c.createdAt)}</span></div>
             <div class="call-what">${c.type === 'bill'
@@ -104,7 +119,7 @@ function start() {
               <button class="btn sm" data-call="${c.id}">Εξυπηρετήθηκε</button>
             </div></div>`).join('') : '<div class="nothing">Καμία κλήση</div>'}
 
-          <h2 class="mt">Προς έγκριση <span class="n">${pending.length}</span></h2>
+          <h2 class="mt" id="s-pending">Προς έγκριση <span class="n">${pending.length}</span></h2>
           ${data.requireApproval ? '' : '<div class="nothing">Η έγκριση είναι απενεργοποιημένη. Οι παραγγελίες πηγαίνουν απευθείας στην κουζίνα.</div>'}
           ${pending.length ? pending.map((o) => orderPanel(o, `
             <button class="btn danger sm" data-status="rejected" data-id="${o.id}">Απόρριψη</button>
@@ -113,26 +128,27 @@ function start() {
         </section>
 
         <section class="col">
-          <h2>Έτοιμα για σερβίρισμα <span class="n">${ready.length}</span></h2>
+          <h2 id="s-ready">Έτοιμα για σερβίρισμα <span class="n">${ready.length}</span></h2>
           ${ready.length ? ready.map((o) => orderPanel(o, o.channel === 'takeaway'
             ? `<button class="btn success sm" data-handover="${o.id}">Παράδοση και πληρωμή</button>`
             : `<button class="btn success sm" data-status="served" data-id="${o.id}">Σερβιρίστηκε</button>`)).join('')
             : '<div class="nothing">Τίποτα έτοιμο ακόμη</div>'}
-          <h2 class="mt">Στην κουζίνα <span class="n">${inKitchen.length}</span></h2>
+          <h2 class="mt" id="s-kitchen">Στην κουζίνα <span class="n">${inKitchen.length}</span></h2>
           ${inKitchen.length ? inKitchen.map((o) => orderPanel(o)).join('') : '<div class="nothing">Καμία παραγγελία στην κουζίνα</div>'}
         </section>
 
         <section class="col">
-          <h2>Θέσεις <button class="btn secondary sm push" id="soldOut">Διαθεσιμότητα πιάτων</button></h2>
+          <h2 id="s-tables">Θέσεις <button class="btn secondary sm push" id="soldOut">Διαθεσιμότητα πιάτων</button></h2>
           <div class="tables">
             ${tables.filter((t) => t.active).map((t) => `<button class="tcard ${t.calls.length ? 'call' : t.orders ? 'busy' : ''}" data-table="${t.id}">
               <span class="tkind">${esc((KIND[t.kind] || KIND.table).one)}</span>
               <b>${esc(t.label)}</b>
-              ${t.orders ? `<div class="small">${euro(t.total)}</div>` : '<div class="small muted">Ελεύθερο</div>'}
+              ${t.orders ? `<div class="small">${t.total || !waitingAt.has(t.id) ? euro(t.total) : 'Προς έγκριση'}</div>` : '<div class="small muted">Ελεύθερο</div>'}
               ${t.total && t.paid >= t.total ? '<span class="badge green">Εξοφλήθηκε</span>' : ''}
               ${t.calls.length ? `<span class="tcalls">${t.calls.map((c) => icon(c === 'bill' ? 'receipt' : 'bell', 14)).join('')}</span>` : ''}
             </button>`).join('')}
           </div>
+          <p class="muted small">Πατήστε μια θέση για νέα παραγγελία, λογαριασμό ή μεταφορά.</p>
         </section>
       </div>`;
 
@@ -146,12 +162,17 @@ function start() {
 
   function openTable(id) {
     const t = data.tables.find((x) => x.id === id);
+    if (!t) return;
     const orders = data.orders.filter((o) => o.tableId === id);
-    const billable = orders.filter((o) => o.status !== 'rejected');
+    const billable = orders.filter((o) => o.status !== 'rejected' && o.status !== 'pending');
     const billCall = data.calls.find((c) => c.tableId === id && c.type === 'bill');
     const { el, close } = sheet(`
       <div class="sheet-head"><h2>${esc(spotName(t.kind, t.label))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
-      ${orders.length ? orders.map((o) => orderPanel(o)).join('') : '<p class="muted">Δεν υπάρχουν ανοιχτές παραγγελίες.</p>'}
+      <div class="row" style="margin:0 0 .9rem">
+        <button class="btn" id="newOrder">${icon('plus', 16)} Νέα παραγγελία</button>
+        ${orders.length ? `<button class="btn secondary" id="moveT">Μεταφορά σε άλλη θέση</button>` : ''}
+      </div>
+      ${orders.length ? orders.map((o) => orderPanel(o, '', { fix: true })).join('') : '<p class="muted">Δεν υπάρχουν ανοιχτές παραγγελίες.</p>'}
       ${billable.length ? `
         <div class="sum-row"><span>Σύνολο</span><span>${euro(t.total)}</span></div>
         ${t.paid ? `<p class="badge green">Εξοφλήθηκε online: ${euro(t.paid)}</p>` : ''}
@@ -167,9 +188,14 @@ function start() {
           <label class="switch"><input type="checkbox" id="printR" checked> Εκτύπωση απόδειξης λογαριασμού</label>
           <button class="btn block success" id="closeT">Εξόφληση και κλείσιμο</button>
           <p class="muted small">Η απόδειξη αποθηκεύεται και ο πελάτης λαμβάνει ψηφιακό αντίγραφο στο κινητό του.
-            Η νόμιμη απόδειξη εκδίδεται από το ταμείο σας.</p>
+            Η νόμιμη απόδειξη εκδίδεται από το ταμείο σας.${orders.some((o) => o.status === 'pending') ? ' Όσες παραγγελίες δεν εγκρίθηκαν δεν χρεώνονται και ακυρώνονται.' : ''}</p>
         </div>` : ''}
     `);
+    const reopen = () => { close(); openTable(id); };
+    $('#newOrder', el).onclick = () => { close(); takeOrder(t); };
+    $('#moveT', el)?.addEventListener('click', () => { close(); moveTable(t); });
+    $$('[data-fix]', el).forEach((b) => b.onclick = () => fixOrder(Number(b.dataset.fix), reopen));
+    $$('[data-redeem]', el).forEach((b) => b.onclick = () => act(() => api(`/api/staff/orders/${b.dataset.redeem}/redeem`, { method: 'POST' }), 'Η επιβράβευση καταγράφηκε').then(reopen));
     $$('[data-pay]', el).forEach((b) => b.onclick = () => $$('[data-pay]', el).forEach((x) => x.classList.toggle('active', x === b)));
     $('#closeT', el)?.addEventListener('click', async () => {
       const paymentMethod = $('[data-pay].active', el)?.dataset.pay || 'cash';
@@ -183,7 +209,151 @@ function start() {
         if (win && receipt) win.location = `/staff/print/receipt/${receipt.id}?auto=1`;
         else win?.close();
         await load();
-      } catch (e) { win?.close(); toast(e.message, 'err'); }
+      } catch (e) { win?.close(); toast(errText(e), 'err'); }
+    });
+  }
+
+  // The waiter takes the order at the table: it goes straight to the kitchen and onto the bill.
+  async function takeOrder(t) {
+    let menu;
+    try { menu = await api(`/api/staff/tables/${t.id}/menu`); } catch (e) { toast(errText(e), 'err'); return; }
+    const cart = []; // { key, id, name, unit, qty, options: [[g, c]], optText, note }
+    let cat = 0;
+    let q = '';
+    const { el, close } = sheet(`
+      <div class="sheet-head"><h2>Νέα παραγγελία · ${esc(spotName(t.kind, t.label))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+      <input class="input" id="q" type="search" placeholder="Αναζήτηση πιάτου" autocomplete="off">
+      <div class="chips pick-cats" id="cats">${[[0, 'Όλα'], ...menu.categories.map((c) => [c.id, itemName(c.name)])]
+        .map(([id, n]) => `<button type="button" class="chip ${id === cat ? 'active' : ''}" data-cat="${id}">${esc(n)}</button>`).join('')}</div>
+      <div id="picks" class="picks"></div>
+      <div class="cart-box" id="cart"></div>`);
+    el.classList.add('wide');
+    const inCart = (id) => cart.filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0);
+    const drawPicks = () => {
+      const words = q.trim().toLowerCase();
+      const list = menu.items.filter((i) => (!cat || i.categoryId === cat)
+        && (!words || Object.values(i.name).some((n) => String(n).toLowerCase().includes(words))));
+      $('#picks', el).innerHTML = list.length ? list.map((i) => `<div class="pick">
+        <div class="grow"><b>${esc(itemName(i.name))}</b><span class="muted small">${euro(i.price)}${i.options.length ? ' · με επιλογές' : ''}${i.lowStock ? ` · απομένουν ${i.lowStock}` : ''}</span></div>
+        ${inCart(i.id) ? `<span class="pick-n">${inCart(i.id)}</span>` : ''}
+        <button class="mini add" data-add="${i.id}" title="Προσθήκη">${icon('plus', 16)}</button></div>`).join('')
+        : '<p class="muted">Δεν βρέθηκε πιάτο.</p>';
+      $$('[data-add]', el).forEach((b) => b.onclick = () => add(menu.items.find((i) => i.id === Number(b.dataset.add))));
+    };
+    const drawCart = () => {
+      const total = cart.reduce((s, l) => s + l.unit * l.qty, 0);
+      $('#cart', el).innerHTML = cart.length ? `
+        ${cart.map((l, n) => `<div class="cline">
+          <div class="grow"><b>${esc(l.name)}</b>${l.optText ? `<span class="iopt">${esc(l.optText)}</span>` : ''}${l.note ? `<span class="inote">${esc(l.note)}</span>` : ''}
+            <button class="linklike small" data-note="${n}">${l.note ? 'Αλλαγή σημείωσης' : 'Σημείωση για την κουζίνα'}</button></div>
+          <div class="qty"><button type="button" data-dec="${n}">${icon('minus', 14)}</button><span>${l.qty}</span><button type="button" data-inc="${n}">${icon('plus', 14)}</button></div>
+          <span class="cprice">${euro(l.unit * l.qty)}</span></div>`).join('')}
+        <input class="input" id="onote" maxlength="300" placeholder="Σημείωση για όλη την παραγγελία (προαιρετικό)" value="${esc($('#onote', el)?.value || '')}">
+        <button class="btn block success" id="send">Αποστολή στην κουζίνα · ${euro(total)}</button>`
+        : '<p class="muted small" style="margin:0">Πατήστε + για να προσθέσετε πιάτα.</p>';
+      $$('[data-inc]', el).forEach((b) => b.onclick = () => { cart[b.dataset.inc].qty += 1; redraw(); });
+      $$('[data-dec]', el).forEach((b) => b.onclick = () => { const l = cart[b.dataset.dec]; l.qty -= 1; if (!l.qty) cart.splice(b.dataset.dec, 1); redraw(); });
+      $$('[data-note]', el).forEach((b) => b.onclick = () => {
+        const l = cart[b.dataset.note];
+        const v = prompt('Σημείωση για την κουζίνα (π.χ. χωρίς κρεμμύδι)', l.note || '');
+        if (v != null) { l.note = v.trim().slice(0, 200); redraw(); }
+      });
+      $('#send', el)?.addEventListener('click', send);
+    };
+    const redraw = () => { drawPicks(); drawCart(); };
+    const addLine = (item, options = [], optText = '', extra = 0) => {
+      const key = JSON.stringify([item.id, options]);
+      const same = cart.find((l) => l.key === key && !l.note);
+      if (same) same.qty += 1;
+      else cart.push({ key, id: item.id, name: itemName(item.name), unit: item.price + extra, qty: 1, options, optText, note: '' });
+      redraw();
+    };
+    const add = (item) => (item.options.length ? pickOptions(item, addLine) : addLine(item));
+    const send = async (e) => {
+      e.target.disabled = true;
+      try {
+        await api(`/api/staff/tables/${t.id}/orders`, { method: 'POST', body: {
+          items: cart.map((l) => ({ id: l.id, qty: l.qty, options: l.options, note: l.note })), note: $('#onote', el).value.trim() } });
+        close();
+        toast(`${spotName(t.kind, t.label)}: η παραγγελία στάλθηκε στην κουζίνα`, 'ok');
+        await load();
+      } catch (err) { e.target.disabled = false; toast(errText(err), 'err'); }
+    };
+    $('#q', el).oninput = (e) => { q = e.target.value; drawPicks(); };
+    $$('[data-cat]', el).forEach((b) => b.onclick = () => {
+      cat = Number(b.dataset.cat);
+      $$('[data-cat]', el).forEach((x) => x.classList.toggle('active', x === b));
+      drawPicks();
+    });
+    redraw();
+  }
+
+  // Choices of a dish (e.g. cooking, extras): required groups must be answered.
+  function pickOptions(item, done) {
+    const { el, close } = sheet(`
+      <div class="sheet-head"><h2>${esc(itemName(item.name))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+      ${item.options.map((g, gi) => `<div class="field"><span class="lbl">${esc(itemName(g.name))}${g.required ? ' <span class="badge amber">Υποχρεωτικό</span>' : ''}${g.multi ? ' · πολλαπλή επιλογή' : ''}</span>
+        ${g.choices.map((c, ci) => `<label class="switch"><input type="${g.multi ? 'checkbox' : 'radio'}" name="g${gi}" value="${ci}">
+          <span>${esc(itemName(c.name))}${c.price_cents && !item.included ? ` <span class="muted">+${euro(c.price_cents)}</span>` : ''}</span></label>`).join('')}</div>`).join('')}
+      <button class="btn block" id="okOpt">Προσθήκη</button>`);
+    $('#okOpt', el).onclick = () => {
+      const picks = [];
+      let extra = 0;
+      const names = [];
+      for (const [gi, g] of item.options.entries()) {
+        const chosen = $$(`[name="g${gi}"]:checked`, el).map((x) => Number(x.value));
+        if (g.required && !chosen.length) return toast(`Διαλέξτε: ${itemName(g.name)}`, 'err');
+        for (const ci of chosen) {
+          picks.push([gi, ci]);
+          names.push(itemName(g.choices[ci].name));
+          if (!item.included) extra += g.choices[ci].price_cents || 0;
+        }
+      }
+      close();
+      done(item, picks, names.join(', '), extra);
+    };
+  }
+
+  // Correction of an order: fewer portions or a dish removed. Kept on the order with who made it.
+  function fixOrder(orderId, back) {
+    const o = data.orders.find((x) => x.id === orderId);
+    if (!o) return;
+    const { el, close } = sheet(`
+      <div class="sheet-head"><h2>Διόρθωση · #${o.id} · ${esc(spotName(o.tableKind, o.tableLabel))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+      <p class="muted small" style="margin-top:0">Για λάθος καταχώριση, αλλαγή γνώμης ή επιστροφή πιάτου. Κάθε διόρθωση καταγράφεται με το όνομά σας και
+        φαίνεται στο ιστορικό παραγγελιών του ιδιοκτήτη.</p>
+      <label class="field"><span>Αιτία (προαιρετικό)</span><input class="input" id="why" maxlength="120" placeholder="π.χ. λάθος πιάτο, ο πελάτης το ακύρωσε"></label>
+      ${o.items.map((i) => {
+        const free = i.qty - i.paidQty;
+        return `<div class="cline"><div class="grow"><b>${i.qty}× ${esc(itemName(i.name))}</b>${optionNames(i) ? `<span class="iopt">${esc(optionNames(i))}</span>` : ''}
+          ${i.paidQty ? `<span class="muted small">${i.paidQty} πληρώθηκαν από το κινητό</span>` : ''}</div>
+          ${free > 0 ? `<button class="btn secondary sm" data-v="${i.id}" data-q="1">−1</button>
+            ${free > 1 ? `<button class="btn danger sm" data-v="${i.id}" data-q="${free}">Αφαίρεση όλων</button>` : `<button class="btn danger sm" data-v="${i.id}" data-q="1">Αφαίρεση</button>`}` : ''}</div>`;
+      }).join('')}
+      ${['pending', 'accepted'].includes(o.status) && o.items.every((i) => !i.paidQty) ? '<button class="btn danger block" id="cancelAll" style="margin-top:1rem">Ακύρωση όλης της παραγγελίας</button>' : ''}`);
+    const after = async (ok) => { if (ok) { close(); back(); } };
+    $$('[data-v]', el).forEach((b) => b.onclick = async () => after(await act(() => api(`/api/staff/orders/${o.id}/void`, { method: 'POST',
+      body: { line: Number(b.dataset.v), qty: Number(b.dataset.q), reason: $('#why', el).value.trim() } }), 'Η παραγγελία διορθώθηκε')));
+    $('#cancelAll', el)?.addEventListener('click', async () => {
+      if (!confirm('Ακύρωση όλης της παραγγελίας;')) return;
+      after(await act(() => api(`/api/staff/orders/${o.id}/status`, { method: 'POST', body: { status: 'rejected' } }), 'Η παραγγελία ακυρώθηκε'));
+    });
+  }
+
+  // The party moves: open orders, phone payments and calls go to the new spot.
+  function moveTable(t) {
+    const targets = data.tables.filter((x) => x.active && x.id !== t.id);
+    const { el, close } = sheet(`
+      <div class="sheet-head"><h2>Μεταφορά από ${esc(spotName(t.kind, t.label))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+      <p class="muted small" style="margin-top:0">Οι ανοιχτές παραγγελίες και ό,τι έχει πληρωθεί από το κινητό πηγαίνουν στη νέα θέση.
+        Αν εκεί υπάρχει ήδη λογαριασμός, ενώνονται.</p>
+      <div class="tables">${targets.map((x) => `<button class="tcard ${x.orders ? 'busy' : ''}" data-to="${x.id}">
+        <span class="tkind">${esc((KIND[x.kind] || KIND.table).one)}</span><b>${esc(x.label)}</b>
+        <div class="small ${x.orders ? '' : 'muted'}">${x.orders ? euro(x.total) : 'Ελεύθερο'}</div></button>`).join('')}</div>`);
+    $$('[data-to]', el).forEach((b) => b.onclick = async () => {
+      const to = targets.find((x) => x.id === Number(b.dataset.to));
+      if (to.orders && !confirm(`Η θέση ${to.label} έχει ήδη λογαριασμό. Ένωση των λογαριασμών;`)) return;
+      if (await act(() => api(`/api/staff/tables/${t.id}/move`, { method: 'POST', body: { to: to.id } }), `Μεταφέρθηκε: ${spotName(t.kind, t.label)} → ${spotName(to.kind, to.label)}`)) close();
     });
   }
 
@@ -192,14 +362,16 @@ function start() {
     const { el } = sheet(`
       <div class="sheet-head"><h2>Διαθεσιμότητα πιάτων</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
       <p class="muted small">Ό,τι απενεργοποιήσετε εμφανίζεται αμέσως ως «Εξαντλήθηκε» στους πελάτες.</p>
-      ${items.map((i) => `<label class="switch"><input type="checkbox" data-item="${i.id}" ${i.available ? 'checked' : ''}>
-        <span>${esc(itemName(i.name))}</span></label>`).join('')}
+      <input class="input" id="sq" type="search" placeholder="Αναζήτηση πιάτου" style="margin-bottom:.6rem">
+      ${items.map((i) => `<label class="switch" data-name="${esc(Object.values(i.name).join(' ').toLowerCase())}"><input type="checkbox" data-item="${i.id}" ${i.available ? 'checked' : ''}>
+        <span>${esc(itemName(i.name))}${i.stock != null ? ` <span class="muted small">· ${i.stock} μερίδες</span>` : ''}</span></label>`).join('')}
     `);
+    $('#sq', el).oninput = (e) => { const w = e.target.value.trim().toLowerCase(); $$('[data-name]', el).forEach((l) => { l.hidden = !!w && !l.dataset.name.includes(w); }); };
     $$('[data-item]', el).forEach((c) => c.onchange = async () => {
       try {
         await api(`/api/staff/items/${c.dataset.item}/available`, { method: 'POST', body: { available: c.checked } });
         toast(c.checked ? 'Διαθέσιμο ξανά' : 'Σημειώθηκε ως εξαντλημένο', 'ok');
-      } catch (e) { toast(e.message, 'err'); c.checked = !c.checked; }
+      } catch (e) { toast(errText(e), 'err'); c.checked = !c.checked; }
     });
   }
 

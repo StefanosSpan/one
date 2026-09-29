@@ -19,6 +19,9 @@ const { db } = await import('../server/db.js');
 let server, base, token;
 const cookies = {};
 
+// The waiter approves a guest's order (the demo venue asks for approval): only approved orders go on the bill.
+const approve = (id) => call(`/api/staff/orders/${id}/status`, { method: 'POST', body: { status: 'accepted' }, as: 'waiter' });
+
 async function call(path, { method = 'GET', body, as } = {}) {
   const res = await fetch(base + path, {
     method,
@@ -165,8 +168,10 @@ test('QR codes can be downloaded as PNG', async () => {
 test('closing a spot stores a numbered receipt that can be reprinted and shared with the guest', async () => {
   const spot = (await call('/api/demo')).data.tables[2].url.split('/').pop();
   const url = `/api/public/table/${spot}/orders`;
-  await call(url, { method: 'POST', body: { items: [{ id: 3, qty: 1 }, { id: 17, qty: 1, options: [[0, 1]] }] } });
-  await call(url, { method: 'POST', body: { items: [{ id: 3, qty: 2 }] } });
+  const o1 = await call(url, { method: 'POST', body: { items: [{ id: 3, qty: 1 }, { id: 17, qty: 1, options: [[0, 1]] }] } });
+  const o2 = await call(url, { method: 'POST', body: { items: [{ id: 3, qty: 2 }] } });
+  await approve(o1.data.id);
+  await approve(o2.data.id);
   const tableId = (await call(`/api/public/table/${spot}/state`)).data.orders[0].tableId;
 
   const closed = await call(`/api/staff/tables/${tableId}/close`, { method: 'POST', as: 'waiter', body: { paymentMethod: 'card', fiscalRef: 'ΜΑΡΚ 123' } });
@@ -311,6 +316,7 @@ test('guests pay from the phone: own dishes, equal shares, tip, room charge', as
   assert.equal(pub.payments.provider, 'demo'); // demo venue, local testing
   const items = pub.items.filter((i) => i.available && !i.options.some((g) => g.required)).slice(0, 2);
   const o = await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: items[0].id, qty: 2 }, { id: items[1].id, qty: 1 }], guestId: 'guest-aaaa-1111' } });
+  await approve(o.data.id);
   const total = o.data.total;
 
   // One portion of the first dish, with 10% tip.
@@ -341,7 +347,7 @@ test('guests pay from the phone: own dishes, equal shares, tip, room charge', as
   // Room charge only for rooms, when the venue allows it.
   const room = tables.find((t) => t.kind === 'room');
   const rurl = `/api/public/table/${room.token}`;
-  await call(`${rurl}/orders`, { method: 'POST', body: { items: [{ id: items[1].id, qty: 1 }] } });
+  await approve((await call(`${rurl}/orders`, { method: 'POST', body: { items: [{ id: items[1].id, qty: 1 }] } })).data.id);
   assert.equal((await call(`${rurl}/pay`, { method: 'POST', body: { method: 'room' } })).status, 400);
   await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { payments: { provider: 'demo', roomCharge: true } } });
   assert.equal((await call(rurl)).data.payments.roomCharge, true);
@@ -399,6 +405,7 @@ test('loyalty card, feedback, dish views and Wi-Fi QR', async () => {
   const dish = (await call(url)).data.items.find((i) => i.available && !i.options.some((g) => g.required));
   const visit = async () => {
     const o = await call(`${url}/orders`, { method: 'POST', body: { items: [{ id: dish.id, qty: 1 }], guestId: guest } });
+    await approve(o.data.id);
     return o.data;
   };
   let receipt;
