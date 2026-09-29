@@ -8,6 +8,9 @@ const CDN = 'https://d2ol7oe51mr4n9.cloudfront.net/user_3FfN8uy1PiKtwJpaWKaArcUW
 export const BUNDLES = [
   // Photos of the example menu dishes, served as /assets/dish-<key>.jpg.
   { prefix: 'dish-', count: 21, url: process.env.DISH_PHOTOS_URL || `${CDN}/a20ff3fe-d8f6-4068-9c6a-0ebb24831d44.json` },
+  // App screenshots of the home page (menu with photos, themes, payment, kitchen, waiter), served as /assets/site-<key>.jpg.
+  // The home page falls back to the older screenshots in public/img until these are loaded.
+  { prefix: 'site-', count: 9, url: process.env.SITE_SHOTS_URL || `${CDN}/581661d6-4af1-4aca-a79c-a6f57eef6534.json` },
 ];
 const RETRY_MS = 10 * 60_000;
 const state = new Map(); // prefix -> { loading, failedAt }
