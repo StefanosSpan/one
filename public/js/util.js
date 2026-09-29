@@ -85,4 +85,6 @@ export function timeAgo(iso) {
   return `${Math.floor(m / 60)}ω ${m % 60}′`;
 }
 
-export const euro = (cents) => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+// Language, date format and currency of the staff screens: Greece (euros) or the United States (dollars); see lang.js.
+export const L10N = { market: 'gr', locale: 'el-GR', currency: 'EUR' };
+export const euro = (cents) => new Intl.NumberFormat(L10N.locale, { style: 'currency', currency: L10N.currency }).format(cents / 100);

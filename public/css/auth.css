@@ -25,3 +25,7 @@ body { background: #f6f6f4; }
 .trial-note { background: #eef5ee; border: 1px solid #cfe3cf; border-radius: var(--radius); padding: .6rem .8rem; font-size: .9rem; margin-bottom: 1rem; }
 @media (max-width: 520px) { .auth .row2, .plan-pick { grid-template-columns: 1fr; } }
 .table-scroll { overflow-x: auto; }
+
+/* Footer of the sign-up, sign-in and legal pages. */
+.legal-foot { text-align: center; color: var(--muted); font-size: .85rem; padding: 1.2rem 1rem 2rem; line-height: 1.8; }
+.legal-foot a { color: inherit; }

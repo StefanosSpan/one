@@ -49,6 +49,8 @@
 
   <script type="module">
     import { $, $$, api, toast, sheet, esc, euro } from '/js/util.js';
+    // Venues in the United States (kalimenu.com) pay in dollars.
+    const usd = (c) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(c / 100);
 
     const STATUS = { trialing: 'Δοκιμή', active: 'Ενεργή', past_due: 'Εκκρεμεί πληρωμή', paused: 'Πάγωμα', canceled: 'Ακυρώθηκε', suspended: 'Αναστολή' };
     const PAY = { viva: 'Viva (δικά του κλειδιά)', 'viva-connect': 'Viva ✓', 'viva-pending': 'Viva: εκκρεμεί εγγραφή', demo: 'Δοκιμαστικές' };
@@ -87,7 +89,7 @@
         && (!filter.status || v.status === filter.status));
       $('#app').innerHTML = `
         <div class="stats">
-          <div class="stat"><div class="l">Μηνιαία έσοδα (MRR)</div><div class="v">${euro(t.mrr)}</div></div>
+          <div class="stat"><div class="l">Μηνιαία έσοδα (MRR)</div><div class="v">${euro(t.mrr)}${t.mrrUsd ? ` <small>+ ${usd(t.mrrUsd)}</small>` : ''}</div></div>
           <div class="stat"><div class="l">Καταστήματα</div><div class="v">${t.venues}</div></div>
           <div class="stat"><div class="l">Πληρώνουν</div><div class="v">${t.paying}</div></div>
           <div class="stat"><div class="l">Σε δοκιμή</div><div class="v">${t.trialing}</div></div>
@@ -111,7 +113,7 @@
         <div class="table-scroll"><table class="data">
           <thead><tr><th>Κατάστημα</th><th>Πλάνο</th><th>Κατάσταση</th><th>Εγγραφή</th><th>Χρήση</th><th>Παραγγ. 30 ημ.</th><th>Πληρωμές κινητού</th><th>MRR</th><th></th></tr></thead>
           <tbody>${rows.map((v) => `<tr>
-            <td class="name"><b>${esc(v.name)}${v.isDemo ? ' <span class="badge gray">demo</span>' : ''}</b><span>${esc(v.email || '—')} · ${esc(v.slug)}</span></td>
+            <td class="name"><b>${esc(v.name)}${v.isDemo ? ' <span class="badge gray">demo</span>' : ''}${v.market === 'us' ? ' <span class="badge amber">ΗΠΑ</span>' : ''}</b><span>${esc(v.email || '—')} · ${esc(v.slug)}</span></td>
             <td>${esc(data.plans[v.plan]?.name || v.plan)}<br><span class="muted small">${v.interval === 'year' ? 'ετήσιο' : 'μηνιαίο'}${v.stripe ? ' · Stripe' : ''}</span></td>
             <td><span class="st ${v.status}">${STATUS[v.status] || v.status}</span>
               ${v.status === 'trialing' ? `<br><span class="muted small">${left(v.trialEndsAt) > 0 ? `λήγει σε ${left(v.trialEndsAt)} ημ.` : 'έληξε'}</span>` : ''}</td>
@@ -119,7 +121,7 @@
             <td class="small">${v.items} πιάτα<br>${v.spots} θέσεις</td>
             <td>${v.orders30}${v.lastOrderAt ? `<br><span class="muted small">τελ. ${day(v.lastOrderAt)}</span>` : ''}</td>
             <td class="small">${PAY[v.payments] || '—'}${v.cardPayments30 ? `<br><span class="muted">${v.cardPayments30} · ${euro(v.cardTotal30)}</span>` : ''}</td>
-            <td>${v.mrr ? euro(v.mrr) : '—'}</td>
+            <td>${v.mrr ? (v.currency === 'USD' ? usd(v.mrr) : euro(v.mrr)) : '—'}</td>
             <td><button class="btn secondary sm" data-open="${v.id}">Διαχείριση</button></td>
           </tr>`).join('') || '<tr><td colspan="9" class="muted">Δεν βρέθηκαν καταστήματα.</td></tr>'}</tbody>
         </table></div>`;
@@ -193,9 +195,9 @@
 
     function exportCsv(rows) {
       const cell = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
-      const lines = [['Κατάστημα', 'Κωδικός', 'E-mail', 'Πλάνο', 'Χρέωση', 'Κατάσταση', 'Λήξη δοκιμής', 'Εγγραφή', 'Πιάτα', 'Θέσεις', 'Παραγγελίες 30 ημ.', 'Πληρωμές κινητού', 'Πληρωμές κινητού 30 ημ. (€)', 'MRR (€)'],
+      const lines = [['Κατάστημα', 'Κωδικός', 'E-mail', 'Πλάνο', 'Χρέωση', 'Κατάσταση', 'Λήξη δοκιμής', 'Εγγραφή', 'Πιάτα', 'Θέσεις', 'Παραγγελίες 30 ημ.', 'Πληρωμές κινητού', 'Πληρωμές κινητού 30 ημ. (€)', 'MRR', 'Νόμισμα', 'Αγορά'],
         ...rows.map((v) => [v.name, v.slug, v.email, data.plans[v.plan]?.name, v.interval, STATUS[v.status], day(v.trialEndsAt), day(v.createdAt),
-          v.items, v.spots, v.orders30, PAY[v.payments] || '', (v.cardTotal30 / 100).toFixed(2).replace('.', ','), (v.mrr / 100).toFixed(2).replace('.', ',')])];
+          v.items, v.spots, v.orders30, PAY[v.payments] || '', (v.cardTotal30 / 100).toFixed(2).replace('.', ','), (v.mrr / 100).toFixed(2).replace('.', ','), v.currency, v.market === 'us' ? 'ΗΠΑ' : 'Ελλάδα'])];
       const blob = new Blob([`﻿${lines.map((r) => r.map(cell).join(';')).join('\r\n')}`], { type: 'text/csv' });
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'kalimenu-katastimata.csv' });
       a.click();

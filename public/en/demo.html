@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>Kalimenu · Demo</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: #f5f5f5; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    .list { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .list a { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
+      color: var(--text); text-decoration: none; }
+    .list a:last-child { border-bottom: 0; }
+    .list a:hover { background: #fafafa; }
+    .list b { display: block; }
+    .list span { color: var(--muted); font-size: .9rem; }
+    .list .go { color: var(--faint); }
+    .pins { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Kalimenu · Demo</h1>
+    <p class="lead">QR menu and table ordering for restaurants, bars and hotels. <a href="/">Home page and pricing</a></p>
+    <p><a class="btn" href="/signup">Create your own menu for free</a></p>
+    <div class="list" id="links"></div>
+    <p class="pins" id="pins"></p>
+  </div>
+  <script type="module">
+    import { api, esc } from '/js/util.js';
+    const d = await api('/api/demo');
+    const t = d.tables[0];
+    const staff = (page) => `/staff?v=${encodeURIComponent(d.venue || '')}&next=${page}`;
+    document.getElementById('links').innerHTML = [
+      ['Guest menu', `What guests see after scanning the QR code (Table ${esc(t?.label ?? '')})`, t?.url],
+      ['Server', 'Calls, order approval, taking orders, checks', staff('/staff/waiter')],
+      ['Kitchen', 'Pass screen with orders in real time', staff('/staff/kitchen')],
+      ['Admin', 'Menu, tables and QR codes, history, settings', staff('/staff/admin')],
+    ].map(([h, p, href]) => `<a href="${href}" target="_blank"><div><b>${h}</b><span>${p}</span></div><span class="go">›</span></a>`).join('');
+    if (d.pins) document.getElementById('pins').textContent =
+      `Demo PINs: Admin ${d.pins.admin} · Server ${d.pins.waiter} · Kitchen ${d.pins.kitchen}`;
+  </script>
+</body>
+</html>

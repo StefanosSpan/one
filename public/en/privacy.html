@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>Privacy Policy · Kalimenu</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/auth.css">
+  <link rel="stylesheet" href="/css/legal.css">
+</head>
+<body>
+  <header class="auth-top"><div class="in"><a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="133" height="26"></a><a class="link" href="/signup">Create account</a></div></header>
+  <main class="auth wide legal"><div class="card">
+    <!-- Template: have it reviewed by a lawyer before launch in the United States. Keep the list of service providers up to date. -->
+    <h1>Privacy Policy</h1>
+    <p class="muted">Version of September 27, 2026 · <a href="/terms">Terms of Service</a> · <a href="/dpa">Data Processing Terms</a> · <a href="/cookies">Cookie Policy</a></p>
+
+    <h2>1. Who we are</h2>
+    <p><b data-company="name"></b><span data-if="address">, <span data-company="address"></span></span>.
+      <span data-if="email">Privacy questions: <span data-company="email"></span>.</span></p>
+    <p>This policy covers our customers (restaurant owners) and visitors of kalimenu.com. For guests who order through a restaurant's QR code,
+      the restaurant decides how their data is used and we act on its behalf (see section 6).</p>
+
+    <h2>2. What we collect and why</h2>
+    <table class="lt">
+      <tr><th>Data</th><th>Purpose</th></tr>
+      <tr><td>E-mail, password (stored hashed), restaurant name</td><td>Your account and providing the service</td></tr>
+      <tr><td>Billing details and payment history</td><td>Charging your subscription and keeping records</td></tr>
+      <tr><td>Card details</td><td>Paying your subscription. Handled only by Stripe; we never see or store them</td></tr>
+      <tr><td>Menus, tables, orders, check copies, restaurant settings</td><td>Running the service for your restaurant</td></tr>
+      <tr><td>IP address, time and page of each request (logs)</td><td>Security, preventing abuse, fixing errors</td></tr>
+      <tr><td>Messages you send us</td><td>Support</td></tr>
+      <tr><td>Analytics and advertising cookies, only if you accept them</td><td>Understanding visits to our website and measuring our ads (see the <a href="/cookies">Cookie Policy</a>)</td></tr>
+    </table>
+
+    <h2>3. Cookies</h2>
+    <p>The service itself uses only cookies that are strictly necessary (keeping you signed in). Our website may use analytics and
+      advertising cookies only after you accept them in the cookie banner; you can change your choice at any time from "Cookie settings".
+      Details are in the <a href="/cookies">Cookie Policy</a>.</p>
+
+    <h2>4. Who we share it with (service providers)</h2>
+    <table class="lt">
+      <tr><th>Provider</th><th>Role</th><th>Data location</th></tr>
+      <tr><td>Render Services, Inc.</td><td>Hosting the application</td><td>Frankfurt (EU)</td></tr>
+      <tr><td>Neon, Inc. (or Supabase, Inc.)</td><td>Database</td><td>Frankfurt (EU)</td></tr>
+      <tr><td>Stripe, Inc.</td><td>Subscription payments</td><td>United States / EU</td></tr>
+      <tr><td>Resend, Inc.</td><td>Sending e-mail (password reset, notifications)</td><td>United States / EU</td></tr>
+      <tr><td>Google, Meta (only if you accept analytics or advertising cookies)</td><td>Website analytics and ad measurement</td><td>United States / EU</td></tr>
+    </table>
+    <p><b>We do not sell your personal information, and we do not share it for cross-context behavioral advertising</b> unless you accept
+      advertising cookies on our website. You can withdraw that choice at any time from "Cookie settings".</p>
+
+    <h2>5. How long we keep it</h2>
+    <ul>
+      <li>Account and restaurant data: for as long as the account exists. It is deleted right away if you delete your account.</li>
+      <li>Billing records: as long as tax law requires.</li>
+      <li>Logs: up to 30 days.</li>
+      <li>Backups: deleted automatically within a few days.</li>
+    </ul>
+
+    <h2>6. Guests of restaurants</h2>
+    <p>When someone scans a restaurant's QR code, we don't ask for their name, phone number or an account. We store the dishes, the table,
+      the time, the language and optional notes. This data belongs to the restaurant, which decides how it is used. For requests about it,
+      contact the restaurant; we help it respond.</p>
+
+    <h2>7. Security</h2>
+    <p>Encrypted connections (HTTPS), passwords stored with scrypt, data kept separate per restaurant, each restaurant on its own address,
+      limits on sign-in attempts, hosting in the EU and regular backups.</p>
+
+    <h2>8. Your rights</h2>
+    <p>You can access, correct, download and delete your data from Admin → Subscription, or by writing to us<span data-if="email"> at
+      <span data-company="email"></span></span>. Depending on your state (for example California, Colorado, Connecticut, Virginia or New York),
+      you may have additional rights, such as knowing what we collect and opting out of targeted advertising. We answer within 30 days and
+      we never treat you differently for using your rights.</p>
+
+    <h2>9. International transfers</h2>
+    <p>The service is run from the European Union, and data is hosted in Frankfurt, Germany. Transfers to providers in the United States
+      follow the EU-U.S. Data Privacy Framework or standard contractual clauses.</p>
+
+    <h2>10. Changes</h2>
+    <p>If this policy changes materially, we will tell you by e-mail before the change applies.</p>
+  </div></main>
+  <footer class="legal-foot"><a href="/">Kalimenu</a> · <a href="/cookies">Cookies</a> · <a href="#" data-cookie-settings>Cookie settings</a> · Built by <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></footer>
+  <script type="module" src="/js/legal.js"></script>
+  <script type="module" src="/js/cookies.js"></script>
+</body>
+</html>

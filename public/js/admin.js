@@ -1,4 +1,4 @@
-import { $, $$, esc, api, toast, sheet, euro } from './util.js';
+import { $, $$, esc, api, toast, sheet, euro, L10N } from './util.js';
 import { icon } from './icons.js';
 import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND } from './staff.js';
 import { LANGUAGES, STRINGS } from './i18n.js';
@@ -77,8 +77,12 @@ async function render() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+// Currency sign in labels: euros, or dollars for venues in the United States.
+const CUR = () => (L10N.currency === 'USD' ? '$' : '€');
+
 function i18nEditor(defs, values = {}) {
-  const langs = settings.languages;
+  // The venue's own language first (English in the United States).
+  const langs = [settings.defaultLanguage, ...settings.languages].filter((l, i, all) => settings.languages.includes(l) && all.indexOf(l) === i);
   return `<div class="i18n">
     <div class="lang-tabs">${langs.map((l, i) => `<button type="button" data-lang="${l}" class="${i === 0 ? 'active' : ''}">${LANGUAGES[l].short}</button>`).join('')}</div>
     ${langs.map((l, i) => `<div data-pane="${l}" ${i ? 'hidden' : ''}>
@@ -181,7 +185,7 @@ async function renderDash() {
       </div>` : ''}
       <div class="panel"><h3>Αξιολογήσεις πελατών ${fb.average ? `<span class="muted small">· ${fb.average}/5 από ${fb.count}</span>` : ''}</h3>
         ${fb.list.length ? fb.list.slice(0, 6).map((f) => `<div class="fb-row"><span class="st">${'★'.repeat(f.rating)}${'☆'.repeat(5 - f.rating)}</span>
-          <span class="muted small"> · ${esc(f.table)} · ${new Date(f.createdAt).toLocaleDateString('el-GR')}</span>${f.comment ? `<div>${esc(f.comment)}</div>` : ''}</div>`).join('')
+          <span class="muted small"> · ${esc(f.table)} · ${new Date(f.createdAt).toLocaleDateString(L10N.locale)}</span>${f.comment ? `<div>${esc(f.comment)}</div>` : ''}</div>`).join('')
           : '<p class="muted">Δεν υπάρχουν ακόμη αξιολογήσεις.</p>'}
       </div>
       <div class="panel"><h3>Προβολές και παραγγελίες ανά πιάτο <span class="muted small">· 30 ημέρες</span></h3>
@@ -243,9 +247,10 @@ function setupChecklist(spots, menu, stats) {
     [spots.length > 0, 'Θέσεις και QR', `${spots.length} θέσεις. Τυπώστε τα QR σε αυτοκόλλητα ή επιτραπέζιες κάρτες.`, 'tables'],
     [false, 'Το προσωπικό σας', 'Στείλτε στους σερβιτόρους τον σύνδεσμο σύνδεσης και το PIN τους.', 'settings'],
     [stats.orders > 0, 'Δοκιμαστική παραγγελία', 'Σκανάρετε ένα QR με το κινητό σας και στείλτε μια παραγγελία.', 'dash'],
-    [settings.payments?.provider !== 'off', 'Πληρωμές από το κινητό (προαιρετικό)',
+    // Phone payments (Viva) are offered in Greece only for now.
+    ...(L10N.market === 'us' ? [] : [[settings.payments?.provider !== 'off', 'Πληρωμές από το κινητό (προαιρετικό)',
       settings.payments?.isv?.accountId && !settings.payments?.isv?.merchantId ? 'Ολοκληρώστε την εγγραφή σας στη Viva.'
-        : 'Συνδέστε τη Viva για να πληρώνουν οι πελάτες με κάρτα, Apple Pay ή Google Pay.', 'settings'],
+        : 'Συνδέστε τη Viva για να πληρώνουν οι πελάτες με κάρτα, Apple Pay ή Google Pay.', 'settings']]),
   ];
   return `<div class="panel setup" id="setup">
     <div class="setup-head"><h3>Πρώτα βήματα</h3><button class="btn ghost sm" id="hideSetup">Απόκρυψη</button></div>
@@ -280,10 +285,10 @@ async function renderBilling() {
     <div class="panel">
       <h3>Η συνδρομή σας</h3>
       <div class="kv"><span>Πλάνο</span><b>${esc(acc.plans[v.plan]?.name || 'Kalimenu')}${v.effectivePlan ? '' : ' <span class="muted">(ανενεργό)</span>'}</b></div>
-      <div class="kv"><span>Κατάσταση</span><b>${STATUS_TEXT[v.status] || v.status}${v.status === 'trialing' ? ` · λήγει ${new Date(v.trialEndsAt).toLocaleDateString('el-GR')}` : ''}</b></div>
+      <div class="kv"><span>Κατάσταση</span><b>${STATUS_TEXT[v.status] || v.status}${v.status === 'trialing' ? ` · λήγει ${new Date(v.trialEndsAt).toLocaleDateString(L10N.locale)}` : ''}</b></div>
       ${paidNow ? `<div class="kv"><span>Χρέωση</span><b>${v.interval === 'year' ? 'Ετήσια' : 'Μηνιαία'}</b></div>` : ''}
       <div class="kv"><span>Χρήση</span><b>${acc.usage.items} πιάτα · ${acc.usage.spots} θέσεις</b></div>
-      <div class="kv"><span>Λογαριασμός</span><b>${esc(acc.email)}</b></div>
+      <div class="kv"><span>Λογαριασμός ιδιοκτήτη</span><b>${esc(acc.email)}</b></div>
       <div class="links" style="margin-top:1rem">
         ${acc.billing.customer ? '<button class="btn secondary sm" id="portal">Κάρτα, τιμολόγια, ακύρωση</button>' : ''}
         ${paidNow ? '<button class="btn secondary sm" id="pause">Πάγωμα για τη χειμερινή περίοδο</button>' : ''}
@@ -391,7 +396,7 @@ const hist = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(ne
 async function renderHistory() {
   const qs = new URLSearchParams({ from: hist.from, to: hist.to, ...(hist.status ? { status: hist.status } : {}) });
   const { orders, summary } = await api(`/api/admin/orders?${qs}`);
-  const when = (iso) => new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   $('#app').innerHTML = `
     <div class="filters">
       <label>Από<input class="input" type="date" id="hFrom" value="${hist.from}"></label>
@@ -440,7 +445,7 @@ const rec = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(new
 async function renderReceipts() {
   const qs = new URLSearchParams(rec);
   const { receipts, summary } = await api(`/api/admin/receipts?${qs}`);
-  const when = (iso) => new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   $('#app').innerHTML = `
     <div class="filters">
       <label>Από<input class="input" type="date" id="rFrom" value="${rec.from}"></label>
@@ -512,7 +517,7 @@ async function renderMenu() {
         ${list.map((i, ii) => `<div class="list-item rich ${i.available ? '' : 'off'}">
           <div class="thumb-sm">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" onerror="this.remove()">` : icon('image', 18)}</div>
           <div class="grow"><b>${esc(itemName(i.name))}</b>
-            <span class="muted small">${esc(i.description?.el || i.description?.en || '')}</span>
+            <span class="muted small">${esc(itemName(i.description))}</span>
             <div class="langs-mini">${settings.languages.map((l) => `<span class="${i.name[l] ? 'ok' : ''}" title="${LANGUAGES[l].name}">${LANGUAGES[l].short}</span>`).join('')}</div>
           </div>
           <b class="price lead2">${euro(i.price_cents)}${i.happy_price_cents != null ? `<small class="muted"> HH ${euro(i.happy_price_cents)}</small>` : ''}
@@ -621,13 +626,13 @@ function editItem(item, categoryId) {
     <div id="photo"></div>
     ${i18nEditor([{ key: 'name', label: 'Όνομα', max: 100 }, { key: 'description', label: 'Περιγραφή', textarea: true, max: 400 }], i)}
     <div class="two">
-      <label class="field"><span>Τιμή (€)</span><input class="input" id="price" type="number" step="0.10" min="0" value="${(i.price_cents / 100).toFixed(2)}"></label>
+      <label class="field"><span>Τιμή (${CUR()})</span><input class="input" id="price" type="number" step="0.10" min="0" value="${(i.price_cents / 100).toFixed(2)}"></label>
       <label class="field"><span>Κατηγορία</span><select class="input" id="cat">
         ${menu.categories.map((c) => `<option value="${c.id}" ${c.id === i.category_id ? 'selected' : ''}>${esc(itemName(c.name))}</option>`).join('')}
       </select></label>
     </div>
     <div class="two">
-      <label class="field"><span>Τιμή happy hour (€)</span><input class="input" id="happy" type="number" step="0.10" min="0" placeholder="—"
+      <label class="field"><span>Τιμή happy hour (${CUR()})</span><input class="input" id="happy" type="number" step="0.10" min="0" placeholder="—"
         value="${i.happy_price_cents != null ? (i.happy_price_cents / 100).toFixed(2) : ''}"></label>
       <label class="field"><span>Απόθεμα (μερίδες)</span><input class="input" id="stock" type="number" min="0" step="1" placeholder="Χωρίς όριο"
         value="${i.stock != null ? i.stock : ''}"></label>
@@ -636,7 +641,7 @@ function editItem(item, categoryId) {
     </div>
     <p class="muted small" style="margin-top:-.3rem">Το απόθεμα μειώνεται με κάθε παραγγελία· στο 0 το πιάτο γίνεται αυτόματα «εξαντλημένο».</p>
     <div class="field"><span class="lbl">Επιλογές και έξτρα</span>
-      <p class="muted small" style="margin:0 0 .5rem">Π.χ. «Ψήσιμο: Μέτριο / Καλοψημένο» (υποχρεωτική, μία επιλογή) ή «Έξτρα: Φέτα +1,50 €» (προαιρετική, πολλές).
+      <p class="muted small" style="margin:0 0 .5rem">Π.χ. «Ψήσιμο: Μέτριο / Καλοψημένο» (υποχρεωτική, μία επιλογή) ή «Έξτρα: Φέτα +${euro(150)}» (προαιρετική, πολλές).
         Συμπληρώστε ελληνικά και αγγλικά· οι υπόλοιπες γλώσσες δείχνουν τα αγγλικά.</p>
       <div id="optGroups"></div>
       <button type="button" class="btn secondary sm" id="addGroup">Προσθήκη ομάδας επιλογών</button>
@@ -644,8 +649,8 @@ function editItem(item, categoryId) {
     <label class="field"><span>Χαρακτηρισμοί</span><div class="checks">
       ${menu.tags.map((tg) => `<label><input type="checkbox" data-tag="${tg}" ${i.tags.includes(tg) ? 'checked' : ''}>${TAG_LABELS[tg] || tg}</label>`).join('')}
     </div></label>
-    <label class="field"><span>Αλλεργιογόνα · υποχρεωτική ενημέρωση (Κανονισμός ΕΕ 1169/2011)</span><div class="checks">
-      ${menu.allergens.map((a) => `<label><input type="checkbox" data-al="${a}" ${i.allergens.includes(a) ? 'checked' : ''}>${esc(STRINGS.el[`allergen_${a}`])}</label>`).join('')}
+    <label class="field"><span>Αλλεργιογόνα<span data-gr-only> · υποχρεωτική ενημέρωση (Κανονισμός ΕΕ 1169/2011)</span></span><div class="checks">
+      ${menu.allergens.map((a) => `<label><input type="checkbox" data-al="${a}" ${i.allergens.includes(a) ? 'checked' : ''}>${esc(STRINGS[L10N.market === 'us' ? 'en' : 'el'][`allergen_${a}`])}</label>`).join('')}
     </div></label>
     <label class="switch"><input type="checkbox" id="avail" ${i.available ? 'checked' : ''}> Διαθέσιμο τώρα</label>
     <div class="row">
@@ -709,7 +714,7 @@ function optionsEditor(box, addBtn, initial) {
           <label><input type="checkbox" class="gmulti" ${g.multi ? 'checked' : ''}> Πολλές επιλογές</label>
         </div>
         ${g.choices.map((c, ci) => `<div class="oc">${nameInputs(c.name, 'cname')}
-          <input class="input cprice" type="number" step="0.10" min="0" placeholder="+€" value="${c.price_cents ? (c.price_cents / 100).toFixed(2) : ''}">
+          <input class="input cprice" type="number" step="0.10" min="0" placeholder="+${CUR()}" value="${c.price_cents ? (c.price_cents / 100).toFixed(2) : ''}">
           <button type="button" class="mini" data-rmc="${gi}:${ci}" title="Διαγραφή">${icon('x', 14)}</button></div>`).join('')}
         <button type="button" class="btn ghost sm" data-addc="${gi}">+ Επιλογή</button>
       </div>`).join('');
@@ -898,13 +903,13 @@ function renderLook() {
     pv.innerHTML = `
       ${coverUrl ? `<div class="pv-cover"><img src="${esc(coverUrl)}" alt=""></div>` : ''}
       <div class="pv-head">${logoUrl ? `<img class="pv-logo" src="${esc(logoUrl)}" alt="">` : ''}
-        <div><h1>${esc(r.name)}</h1><p>Τραπέζι 4 · ${esc(r.hours?.el || 'Κάθε μέρα 12:00 – 00:00')}</p></div></div>
+        <div><h1>${esc(r.name)}</h1><p>Τραπέζι 4 · ${esc((L10N.market === 'us' ? r.hours?.en : r.hours?.el) || 'Κάθε μέρα 12:00 – 00:00')}</p></div></div>
       <div class="pv-service"><span>Σερβιτόρος</span><span>Λογαριασμός</span></div>
       <div class="pv-tabs"><b>Ορεκτικά</b><span>Κυρίως</span><span>Γλυκά</span></div>
       <h2>Ορεκτικά</h2>
-      <div class="pv-dish"><div><b>Τζατζίκι</b><p>Στραγγιστό γιαούρτι, αγγούρι, σκόρδο</p><em>4,50 €</em></div><span class="pv-add">+</span></div>
-      <div class="pv-dish"><div><b>Φάβα Σαντορίνης</b><p>Με κάπαρη και κρεμμύδι</p><em>5,50 €</em></div><span class="pv-add">+</span></div>
-      <div class="pv-cart"><span>2</span>Καλάθι<span>10,00 €</span></div>`;
+      <div class="pv-dish"><div><b>Τζατζίκι</b><p>Στραγγιστό γιαούρτι, αγγούρι, σκόρδο</p><em>${euro(L10N.market === 'us' ? 900 : 450)}</em></div><span class="pv-add">+</span></div>
+      <div class="pv-dish"><div><b>Φάβα Σαντορίνης</b><p>Με κάπαρη και κρεμμύδι</p><em>${euro(L10N.market === 'us' ? 1100 : 550)}</em></div><span class="pv-add">+</span></div>
+      <div class="pv-cart"><span>2</span>Καλάθι<span>${euro(L10N.market === 'us' ? 2000 : 1000)}</span></div>`;
     applyTheme(t, pv);
     const n = parseInt(brand.slice(1), 16);
     const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
@@ -968,7 +973,7 @@ function renderStore() {
     <div class="two">
       <label class="field"><span>Επωνυμία επιχείρησης</span><input class="input" id="legalName" value="${esc(r.legalName || '')}" placeholder="π.χ. Παπαδόπουλος Γ. & ΣΙΑ Ο.Ε."></label>
       <label class="field"><span>ΑΦΜ</span><input class="input" id="vatNumber" value="${esc(r.vatNumber || '')}" inputmode="numeric"></label>
-      <label class="field"><span>ΔΟΥ</span><input class="input" id="taxOffice" value="${esc(r.taxOffice || '')}"></label>
+      <label class="field" data-gr-only><span>ΔΟΥ</span><input class="input" id="taxOffice" value="${esc(r.taxOffice || '')}"></label>
       <label class="field"><span>Κείμενο στο τέλος της απόδειξης</span><input class="input" id="receiptFooter" value="${esc(r.receiptFooter || '')}" placeholder="π.χ. Σας περιμένουμε ξανά!"></label>
     </div>
     <button class="btn" id="save">Αποθήκευση</button>
@@ -1063,21 +1068,23 @@ function renderSettings() {
     <h3>Ροή παραγγελιών</h3>
     <label class="switch"><input type="checkbox" id="approval" ${s.requireApproval ? 'checked' : ''}>
       <span><b>Έγκριση από το προσωπικό πριν την κουζίνα</b><br><span class="muted small">Ο σερβιτόρος βλέπει την παραγγελία, την καταχωρεί στο ταμείο/POS και την εγκρίνει.</span></span></label>
-    <div class="note-box"><b>Σημαντικό για το myDATA.</b> Στην εστίαση με σερβίρισμα κάθε παραγγελία πρέπει να καταγράφεται ως
+    <div class="note-box" data-gr-only><b>Σημαντικό για το myDATA.</b> Στην εστίαση με σερβίρισμα κάθε παραγγελία πρέπει να καταγράφεται ως
       «Δελτίο Παραγγελίας Εστίασης» από πιστοποιημένη ταμειακή ή πάροχο. Με ενεργή την έγκριση, το προσωπικό καταχωρεί την παραγγελία
       στο ταμείο σας. Συμβουλευτείτε τον λογιστή σας πριν την απενεργοποιήσετε.</div>
 
     <h3>Πληρωμή από το κινητό του πελάτη</h3>
-    <p class="muted small" style="margin-top:0">Ο πελάτης πληρώνει όλο τον λογαριασμό, μόνο τα δικά του πιάτα ή ίσο μερίδιο, με φιλοδώρημα.
+    <p class="muted small" style="margin-top:0" data-us-only>Paying the check from the guest's phone is coming soon in the United States.
+      Until then guests order and ask for the check from their phone, and you close it on your POS.</p>
+    <p class="muted small" style="margin-top:0" data-gr-only>Ο πελάτης πληρώνει όλο τον λογαριασμό, μόνο τα δικά του πιάτα ή ίσο μερίδιο, με φιλοδώρημα.
       Τα χρήματα πάνε κατευθείαν στον δικό σας λογαριασμό Viva Wallet.</p>
-    <select class="input" id="payProvider" style="max-width:420px">
+    <select class="input" id="payProvider" style="max-width:420px" data-gr-only>
       <option value="off" ${chosen === 'off' ? 'selected' : ''}>Απενεργοποιημένη (μετρητά ή κάρτα στη θέση)</option>
       ${vc.available ? `<option value="viva-connect" ${chosen === 'viva-connect' ? 'selected' : ''}>Viva Wallet · σύνδεση με ένα κουμπί (προτείνεται)</option>` : ''}
       <option value="viva" ${chosen === 'viva' ? 'selected' : ''}>${vc.available ? 'Viva Wallet · με δικά μου κλειδιά API' : 'Viva Wallet'}</option>
       ${s.demoPaymentsAllowed ? `<option value="demo" ${chosen === 'demo' ? 'selected' : ''}>Δοκιμαστική λειτουργία (χωρίς χρέωση)</option>` : ''}
     </select>
-    ${vc.available ? `<div id="connectBox" class="note-box" style="margin-top:.7rem"></div>` : ''}
-    <div id="vivaBox" class="note-box" style="margin-top:.7rem">
+    ${vc.available ? `<div id="connectBox" class="note-box" style="margin-top:.7rem" data-gr-only></div>` : ''}
+    <div id="vivaBox" class="note-box" style="margin-top:.7rem" data-gr-only>
       <b>Σύνδεση Viva Wallet</b>
       <ol class="small" style="margin:.4rem 0 .6rem;padding-left:1.1rem">
         <li>Στο Viva: Settings → API Access → «Smart Checkout Credentials»: Client ID και Client Secret.</li>
@@ -1094,7 +1101,7 @@ function renderSettings() {
       </div>
     </div>
     <div class="two" style="margin-top:.6rem">
-      <label class="field"><span>Επιλογές φιλοδωρήματος (%)</span><input class="input" id="tips" value="${esc((s.payments.tips || [0, 5, 10, 15]).join(', '))}"></label>
+      <label class="field" data-gr-only><span>Επιλογές φιλοδωρήματος (%)</span><input class="input" id="tips" value="${esc((s.payments.tips || [0, 5, 10, 15]).join(', '))}"></label>
       <label class="switch" style="align-self:end"><input type="checkbox" id="roomCharge" ${s.payments.roomCharge ? 'checked' : ''}> Χρέωση στο δωμάτιο (ξενοδοχεία)</label>
     </div>
 

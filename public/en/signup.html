@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>Create your account · Kalimenu</title>
+  <meta name="description" content="Set up the digital menu of your restaurant in minutes. Free trial, no credit card.">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+  <div id="toasts"></div>
+  <header class="auth-top"><div class="in">
+    <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="133" height="26"></a>
+    <a class="link" href="/login">Already have an account? Sign in</a>
+  </div></header>
+
+  <main class="auth">
+    <form class="card" id="form" novalidate>
+      <h1>Try it free for 14 days</h1>
+      <p class="lead">In 5 minutes your guests order from the table in 8 languages. Nothing to install, right in the browser.</p>
+      <div class="trial-note" id="trialNote"></div>
+
+      <label class="field"><span>Restaurant name</span>
+        <input class="input" name="business" maxlength="80" required autocomplete="organization" placeholder="e.g. Mulberry Street Grill"></label>
+
+      <span class="field-label small muted">How many spots do you need a QR code for?</span>
+      <div class="row2" style="grid-template-columns:1fr 1fr 1fr">
+        <label class="field"><span>Tables</span><input class="input" name="tables" type="number" min="0" max="100" value="10"></label>
+        <label class="field"><span>Rooms</span><input class="input" name="rooms" type="number" min="0" max="300" value="0"></label>
+        <label class="field"><span>Lounge chairs</span><input class="input" name="sunbeds" type="number" min="0" max="300" value="0"></label>
+      </div>
+      <p class="hint" id="planNote" style="margin:-.3rem 0 .9rem"></p>
+
+      <label class="check"><input type="checkbox" name="sample" checked>
+        <span>Start with a sample menu (21 dishes in 8 languages) that you can change or delete at any time</span></label>
+
+      <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">
+      <label class="field"><span>E-mail</span><input class="input" name="email" type="email" required autocomplete="email"></label>
+      <label class="field"><span>Password</span><input class="input" name="password" type="password" minlength="8" required autocomplete="new-password">
+        <p class="hint">At least 8 characters.</p></label>
+      <label class="check"><input type="checkbox" name="acceptTerms">
+        <span>I act on behalf of a business and accept the <a href="/terms" target="_blank">Terms of Service</a> and the
+          <a href="/dpa" target="_blank">Data Processing Terms</a>. I have read the <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
+
+      <button class="btn block" id="submit" style="margin-top:.8rem">Create account</button>
+      <p class="hint" style="text-align:center;margin-top:.6rem">No credit card needed. At the end of the trial you decide whether to continue.</p>
+    </form>
+    <p class="foot">Want to see it first? <a href="/demo">Try the demo</a></p>
+  </main>
+  <footer class="legal-foot"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/cookies">Cookies</a> · Built by <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></footer>
+
+  <script type="module">
+    import { api, toast } from '/js/util.js';
+    import { setMarket } from '/js/lang.js';
+    import '/js/cookies.js';
+    setMarket('us'); // messages from the server in English
+    const params = new URLSearchParams(location.search);
+    const form = document.getElementById('form');
+    const usd = (c) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
+    const { plans, trialDays } = await api('/api/plans');
+    const interval = params.get('interval') === 'year' ? 'year' : 'month';
+    // The plan follows the number of spots: up to 50 → Kalimenu, more → Kalimenu Plus.
+    function update() {
+      const total = ['tables', 'rooms', 'sunbeds'].reduce((n, k) => n + (Number(form[k].value) || 0), 0);
+      const plan = total > 50 ? plans.plus : plans.pro;
+      const price = interval === 'year' ? `${usd(plan.month * 10)} a year` : `${usd(plan.month)} a month`;
+      document.getElementById('planNote').textContent = `${total} spots → ${plan.name}, ${price} + sales tax after the trial.`;
+      document.getElementById('trialNote').textContent =
+        `${trialDays} days free with every feature, no credit card. You only pay if you continue.`;
+    }
+    form.addEventListener('input', update);
+    update();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit');
+      btn.disabled = true;
+      try {
+        const r = await api('/api/account/signup', { method: 'POST', body: {
+          business: form.business.value, email: form.email.value, password: form.password.value,
+          interval, tables: form.tables.value, rooms: form.rooms.value, sunbeds: form.sunbeds.value,
+          sample: form.sample.checked, acceptTerms: form.acceptTerms.checked,
+        } });
+        location.href = r.next;
+      } catch (err) {
+        toast(err.message === 'error' ? 'Something went wrong. Please try again.' : err.message, 'err');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -605,7 +605,12 @@ export function pick(obj, lang, fallback = 'el') {
   return obj[lang] || obj.en || obj[fallback] || Object.values(obj)[0] || '';
 }
 
+// The venue's currency: euros, or dollars for venues in the United States (set when the menu loads).
+let CURRENCY = 'EUR';
+export const setCurrency = (c) => { CURRENCY = c === 'USD' ? 'USD' : 'EUR'; };
+
 export function money(cents, lang = 'el') {
-  const locale = { el: 'el-GR', en: 'en-IE', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES', nl: 'nl-NL', pl: 'pl-PL' }[lang] || 'el-GR';
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  const us = CURRENCY === 'USD';
+  const locale = { el: 'el-GR', en: us ? 'en-US' : 'en-IE', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: us ? 'es-US' : 'es-ES', nl: 'nl-NL', pl: 'pl-PL' }[lang] || 'el-GR';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: CURRENCY }).format(cents / 100);
 }

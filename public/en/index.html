@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#1f3a5f">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kalimenu.com/">
+  <meta property="og:title" content="Kalimenu · QR menus and table ordering for New York restaurants">
+  <meta property="og:description" content="Guests scan the QR code, read your menu in their language, order and call the server from their phone. $29/month, 14-day free trial, nothing to install.">
+  <meta property="og:image" content="https://kalimenu.com/brand/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="alternate" hreflang="en-us" href="https://kalimenu.com/">
+  <link rel="alternate" hreflang="el" href="https://kalimenu.gr/">
+  <title>Kalimenu · QR menu, table ordering and kitchen display for restaurants</title>
+  <meta name="description" content="QR menu in 8 languages, ordering from the table, server calls, kitchen and bar screens. For restaurants, bars, cafés and hotels in New York. $29/month, 14-day free trial.">
+  <link rel="preload" href="/fonts/manrope-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/manrope-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/site.css">
+  <script>
+    // Screenshots: the English ones, else the Greek ones, else the copies shipped with the site.
+    function fb(img) { const next = (img.dataset.fb || '').split(',').filter(Boolean); if (!next.length) { img.onerror = null; return; } img.src = next.shift(); img.dataset.fb = next.join(','); }
+  </script>
+</head>
+<body>
+  <header class="site" id="top">
+    <div class="wrap">
+      <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="144" height="28"></a>
+      <nav>
+        <a class="hide-m" href="#how">How it works</a>
+        <a class="hide-m" href="#features">Features</a>
+        <a class="hide-m" href="#pricing">Pricing</a>
+        <a class="hide-m" href="#faq">FAQ</a>
+        <a href="/login">Sign in</a>
+        <a class="btn primary sm" href="/signup">Start free</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero-bg">
+      <div class="wrap hero">
+        <div>
+          <div class="audience"><span>Restaurants</span><span>Bars</span><span>Cafés</span><span>Rooftops</span><span>Hotels</span></div>
+          <h1>Your menu in 8 languages. <em>Orders straight from the table.</em></h1>
+          <p class="lead">Guests scan the QR code, read your menu in their own language, order and call the server from their phone.
+            Your team turns tables faster, with fewer mistakes and zero commission.</p>
+          <div class="ctas">
+            <a class="btn primary" href="/signup">Start your free trial</a>
+            <a class="btn secondary" href="/demo">See the live demo</a>
+          </div>
+          <ul class="trust">
+            <li data-i="check">14 days free</li>
+            <li data-i="check">No credit card</li>
+            <li data-i="check">Nothing to install</li>
+          </ul>
+        </div>
+        <div class="visual">
+          <div class="phone"><img src="/assets/site-us-menu.jpg" data-fb="/assets/site-menu.jpg,/img/shot-menu.jpg" onerror="fb(this)" alt="The guest menu on a phone" width="390" height="844"></div>
+          <div class="float f1" aria-hidden="true"><div class="row"><span class="dot" data-i="bell"></span><div><b>New order</b><small>Table 4 · 3 dishes</small></div></div></div>
+          <div class="float f2" aria-hidden="true"><div class="row"><span class="dot" data-i="receipt"></span><div><b>Check, please</b><small>Table 7 · card</small></div></div></div>
+          <div class="float f3" aria-hidden="true"><div class="row"><span class="dot" data-i="globe"></span><div><b>Español</b><small>automatically</small></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="wrap">
+        <div><b>8</b><span>menu languages</span></div>
+        <div><b>0%</b><span>commission on orders</span></div>
+        <div><b>5 min</b><span>to set up your restaurant</span></div>
+        <div><b>14</b><span>days free trial</span></div>
+      </div>
+    </div>
+
+    <section id="how">
+      <div class="wrap">
+        <div class="center reveal">
+          <span class="eyebrow">How it works</span>
+          <h2>From sign-up to your first order in one afternoon</h2>
+          <p class="sub">Everything happens online, from your computer or phone. No installation, no app for your guests and no new hardware.</p>
+        </div>
+        <div class="steps">
+          <div class="step reveal"><b>Create your account</b><p>With your e-mail, in a minute. You start with a sample menu in 8 languages and change dishes and prices.</p></div>
+          <div class="step reveal"><b>Print your QR codes</b><p>One for every table, room or lounge chair: stickers, table tents or cards, with your logo.</p></div>
+          <div class="step reveal"><b>Take orders</b><p>Servers approve them on their phone and the kitchen sees them on a screen or prints them.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-cream">
+      <div class="wrap">
+        <div class="spot reveal">
+          <div>
+            <span class="eyebrow">For your guests</span>
+            <h3>Order without waiting for the server</h3>
+            <p>Guests see when their food will be ready, call the server with one tap and ask for the check from the table.</p>
+            <ul class="ticks">
+              <li data-i="check"><span>Dish notes and choices like "medium rare" or "extra feta +$3"</span></li>
+              <li data-i="check"><span>Allergens and dietary tags on every dish</span></li>
+              <li data-i="check"><span>Pay at the table from the phone: coming soon in the US</span></li>
+            </ul>
+          </div>
+          <div class="spot-media phone-media"><div class="blob"></div>
+            <div class="phone"><img src="/assets/site-us-dish.jpg" data-fb="/assets/site-dish.jpg,/img/shot-dish.jpg" onerror="fb(this)" alt="A dish with its photo and choices" width="390" height="844" loading="lazy"></div></div>
+        </div>
+
+        <div class="spot rev reveal">
+          <div>
+            <span class="eyebrow">For the kitchen and the bar</span>
+            <h3>Every station sees only its own tickets</h3>
+            <p>Drinks go to the bar, food to the kitchen. A timer on every ticket, printing on a thermal printer and an alert when it is ready.</p>
+            <ul class="ticks">
+              <li data-i="check"><span>Runs on any tablet or computer</span></li>
+              <li data-i="check"><span>Guests see the estimated time</span></li>
+              <li data-i="check"><span>Pick-up orders with a code</span></li>
+            </ul>
+          </div>
+          <div class="spot-media"><div class="blob"></div>
+            <div class="tablet"><img src="/assets/site-us-kitchen.jpg" data-fb="/assets/site-kitchen.jpg,/img/shot-kitchen.jpg" onerror="fb(this)" alt="Kitchen display with orders on a tablet" width="1600" height="685" loading="lazy"></div></div>
+        </div>
+
+        <div class="spot reveal" id="design">
+          <div>
+            <span class="eyebrow">Your brand</span>
+            <h3>A menu that looks like your place</h3>
+            <p>Design the whole experience yourself, no designer needed. Every change shows up right away in the preview and on your guests' phones.</p>
+            <ul class="ticks">
+              <li data-i="check"><span><b>Logo and cover photo</b> on the menu, the QR cards and the browser tab</span></li>
+              <li data-i="check"><span><b>Colors</b> for background, text, categories and buttons, always readable</span></li>
+              <li data-i="check"><span><b>Five typefaces</b> and <b>ready-made themes</b>, from a classic bistro to a dark lounge</span></li>
+            </ul>
+          </div>
+          <div class="spot-media"><div class="blob"></div>
+            <div class="trio">
+              <div class="phone"><img src="/assets/site-us-menu-aegean.jpg" data-fb="/assets/site-menu-aegean.jpg,/img/shot-menu-aegean.jpg" onerror="fb(this)" alt="Menu with a blue theme" width="390" height="844" loading="lazy"></div>
+              <div class="phone"><img src="/assets/site-us-menu-cream.jpg" data-fb="/assets/site-menu-cream.jpg,/img/shot-menu-cream.jpg" onerror="fb(this)" alt="Menu with a warm cream theme" width="390" height="844" loading="lazy"></div>
+              <div class="phone"><img src="/assets/site-us-menu-lounge.jpg" data-fb="/assets/site-menu-lounge.jpg,/img/shot-menu-lounge.jpg" onerror="fb(this)" alt="Menu with a dark lounge theme" width="390" height="844" loading="lazy"></div>
+            </div></div>
+        </div>
+
+        <div class="spot rev reveal">
+          <div>
+            <span class="eyebrow">For your team</span>
+            <h3>Servers see everything on their phone</h3>
+            <p>Calls, new orders and checks per table. Each server signs in with their own PIN and sees their section first.</p>
+            <ul class="ticks">
+              <li data-i="check"><span>Approve orders before they reach the kitchen, or send them straight in</span></li>
+              <li data-i="check"><span>Take an order at the table, fix a mistake, move a party to another table</span></li>
+              <li data-i="check"><span>Works next to your POS: ring up the check as you do today</span></li>
+            </ul>
+          </div>
+          <div class="spot-media phone-media"><div class="blob"></div>
+            <div class="phone"><img src="/assets/site-us-waiter.jpg" data-fb="/assets/site-waiter.jpg,/img/shot-waiter.jpg" onerror="fb(this)" alt="Server screen on a phone: calls and orders" width="390" height="844" loading="lazy"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="center reveal">
+          <span class="eyebrow">Features</span>
+          <h2>Everything a restaurant needs</h2>
+          <p class="sub">All included in every plan. No per-order fees and no commission.</p>
+        </div>
+        <div class="features">
+          <div class="feat"><span class="fi" data-i="globe"></span><b>Menu in 8 languages</b><p>Opens in the language of the guest's phone: English, Spanish, French, Italian, German, Greek, Dutch and Polish.</p></div>
+          <div class="feat"><span class="fi" data-i="bag"></span><b>Ordering from the table</b><p>Notes per dish and choices like cooking temperature or add-ons with a price.</p></div>
+          <div class="feat"><span class="fi" data-i="bell"></span><b>Call the server</b><p>Guests ask for service or the check with one tap; the server gets it on their phone.</p></div>
+          <div class="feat"><span class="fi" data-i="flame"></span><b>Kitchen and bar apart</b><p>Every station with its own screen and printer.</p></div>
+          <div class="feat"><span class="fi" data-i="plus"></span><b>Suggestions in the cart</b><p>"You might also like…": drinks and desserts with one tap. Raises the average check.</p></div>
+          <div class="feat"><span class="fi" data-i="clock"></span><b>Happy hour and schedules</b><p>Brunch, late-night or bar menus that appear on their own at the right time.</p></div>
+          <div class="feat"><span class="fi" data-i="alert"></span><b>Specials and stock</b><p>A banner at the top of the menu. Portions count down and a dish sells out by itself.</p></div>
+          <div class="feat"><span class="fi" data-i="gift"></span><b>Loyalty card</b><p>Every visit counts on the guest's phone, no sign-up needed.</p></div>
+          <div class="feat"><span class="fi" data-i="star"></span><b>Google reviews</b><p>Happy guests are sent to Google; complaints come only to you.</p></div>
+          <div class="feat"><span class="fi" data-i="bed"></span><b>Hotels and rooftops</b><p>A different menu per area, room charge and room service.</p></div>
+          <div class="feat"><span class="fi" data-i="link"></span><b>Menu link and pick-up</b><p>Your menu for Instagram and Google Maps, with pick-up orders.</p></div>
+          <div class="feat"><span class="fi" data-i="users"></span><b>Server sections</b><p>Each server with their own PIN and the tables of their section.</p></div>
+          <div class="feat"><span class="fi" data-i="chart"></span><b>Reports</b><p>Sales, languages, dishes that get views but no orders, export to Excel.</p></div>
+          <div class="feat"><span class="fi" data-i="wifi"></span><b>Wi-Fi by QR</b><p>Guests join your Wi-Fi from the menu's info page.</p></div>
+          <div class="feat"><span class="fi" data-i="grid"></span><b>Several locations</b><p>A restaurant and a bar under one account, each with its own menu.</p></div>
+          <div class="feat"><span class="fi" data-i="printer"></span><b>Ticket printing</b><p>Kitchen tickets and check copies on any 80 mm thermal printer.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-cream" id="pricing">
+      <div class="wrap center">
+        <span class="eyebrow">Pricing</span>
+        <h2>Simple pricing, no contracts</h2>
+        <p class="sub">Per location, with no commission on orders. Pay yearly and get 2 months free.</p>
+        <div class="billing" id="billing">
+          <button data-b="month" class="active">Monthly</button>
+          <button data-b="year">Yearly · 2 months free</button>
+        </div>
+        <div class="plans" id="plans"></div>
+        <p class="extras">No contract · Pause your subscription in the months you are closed, free of charge ·
+          <b>Done-for-you setup:</b> $99 one-time (we enter your menu, translations and photos) ·
+          Prices exclude applicable sales tax.</p>
+
+        <div class="cmp-wrap">
+          <h3>How it compares</h3>
+          <div class="table-scroll">
+            <table class="cmp">
+              <thead><tr><th>Option</th><th>Price</th><th>Ordering from the table</th><th>Call the server</th><th>Your own look</th><th>Languages</th></tr></thead>
+              <tbody>
+                <tr class="us"><td>Kalimenu</td><td>$29/month, 0% commission</td><td>Yes</td><td>Yes</td><td>Full: colors, typefaces, logo</td><td>8</td></tr>
+                <tr><td>Menu-only QR apps</td><td>$10–25/month</td><td>No</td><td>Usually not</td><td>Usually a logo and one color</td><td>Varies</td></tr>
+                <tr><td>POS ordering add-ons</td><td>from ~$69/month, plus their POS</td><td>Yes</td><td>Sometimes</td><td>Limited</td><td>Usually 1–2</td></tr>
+                <tr><td>Ordering marketplaces</td><td>15–30% per order</td><td>Pick-up and delivery</td><td>No</td><td>Their brand</td><td>Varies</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted small">Indicative market prices, September 2026.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="wrap faq">
+        <div class="reveal">
+          <span class="eyebrow">FAQ</span>
+          <h2>Frequently asked questions</h2>
+          <p class="sub">Can't find the answer? Write to us and we'll get back to you the same day.</p>
+        </div>
+        <div>
+          <details><summary>Do I need to install anything, or have someone come over?</summary><p>No. You sign up online, set up your menu in the browser and print the QR codes on your own printer or at a print shop. Servers sign in from their phone with a link and a PIN.</p></details>
+          <details><summary>How does the free trial work?</summary><p>For 14 days you get every feature, without a credit card. If you don't continue, the menu stops showing to guests, but your menu, QR codes and history stay saved and work again as soon as you subscribe.</p></details>
+          <details><summary>Do guests need to download an app?</summary><p>No. They scan the QR code with the camera and the menu opens in the browser.</p></details>
+          <details><summary>Can guests pay from their phone?</summary><p>Not yet in the United States: it is coming soon, with card, Apple Pay and Google Pay. Today guests order and ask for the check from the phone, and you close the check on your POS as you do now.</p></details>
+          <details><summary>Does it replace my POS?</summary><p>No, it works next to it. Orders can go through the server, who rings them up on your POS as today. The check copy from Kalimenu is not a sales receipt; you can note your POS receipt number on it.</p></details>
+          <details><summary>We are seasonal. Do we pay all year?</summary><p>No. Pause your subscription in the months you are closed, free of charge. Your menu, QR codes and history stay saved and you continue with one click.</p></details>
+          <details><summary>Do I need a tablet or a printer?</summary><p>Not necessarily. Servers work from their own phone. For the kitchen any tablet or computer is enough, and if you have an 80 mm thermal printer it prints tickets too.</p></details>
+          <details><summary>Can I change dishes and prices myself?</summary><p>Yes, from the admin, whenever you like. Changes show up right away, without reprinting the QR codes.</p></details>
+          <details><summary>Which languages does the menu speak?</summary><p>English, Spanish, French, Italian, German, Greek, Dutch and Polish. The menu opens in the language of the guest's phone, and you can hide the languages you don't need.</p></details>
+          <details><summary>Is there a contract?</summary><p>No. You pay monthly and stop whenever you like. Pay yearly and you get 2 months free.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap" id="contact">
+      <div class="cta-band reveal">
+        <h2>Start today, free for 14 days</h2>
+        <p class="sub">No credit card, nothing to install, no contract. If you'd like a hand, we'll set up your menu for you.</p>
+        <div class="ctas" id="contactCtas">
+          <a class="btn primary" href="/signup">Create your account</a>
+          <a class="btn secondary" href="/demo">Try the demo</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer><div class="wrap foot">
+    <div><img src="/brand/logo-white.svg" alt="Kalimenu" width="133" height="26">
+      © <span id="year"></span> Kalimenu<span data-if="name"> · <span data-company="name"></span></span>
+      <span class="co-line"><span data-if="address"> · <span data-company="address"></span></span><span data-if="email"> · <span data-company="email"></span></span><span data-if="phone"> · <span data-company="phone"></span></span></span>
+      <div class="made-by">Built by <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></div></div>
+    <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="#" data-cookie-settings>Cookie settings</a><a href="/login">Sign in</a><a href="https://kalimenu.gr" hreflang="el" translate="no">Ελληνικά</a></nav>
+  </div></footer>
+
+  <script type="module">
+    import { fillCompany } from '/js/legal.js';
+    import { icon } from '/js/icons.js';
+    import '/js/cookies.js';
+
+    // Icons: <el data-i="name"> gets the icon prepended.
+    document.querySelectorAll('[data-i]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.i, el.classList.contains('fi') ? 20 : 18)));
+
+    // Header border once the page scrolls, and a soft fade-in for sections.
+    const header = document.getElementById('top');
+    const onScroll = () => header.classList.toggle('scrolled', scrollY > 8);
+    addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      }), { rootMargin: '0px 0px -8% 0px' });
+      document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+    } else document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
+
+    // Prices come from the server (New York pricing, in dollars).
+    let prices = { pro: 2900, plus: 5900 };
+    try { const { plans } = await (await fetch('/api/plans')).json(); if (plans.pro.currency === 'USD') prices = { pro: plans.pro.month, plus: plans.plus.month }; } catch { /* keep defaults */ }
+    const PLANS = [
+      { key: 'pro', name: 'Kalimenu', for: 'Up to 50 tables, rooms or lounge chairs', month: prices.pro, best: true,
+        items: ['Every feature, no exceptions', 'Ordering from the table', 'Server calls and check requests', 'Kitchen and bar on separate screens', 'Happy hour, specials, loyalty', 'Up to 50 QR codes'] },
+      { key: 'plus', name: 'Kalimenu Plus', for: 'For larger restaurants and hotels', month: prices.plus,
+        items: ['Everything in Kalimenu', 'More than 50 QR codes, no limit', 'Room service and rooftop areas', 'Room charge', 'Priority support'], plus: 1 },
+    ];
+    const usd = (c) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
+    let billing = 'month';
+    function renderPlans() {
+      document.getElementById('plans').innerHTML = PLANS.map((p) => {
+        const yearly = p.month * 10;
+        const price = billing === 'year' ? `${usd(Math.round(yearly / 12))}<small>/month</small>` : `${usd(p.month)}<small>/month</small>`;
+        const per = billing === 'year' ? `${usd(yearly)} billed yearly` : 'No contract';
+        return `<div class="plan ${p.best ? 'best' : ''}">
+          <h3>${p.name}</h3><div class="for">${p.for}</div>
+          <div class="price">${price}</div><div class="per">${per}</div>
+          <ul>${p.items.map((it, i) => `<li class="${i === 0 && p.plus ? 'plus' : ''}">${icon('check', 16)}<span>${it}</span></li>`).join('')}</ul>
+          <a class="btn ${p.best ? 'primary' : 'secondary'} block" href="/signup?plan=${p.key}&interval=${billing}">Try 14 days free</a>
+        </div>`;
+      }).join('');
+    }
+    document.querySelectorAll('#billing button').forEach((b) => b.onclick = () => {
+      billing = b.dataset.b;
+      document.querySelectorAll('#billing button').forEach((x) => x.classList.toggle('active', x === b));
+      renderPlans();
+    });
+    renderPlans();
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    const company = await fillCompany();
+    const ctas = document.getElementById('contactCtas');
+    if (company.phone) ctas.insertAdjacentHTML('beforeend', `<a class="btn secondary" href="tel:${company.phone.replace(/\s/g, '')}">Call us: ${company.phone}</a>`);
+    if (company.email) ctas.insertAdjacentHTML('beforeend', `<a class="btn secondary" href="mailto:${company.email}?subject=Kalimenu">${company.email}</a>`);
+  </script>
+</body>
+</html>

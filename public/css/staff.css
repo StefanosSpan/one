@@ -389,3 +389,7 @@ body.kitchen .bar button.on { color: #fff; }
   .kcols { min-height: 0; }
 }
 .kvoid { background: var(--red-bg); color: var(--red); border-radius: 6px; padding: .35rem .55rem; margin-top: .45rem; font-weight: 700; text-decoration: none; }
+
+/* Sections that exist only in Greece (myDATA, Viva) or only in the United States. */
+html[data-market="us"] [data-gr-only] { display: none !important; }
+html:not([data-market="us"]) [data-us-only] { display: none !important; }

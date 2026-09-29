@@ -26,6 +26,9 @@
   <script type="module">
     import { api } from '/js/util.js';
     import { orderSlip, receiptSlip } from '/js/slips.js';
+    import { marketFromServer } from '/js/lang.js';
+    // Venues in the United States: English, dollars.
+    await marketFromServer();
 
     const [, , , kind, id] = location.pathname.split('/'); // /staff/print/{order|receipt}/{id}
     const params = new URLSearchParams(location.search);

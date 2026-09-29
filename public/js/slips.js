@@ -1,12 +1,14 @@
 // Renders printable order slips and bills (used by the staff print page and the guest's digital copy).
-import { esc } from './util.js';
+import { esc, L10N } from './util.js';
 
 const KIND_EL = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
-const eur = (c) => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR' }).format(c / 100);
-const when = (iso, locale = 'el-GR') => new Date(iso).toLocaleString(locale, {
+// Amounts in the venue's currency (dollars for venues in the United States).
+const money = (c, r, locale = L10N.locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: r?.currency || L10N.currency }).format(c / 100);
+const when = (iso, locale = L10N.locale) => new Date(iso).toLocaleString(locale, {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
-const nameIn = (obj, lang = 'el') => obj?.[lang] || obj?.el || obj?.en || Object.values(obj || {})[0] || '';
+// The staff's printouts use their own language (English for venues in the United States); the guest copy uses the guest's.
+const nameIn = (obj, lang = L10N.market === 'us' ? 'en' : 'el') => obj?.[lang] || obj?.el || obj?.en || Object.values(obj || {})[0] || '';
 
 function header(r, { withLegal = false } = {}) {
   return `<div class="c">
@@ -36,14 +38,16 @@ export function orderSlip(order, restaurant) {
     </table>
     ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ''}
     <hr>
-    <div class="row"><span>Σύνολο</span><span>${eur(order.total)}</span></div>
+    <div class="row"><span>Σύνολο</span><span>${money(order.total, restaurant)}</span></div>
     <div class="disclaimer">Εσωτερικό δελτίο. Δεν αποτελεί φορολογικό στοιχείο.</div>
   </div>`;
 }
 
 // Bill. `t` translates labels (guest copy) – defaults to Greek for the staff printout.
 export function receiptSlip(receipt, restaurant, { lang = 'el', t = (k, el) => el } = {}) {
-  const locale = { el: 'el-GR', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES', nl: 'nl-NL', pl: 'pl-PL' }[lang] || 'el-GR';
+  const us = restaurant?.currency === 'USD';
+  const locale = { el: 'el-GR', en: us ? 'en-US' : 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: us ? 'es-US' : 'es-ES', nl: 'nl-NL', pl: 'pl-PL' }[lang] || 'el-GR';
+  const eur = (c) => money(c, restaurant, locale);
   const spot = lang === 'el' ? KIND_EL[receipt.tableKind] || 'Τραπέζι' : t(receipt.tableKind, KIND_EL[receipt.tableKind]);
   return `<div class="slip">
     ${header(restaurant, { withLegal: true })}

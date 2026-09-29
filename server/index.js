@@ -391,6 +391,7 @@ function publicRestaurant(venue) {
     reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
     brandColor: s.brandColor || '#1f3a5f',
     theme: cleanTheme(s.theme),
+    currency: venue.currency,
     legalName: r.legalName || '', vatNumber: r.vatNumber || '', taxOffice: r.taxOffice || '', receiptFooter: r.receiptFooter || '',
   };
 }
@@ -2359,14 +2360,27 @@ app.get('/staff/admin', page('staff/admin.html'));
 app.get('/staff/qr', page('staff/qr.html'));
 app.get('/staff/print/order/:id', page('staff/print.html'));
 app.get('/staff/print/receipt/:id', page('staff/print.html'));
-app.get('/signup', page('signup.html'));
-app.get('/login', page('login.html'));
-app.get('/reset', page('login.html'));
-app.get('/terms', page('terms.html'));
-app.get('/privacy', page('privacy.html'));
-app.get('/dpa', page('dpa.html'));
+// Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one.
+const EN_PAGES = new Set(['index.html', 'signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
+const sitePage = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, marketOf(req) === 'us' && EN_PAGES.has(file) ? `en/${file}` : file));
+app.get('/', sitePage('index.html'));
+app.get('/demo', sitePage('demo.html'));
+app.get('/signup', sitePage('signup.html'));
+app.get('/login', sitePage('login.html'));
+app.get('/reset', sitePage('login.html'));
+app.get('/terms', sitePage('terms.html'));
+app.get('/privacy', sitePage('privacy.html'));
+app.get('/dpa', sitePage('dpa.html'));
+app.get('/cookies', sitePage('cookies.html'));
 // Company details for the footer and the legal pages.
-app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS, market: marketOf(req) }));
+// Optional analytics and ad measurement of the websites, loaded only after the visitor accepts them in the cookie banner.
+// kalimenu.com can have its own ids (US_GA_MEASUREMENT_ID, US_META_PIXEL_ID).
+const tracking = (market) => {
+  const env = (name) => (market === 'us' && process.env[`US_${name}`]) || process.env[name] || '';
+  return { ga: env('GA_MEASUREMENT_ID'), metaPixel: env('META_PIXEL_ID') };
+};
+app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS, market: marketOf(req),
+  tracking: tracking(marketOf(req)) }));
 app.get('/super', page('super.html'));
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.get('/api/plans', (req, res) => res.json({ plans: plansIn(marketOf(req) === 'us' ? 'USD' : 'EUR'), trialDays: TRIAL_DAYS }));

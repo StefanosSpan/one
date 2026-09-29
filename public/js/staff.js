@@ -1,6 +1,7 @@
 // Shared helpers for staff screens (login check, top bar, live connection).
-import { api, esc, stream, unlockAudio } from './util.js';
+import { api, esc, stream, unlockAudio, L10N } from './util.js';
 import { icon } from './icons.js';
+import { setMarket } from './lang.js';
 
 const HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
 
@@ -8,6 +9,8 @@ export async function requireLogin(allowed) {
   try {
     const me = await api('/api/staff/me');
     if (me.role !== 'admin' && !allowed.includes(me.role)) { location.href = HOME[me.role]; return null; }
+    // Venues in the United States see these screens in English, with dollars.
+    setMarket(me.venue?.market);
     return me;
   } catch {
     location.href = `/staff?next=${encodeURIComponent(location.pathname)}`;
@@ -63,6 +66,7 @@ export const KIND = {
   sunbed: { one: 'Ξαπλώστρα', short: 'Ξαπλ.', icon: 'pin' },
 };
 export const spotName = (kind, label, short = false) => (kind === 'takeaway' ? 'Παραλαβή' : `${(KIND[kind] || KIND.table)[short ? 'short' : 'one']} ${label}`);
+// Names of dishes and choices in the staff's language: Greek, or English for venues in the United States.
+export const itemName = (name) => (L10N.market === 'us' ? name?.en || name?.el : name?.el || name?.en) || Object.values(name || {})[0] || '';
 // Chosen options of an order line, e.g. "Καλοψημένο, Έξτρα φέτα".
-export const optionNames = (line) => (line.options || []).map((x) => x.choice?.el || x.choice?.en || '').join(', ');
-export const itemName = (name) => name?.el || name?.en || Object.values(name || {})[0] || '';
+export const optionNames = (line) => (line.options || []).map((x) => itemName(x.choice)).join(', ');

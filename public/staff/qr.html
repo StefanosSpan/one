@@ -102,7 +102,14 @@
   <script type="module">
     import { api, esc } from '/js/util.js';
     import { LANGUAGES } from '/js/i18n.js';
-    const KIND = { table: ['Τραπέζι', 'Table'], room: ['Δωμάτιο', 'Room'], sunbed: ['Ξαπλώστρα', 'Sunbed'] };
+    import { marketFromServer } from '/js/lang.js';
+    // Venues in the United States: English, dollars.
+    const US = (await marketFromServer()) === 'us';
+    // Two lines on every card: Greek and English, or in the United States English and Spanish.
+    const KIND = US
+      ? { table: ['Table', 'Mesa'], room: ['Room', 'Habitación'], sunbed: ['Lounge chair', 'Tumbona'] }
+      : { table: ['Τραπέζι', 'Table'], room: ['Δωμάτιο', 'Room'], sunbed: ['Ξαπλώστρα', 'Sunbed'] };
+    const CTA = US ? ['Scan to view the menu and order', 'Escanee para ver el menú y pedir'] : ['Σκανάρετε για μενού και παραγγελία', 'Scan to view the menu and order'];
     const params = new URLSearchParams(location.search);
     const onlyIds = (params.get('ids') || '').split(',').filter(Boolean).map(Number);
     const $ = (s) => document.querySelector(s);
@@ -131,11 +138,11 @@
         return `<div class="qcard">
           ${showLogo ? `<img class="logo" src="${esc(logo)}" alt="">` : ''}
           <div class="rn">${esc(s.restaurant.name)}</div>
-          <div class="tn">${esc(el)} ${esc(t.label)}</div>
-          <div class="tn-en">${esc(en)} ${esc(t.label)}</div>
+          <div class="tn" translate="no">${esc(el)} ${esc(t.label)}</div>
+          <div class="tn-en" translate="no">${esc(en)} ${esc(t.label)}</div>
           <div class="qr">${svgs[i]}${logoInQr ? `<div class="center"><img src="${esc(logo)}" alt=""></div>` : ''}</div>
-          <div class="cta">Σκανάρετε για μενού και παραγγελία</div>
-          <div class="sub">Scan to view the menu and order</div>
+          <div class="cta" translate="no">${CTA[0]}</div>
+          <div class="sub" translate="no">${CTA[1]}</div>
           <div class="codes">${codes}</div>
         </div>`;
       }).join('') || '<p class="muted">Δεν υπάρχουν ενεργές θέσεις για εκτύπωση.</p>';

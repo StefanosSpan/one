@@ -23,7 +23,15 @@ services:
       - key: APP_URL
         value: https://kalimenu.gr
       - key: REDIRECT_HOSTS      # these domains redirect to APP_URL
-        value: kalimenu.com,www.kalimenu.com,www.kalimenu.gr
+        value: www.kalimenu.gr
+      - key: US_APP_URL          # the United States site in English with dollar prices (www.kalimenu.com redirects here)
+        value: https://kalimenu.com
+      - key: US_BASE_DOMAIN      # kalimenu.com: US venues on <code>.kalimenu.com. Only after *.kalimenu.com is verified in Custom Domains
+        sync: false
+      - key: GA_MEASUREMENT_ID   # optional: Google Analytics of the websites, loaded only after cookie consent
+        sync: false
+      - key: META_PIXEL_ID       # optional: Meta Pixel for Facebook/Instagram ads, loaded only after cookie consent
+        sync: false
       - key: BASE_DOMAIN         # kalimenu.gr: every venue on <code>.kalimenu.gr. Only after *.kalimenu.gr is verified in Custom Domains
         sync: false
       - key: SUPERADMIN_EMAIL

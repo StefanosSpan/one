@@ -27,6 +27,9 @@
   </div>
   <script type="module">
     import { api, toast } from '/js/util.js';
+    import { marketFromServer } from '/js/lang.js';
+    // Venues in the United States: English, dollars.
+    await marketFromServer();
     const HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
     const params = new URLSearchParams(location.search);
     const next = params.get('next');

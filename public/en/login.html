@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="el">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <title>Σύνδεση · Kalimenu</title>
+  <title>Sign in · Kalimenu</title>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/auth.css">
 </head>
@@ -14,43 +14,46 @@
   <div id="toasts"></div>
   <header class="auth-top"><div class="in">
     <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="133" height="26"></a>
-    <a class="link" href="/signup">Νέος λογαριασμός</a>
+    <a class="link" href="/signup">Create account</a>
   </div></header>
 
   <main class="auth">
     <!-- Owner login -->
     <form class="card" id="login" hidden>
-      <h1>Σύνδεση ιδιοκτήτη</h1>
-      <p class="lead">Διαχείριση μενού, QR, προσωπικού και συνδρομής.</p>
+      <h1>Owner sign in</h1>
+      <p class="lead">Manage your menu, QR codes, staff and subscription.</p>
       <label class="field"><span>E-mail</span><input class="input" name="email" type="email" required autocomplete="email"></label>
-      <label class="field"><span>Κωδικός</span><input class="input" name="password" type="password" required autocomplete="current-password"></label>
-      <button class="btn block">Σύνδεση</button>
-      <p class="foot"><a href="#forgot">Ξεχάσατε τον κωδικό;</a></p>
+      <label class="field"><span>Password</span><input class="input" name="password" type="password" required autocomplete="current-password"></label>
+      <button class="btn block">Sign in</button>
+      <p class="foot"><a href="#forgot">Forgot your password?</a></p>
     </form>
 
     <!-- Forgotten password -->
     <form class="card" id="forgot" hidden>
-      <h1>Νέος κωδικός</h1>
-      <p class="lead">Θα σας στείλουμε σύνδεσμο για να ορίσετε νέο κωδικό.</p>
+      <h1>Reset your password</h1>
+      <p class="lead">We will send you a link to set a new password.</p>
       <label class="field"><span>E-mail</span><input class="input" name="email" type="email" required autocomplete="email"></label>
-      <button class="btn block">Αποστολή συνδέσμου</button>
-      <p class="foot"><a href="#">Πίσω στη σύνδεση</a></p>
+      <button class="btn block">Send link</button>
+      <p class="foot"><a href="#">Back to sign in</a></p>
     </form>
 
     <!-- Reset link from the e-mail -->
     <form class="card" id="reset" hidden>
-      <h1>Ορίστε νέο κωδικό</h1>
-      <label class="field"><span>Νέος κωδικός</span><input class="input" name="password" type="password" minlength="8" required autocomplete="new-password">
-        <p class="hint">Τουλάχιστον 8 χαρακτήρες.</p></label>
-      <button class="btn block">Αποθήκευση και σύνδεση</button>
+      <h1>Set a new password</h1>
+      <label class="field"><span>New password</span><input class="input" name="password" type="password" minlength="8" required autocomplete="new-password">
+        <p class="hint">At least 8 characters.</p></label>
+      <button class="btn block">Save and sign in</button>
     </form>
 
-    <p class="foot">Είστε σερβιτόρος ή στην κουζίνα; <a href="/staff">Σύνδεση με PIN</a></p>
+    <p class="foot">Server or kitchen staff? <a href="/staff">Sign in with your PIN</a></p>
   </main>
+  <footer class="legal-foot"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/cookies">Cookies</a> · Built by <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></footer>
 
-  <footer class="legal-foot"><a href="/terms">Όροι χρήσης</a> · <a href="/privacy">Απόρρητο</a> · <a href="/cookies">Cookies</a> · <a href="#" data-cookie-settings>Ρυθμίσεις cookies</a> · Κατασκευή: <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></footer>
   <script type="module">
     import { api, toast } from '/js/util.js';
+    import { setMarket } from '/js/lang.js';
+    import '/js/cookies.js';
+    setMarket('us'); // messages from the server in English
     const token = new URLSearchParams(location.search).get('token');
     const show = () => {
       const view = location.pathname === '/reset' && token ? 'reset' : location.hash === '#forgot' ? 'forgot' : 'login';
@@ -58,7 +61,7 @@
     };
     window.addEventListener('hashchange', show);
     show();
-    const fail = (e) => toast(e.message === 'error' ? 'Κάτι πήγε στραβά. Δοκιμάστε ξανά.' : e.message, 'err');
+    const fail = (e) => toast(e.message === 'error' ? 'Something went wrong. Please try again.' : e.message, 'err');
 
     document.getElementById('login').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -70,7 +73,7 @@
       e.preventDefault();
       try {
         await api('/api/account/forgot', { method: 'POST', body: { email: e.target.email.value } });
-        toast('Αν υπάρχει λογαριασμός με αυτό το e-mail, θα λάβετε σύνδεσμο σε λίγα λεπτά.', 'ok');
+        toast('If an account exists for this e-mail, you will receive a link in a few minutes.', 'ok');
       } catch (err) { fail(err); }
     });
     document.getElementById('reset').addEventListener('submit', async (e) => {
@@ -79,6 +82,5 @@
       catch (err) { fail(err); }
     });
   </script>
-  <script type="module" src="/js/cookies.js"></script>
 </body>
 </html>

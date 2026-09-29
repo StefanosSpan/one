@@ -137,3 +137,18 @@ test('the platform administration counts dollar and euro revenue apart', async (
   assert.equal(o.totals.usVenues, 2);
   assert.equal(o.venues.find((v) => v.slug === slug).url, `http://${slug}.${US}`);
 });
+
+test('each domain shows its own website: English on kalimenu.com, Greek on kalimenu.gr', async () => {
+  const g = browser();
+  for (const path of ['/', '/signup', '/login', '/terms', '/privacy', '/cookies', '/demo']) {
+    const us = await g(US, path);
+    const gr = await g(GR, path);
+    assert.match(us.text, /<html lang="en">/, `${path} on kalimenu.com`);
+    assert.match(gr.text, /<html lang="el">/, `${path} on kalimenu.gr`);
+  }
+  const home = (await g(US, '/')).text;
+  assert.match(home, /walkupdigital\.com/);
+  assert.match((await g(GR, '/')).text, /walkupdigital\.com/);
+  // No analytics or ads unless their ids are set (and then only after consent, in the browser).
+  assert.deepEqual((await g(US, '/api/site')).data.tracking, { ga: '', metaPixel: '' });
+});

@@ -1,5 +1,5 @@
 import { $, $$, esc, api, toast, sheet, stream } from './util.js';
-import { LANGUAGES, STRINGS, pick, money } from './i18n.js';
+import { LANGUAGES, STRINGS, pick, money, setCurrency } from './i18n.js';
 import { applyTheme } from './theme.js';
 import { icon } from './icons.js';
 
@@ -104,6 +104,7 @@ async function boot() {
     return;
   }
   S.lang = chooseLanguage();
+  setCurrency(S.data.currency);
   document.title = S.data.restaurant.name;
   applyBrand(S.data.restaurant.brandColor);
   applyTheme(S.data.restaurant.theme);

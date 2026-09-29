@@ -1,4 +1,4 @@
-import { $, $$, esc, api, toast, sheet, beep, timeAgo, euro } from './util.js';
+import { $, $$, esc, api, toast, sheet, beep, timeAgo, euro, L10N } from './util.js';
 import { icon } from './icons.js';
 import { requireLogin, topBar, liveStaff, LANG_CODES, itemName, optionNames, spotName, KIND } from './staff.js';
 
@@ -68,7 +68,7 @@ function start() {
       ${voided ? `<div class="voided">Αφαιρέθηκαν: ${esc(voided)}</div>` : ''}
       ${o.loyaltyReward ? `<div class="loyal-note">Κάρτα πιστότητας: δικαιούται <b>${esc(o.loyaltyReward.el || o.loyaltyReward.en || 'δώρο')}</b>
         <button class="btn secondary sm" data-redeem="${o.id}">Δόθηκε</button></div>` : ''}
-      ${o.customer ? `<div class="onote">Παραλαβή${o.customer.pickupAt ? ` στις ${new Date(o.customer.pickupAt).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}` : ' το συντομότερο'}
+      ${o.customer ? `<div class="onote">Παραλαβή${o.customer.pickupAt ? ` στις ${new Date(o.customer.pickupAt).toLocaleTimeString(L10N.locale, { hour: '2-digit', minute: '2-digit' })}` : ' το συντομότερο'}
         · <a href="tel:${esc(o.customer.phone)}">${esc(o.customer.phone)}</a></div>` : ''}
       <div class="panel-foot"><span class="badge ${STATUS[o.status][1]}">${STATUS[o.status][0]}</span>
         <span class="foot-right">${fix && o.status !== 'rejected' ? `<button class="linklike" data-fix="${o.id}">Διόρθωση</button>` : ''}
