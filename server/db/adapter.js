@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const schema = (dialect) => readFileSync(join(HERE, `schema.${dialect}.sql`), 'utf8');
 
-export const TABLES = ['account_venues', 'loyalty_redemptions', 'item_views', 'feedback', 'payments', 'uploads', 'receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts', 'venues', 'admins'];
+export const TABLES = ['account_venues', 'loyalty_redemptions', 'item_views', 'feedback', 'payments', 'uploads', 'receipts', 'calls', 'order_items', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts', 'venues', 'admins', 'shared_assets'];
 
 // ---------------------------------------------------------------------------
 // Migration from the single-venue schema (before venues existed): the old tables are

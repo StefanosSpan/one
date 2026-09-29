@@ -146,6 +146,13 @@ CREATE TABLE IF NOT EXISTS uploads (
   created_at TEXT NOT NULL
 );
 
+-- Images shared by every venue: example menu photos and home page screenshots (copied once from published bundles, see assets.js).
+CREATE TABLE IF NOT EXISTS shared_assets (
+  name TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BYTEA NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_categories_venue ON categories(venue_id);
 CREATE INDEX IF NOT EXISTS idx_items_venue      ON items(venue_id);
 CREATE INDEX IF NOT EXISTS idx_tables_venue     ON tables(venue_id);

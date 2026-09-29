@@ -80,6 +80,13 @@ const ITEMS = [
     t('Εμφιαλωμένο νερό', 'Bottled water', 'Mineralwasser', 'Eau en bouteille', 'Acqua in bottiglia', 'Agua embotellada', 'Flessenwater', 'Woda butelkowana')],
 ];
 
+// Photo of each sample dish (same order as ITEMS), served from /assets/dish-<key>.jpg (see assets.js).
+export const PHOTO_KEYS = ['horiatiki', 'dakos', 'tzatziki', 'fava', 'saganaki', 'fries', 'dolmades', 'moussaka', 'souvlaki', 'paidakia',
+  'gemista', 'kalamarakia', 'htapodi', 'sardeles', 'giaourti', 'baklavas', 'krasi', 'ouzo', 'bira', 'lemonada', 'nero'];
+export const samplePhotoUrl = (i) => (PHOTO_KEYS[i] ? `/assets/dish-${PHOTO_KEYS[i]}.jpg` : '');
+// Sample dish names (as stored) with their photo, to add photos to menus created before photos existed.
+export const SAMPLE_DISH_PHOTOS = ITEMS.map((it, i) => [JSON.stringify(it[5]), samplePhotoUrl(i)]);
+
 // Options / extras for some demo dishes, keyed by the dish's position in ITEMS.
 const choice = (name, price_cents = 0) => ({ name, price_cents });
 const OPTIONS = {
@@ -160,9 +167,9 @@ export async function seed(db, {
         [venueId, JSON.stringify(c.name), c.icon, i]);
     }
     for (const [i, [cat, emoji, price, allergens, tags, dish, desc]] of ITEMS.entries()) {
-      await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, sort, options)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venueId, catIds[cat], JSON.stringify(dish), JSON.stringify(desc), price,
-        JSON.stringify(allergens), JSON.stringify(tags), emoji, i, JSON.stringify(OPTIONS[i] || [])]);
+      await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, sort, options, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venueId, catIds[cat], JSON.stringify(dish), JSON.stringify(desc), price,
+        JSON.stringify(allergens), JSON.stringify(tags), emoji, i, JSON.stringify(OPTIONS[i] || []), samplePhotoUrl(i)]);
     }
   } else {
     for (const [i, c] of CATEGORIES.filter((x) => ['starters', 'mains', 'drinks'].includes(x.key)).entries()) {

@@ -361,3 +361,14 @@ test('an owner can run several venues from one account', async () => {
   assert.deepEqual(list.map((v) => v.name), ['Beach Bar Δύο']);
   assert.equal((await browser()('/api/account/login', { method: 'POST', body: { email: 'multi@example.com', password: 'multi-pass-1' } })).status, 200);
 });
+
+test('the example menu has a photo for every dish, served from this domain', async () => {
+  const menu = (await owner('/api/admin/menu')).data;
+  const photos = menu.items.map((i) => i.image_url).filter(Boolean);
+  assert.ok(photos.length >= 20, `only ${photos.length} dishes have a photo`);
+  assert.ok(photos.every((u) => /^\/assets\/dish-[a-z]+\.jpg$/.test(u)));
+  assert.equal(new Set(photos).size, photos.length, 'every dish has its own photo');
+  // Tests run without the published bundle: the image is simply not found (the menu hides it).
+  assert.equal((await fetch(base + photos[0])).status, 404);
+  assert.equal((await fetch(`${base}/assets/..%2Fsecret.jpg`)).status, 404);
+});

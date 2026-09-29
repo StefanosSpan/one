@@ -15,6 +15,7 @@ import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features,
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
 import { vivaCreateOrder, vivaVerify, isvConfig, isvCreateAccount, isvGetAccount, isvWebhookKey, isvCreateWebhook } from './payments.js';
 import { sendMail } from './mail.js';
+import { loadSharedAssets, sharedAsset, addSamplePhotos } from './assets.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -2108,6 +2109,14 @@ app.get('/api/demo', wrap(async (req, res) => {
   res.json({ venue: venue.slug, tables: t.map((x) => ({ label: x.label, kind: x.kind, url: `/t/${x.token}` })), pins: isDemo ? pins : null });
 }));
 
+// Shared images: example menu photos and home page screenshots.
+app.get('/assets/:name', wrap(async (req, res, next) => {
+  const file = await sharedAsset(req.params.name);
+  if (!file) return next();
+  res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+  res.type(file.mime).send(Buffer.from(file.data));
+}));
+
 app.get('/uploads/:name', wrap(async (req, res, next) => {
   const file = await db.get('SELECT mime, data FROM uploads WHERE name = ?', [String(req.params.name)]);
   if (!file) return next(); // older installations kept uploads on disk
@@ -2133,6 +2142,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (PRODUCTION && process.env.DEMO_VENUE !== 'off') {
     setInterval(() => resetDemoVenue().catch((e) => console.error('demo reset failed', e)), 24 * 3600_000).unref();
   }
+  // Copy the shared images into the database, and add the photos to a demo menu created before photos existed.
+  loadSharedAssets().then(async () => {
+    const demo = await db.get('SELECT id FROM venues WHERE is_demo = 1');
+    if (demo) await addSamplePhotos(demo.id);
+  }).catch((e) => console.error('sample photos', e));
   app.listen(PORT, '0.0.0.0', () => {
     const lan = Object.values(networkInterfaces()).flat()
       .find((i) => i && i.family === 'IPv4' && !i.internal)?.address;

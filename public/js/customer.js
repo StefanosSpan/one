@@ -458,7 +458,7 @@ function dishRow(i) {
         ${dishMeta(i)}
       </div>
       <div class="dish-side">
-        ${i.image_url ? `<img class="dish-photo" src="${esc(i.image_url)}" alt="" loading="lazy">` : ''}
+        ${i.image_url ? `<img class="dish-photo" src="${esc(i.image_url)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
         ${add}
       </div>
     </button>`;
@@ -505,7 +505,7 @@ function openItem(id) {
   if (MODE === 'table' && !viewed.has(id)) { viewed.add(id); api(`${API}/view`, { method: 'POST', body: { itemId: id } }).catch(() => {}); }
   let qty = 1;
   const { el, close } = sheet(`
-    ${i.image_url ? `<div class="sheet-photo"><img src="${esc(i.image_url)}" alt=""></div>` : ''}
+    ${i.image_url ? `<div class="sheet-photo"><img src="${esc(i.image_url)}" alt="" onerror="this.parentNode.remove()"></div>` : ''}
     <div class="sheet-head"><h2>${esc(tr(i.name))}</h2><span class="price-lg">${priceHtml(i)}</span></div>
     ${tr(i.description) ? `<p class="muted" style="margin:0">${esc(tr(i.description))}</p>` : ''}
     ${dishMeta(i, false)}
@@ -557,7 +557,7 @@ function suggestionsHtml() {
   if (!list.length) return '';
   return `<div class="suggest"><div class="suggest-title">${esc(t('suggestions'))}</div><div class="suggest-row">
     ${list.map((i) => `<button class="suggest-card" data-suggest="${i.id}">
-      ${i.image_url ? `<img src="${esc(i.image_url)}" alt="">` : ''}<b>${esc(tr(i.name))}</b><span>${i.included ? esc(t('included')) : fmt(i.price_cents)}</span>
+      ${i.image_url ? `<img src="${esc(i.image_url)}" alt="" onerror="this.remove()">` : ''}<b>${esc(tr(i.name))}</b><span>${i.included ? esc(t('included')) : fmt(i.price_cents)}</span>
       <i>${icon('plus', 14)}</i></button>`).join('')}</div></div>`;
 }
 
@@ -623,7 +623,7 @@ function openCart() {
         const i = itemById(l.id);
         const opts = optionText(i, l.options);
         return `<div class="cart-line">
-          ${i.image_url ? `<img class="cart-thumb" src="${esc(i.image_url)}" alt="">` : ''}
+          ${i.image_url ? `<img class="cart-thumb" src="${esc(i.image_url)}" alt="" onerror="this.remove()">` : ''}
           <div class="grow"><b>${esc(tr(i.name))}</b>${opts ? `<div class="note">${esc(opts)}</div>` : ''}${l.note ? `<div class="note">${esc(l.note)}</div>` : ''}
             <div class="muted small">${fmt(unitPrice(l) * l.qty)}</div></div>
           <div class="qty"><button data-dec="${idx}">${icon('minus', 15)}</button><span>${l.qty}</span><button data-inc="${idx}">${icon('plus', 15)}</button></div>
