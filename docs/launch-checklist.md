@@ -47,6 +47,7 @@
 | 3.2 | Domain: `www.kalimenu.gr` ✅. Στο `kalimenu.gr` περιμένουμε το πιστοποιητικό (Retry στο Render) | 🟡 |
 | 3.3 | **Render Starter ($7/μήνα)** πριν τον πρώτο πραγματικό πελάτη. Μέχρι τότε UptimeRobot κάθε 5 λεπτά στο `/healthz` | 🟡 |
 | 3.4 | **Super admin:** `SUPERADMIN_EMAIL` και `SUPERADMIN_PASSWORD` στο Render. Δοκιμή σύνδεσης στο `/super` | 🟡 |
+| 3.4α | **Διεύθυνση ανά κατάστημα:** `*.kalimenu.gr` στο Render → Custom Domains, εγγραφές DNS στο Papaki, αναμονή για «Verified», και μετά `BASE_DOMAIN=kalimenu.gr`. Δοκιμή με το `demo.kalimenu.gr` | 🟡 |
 | 3.5 | **Stripe σε test mode πρώτα:** κάρτα δοκιμής `4242 4242 4242 4242` → επιλογή πλάνου → webhook → η συνδρομή γίνεται «Ενεργή» → portal → ακύρωση. Μετά περνάτε στα live κλειδιά | 🟡 |
 | 3.6 | **Stripe customer portal:** Settings → Billing → Customer portal → Save | 🟡 |
 | 3.7 | **E-mail (Resend):** επιβεβαίωση του kalimenu.gr με τις εγγραφές DNS που δίνει το Resend στο Papaki. Το Resend χρησιμοποιεί υποdomain (`send.kalimenu.gr`), οπότε δεν πειράζετε το υπάρχον SPF. Μετά ορίζετε `RESEND_API_KEY`. Δοκιμή με «Ξεχάσατε τον κωδικό;» | 🟡 |

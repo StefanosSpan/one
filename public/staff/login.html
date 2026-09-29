@@ -54,9 +54,10 @@
       if (pin.length < 4) return;
       try {
         if (!venueField.hidden) venue = venueInput.value.trim().toLowerCase();
-        const { role, venue: code } = await api('/api/staff/login', { method: 'POST', body: { pin, venue } });
+        const { role, venue: code, next: go } = await api('/api/staff/login', { method: 'POST', body: { pin, venue } });
         store.set(code);
-        location.href = next && next.startsWith('/staff/') ? next : HOME[role];
+        // A link to the venue's own address (it logs in over there) comes first.
+        location.href = /^https?:/.test(go || '') ? go : next && next.startsWith('/staff/') ? next : HOME[role];
       } catch (e) {
         if (e.reason === 'venue_required') { venueField.hidden = false; venueInput.focus(); }
         toast(e.message === 'error' ? 'Σφάλμα σύνδεσης' : e.message, 'err');

@@ -24,6 +24,8 @@ services:
         value: https://kalimenu.gr
       - key: REDIRECT_HOSTS      # these domains redirect to APP_URL
         value: kalimenu.com,www.kalimenu.com,www.kalimenu.gr
+      - key: BASE_DOMAIN         # kalimenu.gr: every venue on <code>.kalimenu.gr. Only after *.kalimenu.gr is verified in Custom Domains
+        sync: false
       - key: SUPERADMIN_EMAIL
         sync: false
       - key: SUPERADMIN_PASSWORD

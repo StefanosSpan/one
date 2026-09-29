@@ -136,7 +136,7 @@
     function manage(v) {
       const { el, close } = sheet(`
         <div class="sheet-head"><h2>${esc(v.name)}</h2><button class="icon-btn" data-close>✕</button></div>
-        <p class="muted small" style="margin-top:0">${esc(v.email || 'χωρίς λογαριασμό ιδιοκτήτη')} · κωδικός ${esc(v.slug)} · εγγραφή ${day(v.createdAt)}</p>
+        <p class="muted small" style="margin-top:0">${esc(v.email || 'χωρίς λογαριασμό ιδιοκτήτη')} · ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.url.replace(/^https?:\/\//, ''))}</a>` : `κωδικός ${esc(v.slug)}`} · εγγραφή ${day(v.createdAt)}</p>
         <div class="acts" style="margin:.6rem 0 1rem">
           <button class="btn sm" id="imp">Άνοιγμα διαχείρισης</button>
           ${v.email ? '<button class="btn secondary sm" id="reset">Σύνδεσμος νέου κωδικού</button>' : ''}

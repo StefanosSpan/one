@@ -56,6 +56,48 @@ app.use((req, res, next) => {
   next();
 });
 
+// ---------------------------------------------------------------------------
+// Every venue on its own address: <code>.kalimenu.gr (BASE_DOMAIN=kalimenu.gr, DNS *.kalimenu.gr → this service).
+// Logins are kept per address (host-only cookies) and a session only counts on its own venue's address, so nobody
+// can end up in another venue's account. The main address keeps the home page, sign-up, owner login and /super.
+// Without BASE_DOMAIN everything runs on one address (own installation, local use, tests).
+// ---------------------------------------------------------------------------
+const BASE_DOMAIN = (process.env.BASE_DOMAIN || '').trim().toLowerCase().replace(/^\.+|\/+$/g, '');
+const BASE_HOST = BASE_DOMAIN.replace(/:\d+$/, '');
+const originProtocol = (req) => (APP_URL ? new URL(APP_URL).protocol.slice(0, -1) : req?.protocol || 'https');
+const venueOrigin = (venue, req) => `${originProtocol(req)}://${venue.slug}.${BASE_DOMAIN}`;
+const mainOrigin = (req) => APP_URL || `${originProtocol(req)}://${BASE_DOMAIN}`;
+
+// The venue code in the address, or null on the main address.
+function hostCode(req) {
+  if (!BASE_HOST) return null;
+  const host = String(req.hostname || '').toLowerCase();
+  if (!host.endsWith(`.${BASE_HOST}`)) return null;
+  const label = host.slice(0, -BASE_HOST.length - 1);
+  return /^[a-z0-9-]+$/.test(label) && !MAIN_LABELS.has(label) ? label : null;
+}
+const MAIN_LABELS = new Set(['www']);
+
+app.use((req, res, next) => {
+  const code = hostCode(req);
+  if (!code) return next();
+  venueBySlug(code).then((venue) => {
+    if (!venue || venue.status === 'suspended') {
+      return req.path.startsWith('/api/') ? res.status(404).json({ error: 'not_found' }) : res.redirect(302, mainOrigin(req));
+    }
+    req.hostVenue = venue;
+    // Sign-up and the platform administration exist only on the main address.
+    if (/^\/(super|signup|api\/super|api\/account\/signup)(\/|$)/.test(req.path)) {
+      return req.path.startsWith('/api/') ? res.status(404).json({ error: 'not_found' }) : res.redirect(302, mainOrigin(req) + req.originalUrl);
+    }
+    if (req.path === '/') return res.redirect(302, `/m/${venue.slug}`);
+    next();
+  }, next);
+});
+
+// On a venue's address only that venue's menus, receipts and orders are served.
+const otherVenue = (req, venueId) => !!req.hostVenue && req.hostVenue.id !== venueId;
+
 app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => stripeWebhook(req, res).catch(next));
 app.use(express.json({ limit: '6mb' }));
 
@@ -119,6 +161,39 @@ function setSession(req, res, venue, role, who = 0) {
   res.setHeader('Set-Cookie', `staff=${value}.${sign(venue, value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${hours * 3600}${req.secure ? '; Secure' : ''}`);
 }
 
+// Starts a session and returns where the browser goes next. When the venue lives on another address, the
+// browser gets a one-time link (valid 60 seconds, signed with the venue's secret) that logs it in over there.
+const HANDOFF_SECONDS = 60;
+const usedHandoffs = new Map(); // nonce -> expiry
+function beginSession(req, res, venue, role, who, path) {
+  if (!BASE_DOMAIN || req.hostVenue?.id === venue.id) { setSession(req, res, venue, role, who); return path; }
+  const payload = Buffer.from(JSON.stringify({ v: venue.id, r: role, w: who, p: path,
+    e: Date.now() + HANDOFF_SECONDS * 1000, n: randomBytes(12).toString('base64url') })).toString('base64url');
+  return `${venueOrigin(venue, req)}/auth/handoff?t=${payload}.${sign(venue, `handoff:${payload}`)}`;
+}
+
+app.get('/auth/handoff', (req, res) => {
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  const venue = req.hostVenue;
+  const [payload = '', sig = ''] = String(req.query.t || '').split('.');
+  let d = null;
+  if (venue && sig) {
+    const expected = Buffer.from(sign(venue, `handoff:${payload}`));
+    const given = Buffer.from(sig);
+    if (expected.length === given.length && timingSafeEqual(expected, given)) {
+      try { d = JSON.parse(Buffer.from(payload, 'base64url').toString()); } catch { d = null; }
+    }
+  }
+  const t = Date.now();
+  for (const [n, e] of usedHandoffs) if (e < t) usedHandoffs.delete(n);
+  if (!d || d.v !== venue.id || !(d.e > t) || usedHandoffs.has(d.n) || !ROLES.includes(d.r)) {
+    return res.redirect(302, venue ? '/staff' : '/login');
+  }
+  usedHandoffs.set(d.n, d.e);
+  setSession(req, res, venue, d.r, d.w);
+  res.redirect(302, typeof d.p === 'string' && d.p.startsWith('/') && !d.p.startsWith('//') ? d.p : '/staff/admin');
+});
+
 async function staffSession(req) {
   const raw = readCookie(req, 'staff');
   if (!raw) return null;
@@ -126,6 +201,8 @@ async function staffSession(req) {
   if (!ROLES.includes(role) || !(Number(exp) > Date.now()) || !sig) return null;
   const venue = await getVenue(Number(venueId));
   if (!venue || venue.status === 'suspended') return null;
+  // With an address per venue a login counts only on that venue's own address.
+  if (BASE_DOMAIN && req.hostVenue?.id !== venue.id) return null;
   const expected = Buffer.from(sign(venue, `${venueId}.${role}.${exp}.${accountId}`));
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
@@ -238,6 +315,7 @@ function cleanOptions(list) {
 async function tableByToken(req, token = req.params.token) {
   const t = mapTable(await db.get('SELECT * FROM tables WHERE token = ?', [String(token)]));
   if (!t || !t.active) fail(404, 'invalid_table');
+  if (otherVenue(req, t.venue_id)) fail(404, 'invalid_table');
   req.venue = await getVenue(t.venue_id);
   if (!req.venue || req.venue.status === 'suspended') fail(404, 'invalid_table');
   // Without a trial or subscription the menu is not shown; the guest is asked to use the printed menu.
@@ -340,11 +418,14 @@ async function notifyTable(tableId) {
   if (t) emit(`table:${t.venue_id}:${t.id}`, 'state', await tableState(t));
 }
 
+// Where the venue's staff log in with their PIN.
+const staffLink = (venue, req) => (BASE_DOMAIN ? `${venueOrigin(venue, req)}/staff` : `${appBase(req)}/staff?v=${venue.slug}`);
+
 const staffChannel = (venue) => `staff:${venue.id}`;
 
 // Address used in QR codes and links: the venue's own setting, the service address, or the address of this request.
 function baseUrl(req) {
-  const configured = req.venue?.settings.publicBaseUrl || APP_URL;
+  const configured = req.venue?.settings.publicBaseUrl || (BASE_DOMAIN && req.venue ? venueOrigin(req.venue, req) : APP_URL);
   return (configured || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 }
 
@@ -481,7 +562,7 @@ async function takeawaySpot(venue) {
 
 async function venueBySlugPublic(req) {
   const venue = await venueBySlug(req.params.slug);
-  if (!venue || venue.status === 'suspended') fail(404, 'invalid_table');
+  if (!venue || venue.status === 'suspended' || otherVenue(req, venue.id)) fail(404, 'invalid_table');
   if (features(venue).inactive) { const e = new HttpError(403, 'venue_inactive'); e.code = 'venue_inactive'; throw e; }
   req.venue = venue;
   return venue;
@@ -530,7 +611,7 @@ app.post('/api/public/menu/:slug/orders', wrap(async (req, res) => {
 // The guest follows a pick-up order with the code they received.
 app.get('/api/public/pickup/:code', wrap(async (req, res) => {
   const row = await db.get("SELECT venue_id, id FROM orders WHERE pickup_code = ? AND channel = 'takeaway'", [String(req.params.code)]);
-  if (!row) fail(404, 'not_found');
+  if (!row || otherVenue(req, row.venue_id)) fail(404, 'not_found');
   const o = await loadOrder(row.venue_id, row.id);
   res.json({ id: o.id, status: o.status, total: o.total, etaAt: o.etaAt, pickupAt: o.customer?.pickupAt || '', createdAt: o.createdAt,
     items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: i.price, options: i.options })) });
@@ -722,17 +803,19 @@ app.post('/pay/viva/webhook', wrap(async (req, res) => {
 // ---------------------------------------------------------------------------
 // Staff log in with the venue's short code (from their login link /staff?v=code) and their PIN.
 // With a single venue in the database (own installation) the code can be left out.
-async function venueForLogin(code) {
+async function venueForLogin(code, req) {
+  if (req.hostVenue) return req.hostVenue;
   if (code) return (await venueBySlug(code)) || fail(404, 'Δεν βρέθηκε κατάστημα με αυτόν τον κωδικό');
   const rows = await db.all('SELECT id FROM venues ORDER BY id LIMIT 2');
   if (rows.length !== 1) { const e = new HttpError(400, 'Χρειάζεται ο κωδικός καταστήματος'); e.code = 'venue_required'; throw e; }
   return getVenue(rows[0].id);
 }
 
+const STAFF_HOME = { admin: '/staff/admin', waiter: '/staff/waiter', kitchen: '/staff/kitchen' };
 app.post('/api/staff/login', wrap(async (req, res) => {
   const ip = req.ip || 'x';
   if (!rateLimit(`login:${ip}`, 10, 60_000)) fail(429, 'Πολλές προσπάθειες. Δοκιμάστε σε ένα λεπτό.');
-  const venue = await venueForLogin(cleanText(req.body?.venue, 40).toLowerCase());
+  const venue = await venueForLogin(cleanText(req.body?.venue, 40).toLowerCase(), req);
   const pin = String(req.body?.pin ?? '');
   const pins = venue.settings.pins || {};
   if (venue.status === 'suspended') fail(403, 'Ο λογαριασμός του καταστήματος έχει ανασταλεί');
@@ -743,8 +826,8 @@ app.post('/api/staff/login', wrap(async (req, res) => {
     if (!rateLimit(`pinfail:${venue.id}`, 30, 10 * 60_000)) fail(429, 'Πολλές λάθος προσπάθειες. Δοκιμάστε σε λίγα λεπτά.');
     fail(401, 'Λάθος PIN');
   }
-  setSession(req, res, venue, role, member ? `s${member.id}` : 0);
-  res.json({ role, venue: venue.slug, name: member?.name || '' });
+  const next = beginSession(req, res, venue, role, member ? `s${member.id}` : 0, STAFF_HOME[role]);
+  res.json({ role, venue: venue.slug, name: member?.name || '', next });
 }));
 
 app.post('/api/staff/logout', (req, res) => {
@@ -987,7 +1070,7 @@ app.post('/api/staff/orders/:id/redeem', requireStaff('waiter'), wrap(async (req
 // Rating after the bill (once per receipt). Happy guests are invited to review the venue on Google.
 app.post('/api/public/receipt/:token/feedback', wrap(async (req, res) => {
   const r = await db.get('SELECT id, venue_id, table_label FROM receipts WHERE token = ?', [String(req.params.token)]);
-  if (!r) fail(404, 'not_found');
+  if (!r || otherVenue(req, r.venue_id)) fail(404, 'not_found');
   if (await db.get('SELECT id FROM feedback WHERE receipt_id = ?', [r.id])) fail(409, 'already_sent');
   const rating = Math.trunc(Number(req.body?.rating));
   if (!(rating >= 1 && rating <= 5)) fail(400, 'bad_rating');
@@ -1023,7 +1106,7 @@ app.get('/api/public/menu/:slug/wifi.svg', wrap(async (req, res) => { await wifi
 // Guest's digital copy (link sent to their phone when the spot is closed).
 app.get('/api/public/receipt/:token', wrap(async (req, res) => {
   const row = await db.get('SELECT * FROM receipts WHERE token = ?', [String(req.params.token)]);
-  const venue = row && await getVenue(row.venue_id);
+  const venue = row && !otherVenue(req, row.venue_id) && await getVenue(row.venue_id);
   if (!venue || venue.status === 'suspended') fail(404, 'not_found');
   const { token, orderIds, tableId, ...pub } = mapReceipt(row);
   res.json({ receipt: pub, restaurant: publicRestaurant(venue) });
@@ -1064,7 +1147,8 @@ const adminSettings = async (req) => {
   const isv = isvConfig();
   s.vivaConnect = isv ? { available: true, environment: isv.environment, feePercent: isv.feePercent, feeCents: isv.feeCents } : { available: false };
   return { ...s, zones: await zonesOf(req.venue.id), defaultPrepMinutes: s.defaultPrepMinutes || 15, staff: s.staff || [], stations: stationsOf(req.venue), allLanguages: LANGS, database: db.dialect, venue: venueSummary(req.venue),
-    staffUrl: `${baseUrl(req)}/staff?v=${req.venue.slug}`, menuUrl: `${baseUrl(req)}/m/${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
+    staffUrl: BASE_DOMAIN && !req.venue.settings.publicBaseUrl ? staffLink(req.venue, req) : `${baseUrl(req)}/staff?v=${req.venue.slug}`,
+    menuUrl: `${baseUrl(req)}/m/${req.venue.slug}`, demoPaymentsAllowed: canUseDemoPayments(req.venue) };
 };
 
 // The demo "online payment" marks bills as paid without taking money, so real venues cannot switch it on in production.
@@ -1576,7 +1660,7 @@ app.use('/api/admin', admin);
 // ---------------------------------------------------------------------------
 const cleanEmail = (v) => cleanText(v, 120).toLowerCase();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const appBase = (req) => APP_URL || `${req.protocol}://${req.get('host')}`;
+const appBase = (req) => (BASE_DOMAIN ? mainOrigin(req) : APP_URL || `${req.protocol}://${req.get('host')}`);
 const isUnique = (e) => /unique|duplicate/i.test(e?.message || '');
 
 app.post('/api/account/signup', wrap(async (req, res) => {
@@ -1617,14 +1701,14 @@ app.post('/api/account/signup', wrap(async (req, res) => {
   }
   const venue = await getVenue(venueId);
   const account = await db.get('SELECT id FROM accounts WHERE email = ?', [email]);
-  setSession(req, res, venue, 'admin', account.id);
+  const next = beginSession(req, res, venue, 'admin', account.id, '/staff/admin?welcome=1');
 
   const base = appBase(req);
   sendMail({
     to: email,
     subject: `Καλώς ήρθατε στο Kalimenu – ${business}`,
     text: `Ο λογαριασμός σας είναι έτοιμος.\n\nΔιαχείριση: ${base}/login\n`
-      + `Σύνδεση προσωπικού (σερβιτόροι, κουζίνα): ${base}/staff?v=${venue.slug}\n`
+      + `Σύνδεση προσωπικού (σερβιτόροι, κουζίνα): ${staffLink(venue, req)}\n`
       + `\nΗ δωρεάν δοκιμή του πλάνου «${f.name}» διαρκεί ${TRIAL_DAYS} ημέρες, χωρίς κάρτα.\n`
       + '\nΤα PIN του προσωπικού θα τα βρείτε στη Διαχείριση → Ρυθμίσεις.\n',
   });
@@ -1632,19 +1716,24 @@ app.post('/api/account/signup', wrap(async (req, res) => {
     sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Νέα εγγραφή: ${business}`,
       text: `${business}\n${email}\nΠλάνο: ${f.name} (${interval === 'year' ? 'ετήσιο' : 'μηνιαίο'})\nΘέσεις: ${JSON.stringify(spots)}` });
   }
-  res.status(201).json({ ok: true, venue: venueSummary(venue), next: '/staff/admin?welcome=1' });
+  res.status(201).json({ ok: true, venue: venueSummary(venue), next });
 }));
+
+// On a venue's address the owner lands in that venue (if it is theirs), otherwise in their first venue.
+async function ownerVenue(req, account) {
+  if (req.hostVenue && (await venueIdsOf(account.id)).includes(req.hostVenue.id)) return req.hostVenue;
+  return getVenue(account.venue_id);
+}
 
 app.post('/api/account/login', wrap(async (req, res) => {
   if (!rateLimit(`owner-login:${req.ip}`, 10, 60_000)) fail(429, 'Πολλές προσπάθειες. Δοκιμάστε σε ένα λεπτό.');
   const account = await db.get('SELECT * FROM accounts WHERE email = ?', [cleanEmail(req.body?.email)]);
   // Same work and answer whether or not the e-mail exists.
   const ok = await checkPassword(req.body?.password, account?.password_hash || 'scrypt$x$x');
-  const venue = ok && await getVenue(account.venue_id);
+  const venue = ok && await ownerVenue(req, account);
   if (!venue) fail(401, 'Λάθος e-mail ή κωδικός');
   if (venue.status === 'suspended') fail(403, 'Ο λογαριασμός έχει ανασταλεί. Επικοινωνήστε μαζί μας.');
-  setSession(req, res, venue, 'admin', account.id);
-  res.json({ ok: true, next: '/staff/admin' });
+  res.json({ ok: true, next: beginSession(req, res, venue, 'admin', account.id, '/staff/admin') });
 }));
 
 app.post('/api/account/forgot', wrap(async (req, res) => {
@@ -1671,9 +1760,8 @@ app.post('/api/account/reset', wrap(async (req, res) => {
   const account = token && await db.get('SELECT * FROM accounts WHERE reset_hash = ?', [sha256(token)]);
   if (!account || !(account.reset_expires > now())) fail(400, 'Ο σύνδεσμος έληξε. Ζητήστε νέο.');
   await db.run("UPDATE accounts SET password_hash = ?, reset_hash = '', reset_expires = '' WHERE id = ?", [await hashPassword(password), account.id]);
-  const venue = await getVenue(account.venue_id);
-  setSession(req, res, venue, 'admin', account.id);
-  res.json({ ok: true, next: '/staff/admin' });
+  const venue = await ownerVenue(req, account);
+  res.json({ ok: true, next: beginSession(req, res, venue, 'admin', account.id, '/staff/admin') });
 }));
 
 // ---------------------------------------------------------------------------
@@ -1812,8 +1900,7 @@ app.post('/api/account/venues', ...requireOwner, wrap(async (req, res) => {
     return vid;
   });
   const venue = await getVenue(id);
-  setSession(req, res, venue, 'admin', req.accountId);
-  res.status(201).json({ ok: true, venue: venueSummary(venue), next: '/staff/admin?welcome=1' });
+  res.status(201).json({ ok: true, venue: venueSummary(venue), next: beginSession(req, res, venue, 'admin', req.accountId, '/staff/admin?welcome=1') });
 }));
 
 app.post('/api/account/venues/:id/switch', ...requireOwner, wrap(async (req, res) => {
@@ -1821,8 +1908,7 @@ app.post('/api/account/venues/:id/switch', ...requireOwner, wrap(async (req, res
   if (!(await venueIdsOf(req.accountId)).includes(id)) fail(404, 'Δεν βρέθηκε');
   const venue = await getVenue(id);
   if (!venue || venue.status === 'suspended') fail(403, 'Το κατάστημα έχει ανασταλεί');
-  setSession(req, res, venue, 'admin', req.accountId);
-  res.json({ ok: true, next: '/staff/admin' });
+  res.json({ ok: true, next: beginSession(req, res, venue, 'admin', req.accountId, '/staff/admin') });
 }));
 
 // Data export (GDPR portability): everything stored for the venue, as JSON.
@@ -1972,7 +2058,7 @@ superApi.get('/overview', wrap(async (req, res) => {
   for (const { id } of await db.all('SELECT id FROM venues ORDER BY id DESC')) {
     const v = await getVenue(id);
     venues.push({
-      id: v.id, slug: v.slug, name: v.name, email: owners.get(id)?.email || '', plan: planOf(v), status: v.status,
+      id: v.id, slug: v.slug, url: BASE_DOMAIN ? venueOrigin(v, req) : '', name: v.name, email: owners.get(id)?.email || '', plan: planOf(v), status: v.status,
       effectivePlan: effectivePlan(v), interval: v.interval, trialEndsAt: v.trial_ends_at, createdAt: v.createdAt,
       isDemo: v.isDemo, stripe: !!v.stripeSubscriptionId, mrr: venueMrr(v),
       items: Number(items.get(id)?.n || 0), spots: Number(spots.get(id)?.n || 0),
@@ -2045,8 +2131,7 @@ superApi.post('/venues/:id/impersonate', wrap(async (req, res) => {
   const venue = await superVenue(req);
   const owner = (await db.get('SELECT id FROM accounts WHERE venue_id = ? ORDER BY id LIMIT 1', [venue.id]))
     || (await db.get('SELECT account_id AS id FROM account_venues WHERE venue_id = ? LIMIT 1', [venue.id]));
-  setSession(req, res, venue, 'admin', owner?.id || 0);
-  res.json({ ok: true, next: '/staff/admin' });
+  res.json({ ok: true, next: beginSession(req, res, venue, 'admin', owner?.id || 0, '/staff/admin') });
 }));
 
 // A password link the administrator can also pass on by phone or message (valid 24 hours).
@@ -2074,16 +2159,30 @@ app.use('/api/super', superApi);
 // Pages & static files
 // ---------------------------------------------------------------------------
 const page = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, file));
-app.get('/t/:token', page('customer.html'));
-app.get('/m/:slug', page('customer.html'));
-app.get('/staff', page('staff/login.html'));
+// With an address per venue, links to the main address (older printed QR codes, the home page demo) move on
+// to the venue's own address.
+const toVenueAddress = (find) => (req, res, next) => {
+  if (!BASE_DOMAIN || req.hostVenue) return next();
+  find(req).then((venue) => {
+    if (!venue) return next();
+    const url = new URL(req.originalUrl, 'http://x');
+    url.searchParams.delete('v');
+    res.redirect(302, venueOrigin(venue, req) + url.pathname + url.search);
+  }, next);
+};
+const venueOfRow = async (row) => row && getVenue(row.venue_id);
+app.get('/t/:token', toVenueAddress(async (req) => venueOfRow(await db.get('SELECT venue_id FROM tables WHERE token = ?', [String(req.params.token)]))),
+  page('customer.html'));
+app.get('/m/:slug', toVenueAddress((req) => venueBySlug(req.params.slug)), page('customer.html'));
+app.get('/r/:token', toVenueAddress(async (req) => venueOfRow(await db.get('SELECT venue_id FROM receipts WHERE token = ?', [String(req.params.token)]))),
+  page('receipt.html'));
+app.get('/staff', toVenueAddress(async (req) => (req.query.v ? venueBySlug(String(req.query.v)) : null)), page('staff/login.html'));
 app.get('/staff/waiter', page('staff/waiter.html'));
 app.get('/staff/kitchen', page('staff/kitchen.html'));
 app.get('/staff/admin', page('staff/admin.html'));
 app.get('/staff/qr', page('staff/qr.html'));
 app.get('/staff/print/order/:id', page('staff/print.html'));
 app.get('/staff/print/receipt/:id', page('staff/print.html'));
-app.get('/r/:token', page('receipt.html'));
 app.get('/signup', page('signup.html'));
 app.get('/login', page('login.html'));
 app.get('/reset', page('login.html'));
@@ -2106,7 +2205,8 @@ app.get('/api/demo', wrap(async (req, res) => {
   const { pins } = venue.settings;
   // Only reveal PINs while the demo defaults are still in use.
   const isDemo = ['admin', 'waiter', 'kitchen'].every((r) => pins[r] === DEMO_PINS[r]);
-  res.json({ venue: venue.slug, tables: t.map((x) => ({ label: x.label, kind: x.kind, url: `/t/${x.token}` })), pins: isDemo ? pins : null });
+  const shown = isDemo && (!req.hostVenue || req.hostVenue.id === venue.id);
+  res.json({ venue: venue.slug, tables: t.map((x) => ({ label: x.label, kind: x.kind, url: `/t/${x.token}` })), pins: shown ? pins : null });
 }));
 
 // Shared images: example menu photos and home page screenshots.

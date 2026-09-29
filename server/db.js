@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, scrypt } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { openDatabase } from './db/adapter.js';
 import { seed } from './seed.js';
@@ -83,6 +83,10 @@ export function slugify(text) {
     .replace(/[α-ω]/g, (c) => GREEK[c] || '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'katastima';
 }
 
+// Venue codes are also their address (<code>.kalimenu.gr); these names stay with the service.
+export const RESERVED_SLUGS = new Set(['www', 'app', 'api', 'admin', 'super', 'mail', 'smtp', 'email', 'ftp', 'static', 'cdn', 'assets',
+  'img', 'files', 'help', 'support', 'status', 'blog', 'docs', 'dev', 'test', 'staging', 'login', 'signup', 'staff', 'kalimenu', 'm', 't', 'r']);
+
 /**
  * Creates a venue with its settings, starter menu and spots inside a transaction `t`.
  * Returns the new venue id.
@@ -91,7 +95,7 @@ export async function createVenue(t, { name, plan = 'pro', status = 'active', tr
   slug, ...seedOptions }) {
   let base = slug || slugify(name);
   let candidate = base;
-  for (let i = 2; await t.get('SELECT id FROM venues WHERE slug = ?', [candidate]); i++) candidate = `${base}-${i}`;
+  for (let i = 2; RESERVED_SLUGS.has(candidate) || await t.get('SELECT id FROM venues WHERE slug = ?', [candidate]); i++) candidate = `${base}-${i}`;
   const venueId = await t.insert(`INSERT INTO venues (slug, name, plan, status, trial_ends_at, billing_interval, is_demo, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [candidate, name, plan, status, trialEndsAt, interval, isDemo ? 1 : 0, now()]);
   await seed(t, { newToken, venueId, name, ...seedOptions });
@@ -143,13 +147,22 @@ export async function hashPassword(password) {
   return `scrypt$${salt}$${(await scryptAsync(String(password), salt, 64)).toString('base64url')}`;
 }
 
+async function samePassword(password, stored) {
+  const [kind, salt, hash] = String(stored || '').split('$');
+  if (kind !== 'scrypt' || !salt || !hash) return false;
+  const expected = Buffer.from(hash, 'base64url');
+  const given = await scryptAsync(String(password), salt, 64);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
 /** Creates the administrator, or sets a new password when `reset` is true. Used with SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD. */
 export async function ensureSuperAdmin(email, password, { reset = false } = {}) {
   email = String(email || '').trim().toLowerCase();
   if (!email || !password) return false;
-  if (String(password).length < 10) throw new Error('Ο κωδικός του super admin χρειάζεται τουλάχιστον 10 χαρακτήρες');
-  const existing = await db.get('SELECT id FROM admins WHERE email = ?', [email]);
-  if (existing && !reset) return false;
+  if (String(password).length < 12) throw new Error('Ο κωδικός του super admin χρειάζεται τουλάχιστον 12 χαρακτήρες');
+  const existing = await db.get('SELECT id, password_hash FROM admins WHERE email = ?', [email]);
+  // The password set on the hosting is the valid one: a new value there replaces the old one on the next start.
+  if (existing && !reset && await samePassword(password, existing.password_hash)) return false;
   const hash = await hashPassword(password);
   if (existing) await db.run('UPDATE admins SET password_hash = ? WHERE id = ?', [hash, existing.id]);
   else await db.insert('INSERT INTO admins (email, password_hash, created_at) VALUES (?, ?, ?)', [email, hash, now()]);
