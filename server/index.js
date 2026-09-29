@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import {
   db, ready, now, newToken, setSetting, getVenue, venueBySlug, updateVenue, createVenue, deleteVenue, resetDemoVenue, DEMO_PINS,
-  hashPassword,
+  hashPassword, US_ENABLED, DEMO_SLUGS,
   mapCategory, mapItem, mapTable, UPLOAD_DIR, SPOT_KINDS,
 } from './db.js';
 import { LANGS } from './seed.js';
-import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots } from './plans.js';
+import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots, plansIn } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
 import { vivaCreateOrder, vivaVerify, isvConfig, isvCreateAccount, isvGetAccount, isvWebhookKey, isvCreateWebhook } from './payments.js';
 import { sendMail } from './mail.js';
@@ -41,10 +41,16 @@ app.disable('x-powered-by');
 if (PRODUCTION || process.env.TRUST_PROXY) app.set('trust proxy', 1);
 // Other domains of the service (e.g. kalimenu.com, www.kalimenu.gr) redirect permanently to APP_URL.
 const REDIRECT_HOSTS = new Set((process.env.REDIRECT_HOSTS || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean));
-if (APP_URL && REDIRECT_HOSTS.size) {
-  app.use((req, res, next) => (REDIRECT_HOSTS.has(String(req.hostname).toLowerCase())
-    ? res.redirect(301, APP_URL + req.originalUrl) : next()));
-}
+// The United States site (kalimenu.com, English, dollars). Its "www." address redirects to it.
+const US_APP_URL = (process.env.US_APP_URL || '').replace(/\/+$/, '');
+const hostnameOf = (url) => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } };
+const US_HOST = hostnameOf(US_APP_URL);
+app.use((req, res, next) => {
+  const host = String(req.hostname).toLowerCase();
+  if (US_HOST && host === `www.${US_HOST}`) return res.redirect(301, US_APP_URL + req.originalUrl);
+  if (APP_URL && REDIRECT_HOSTS.has(host) && host !== US_HOST) return res.redirect(301, APP_URL + req.originalUrl);
+  next();
+});
 // Basic security headers (the pages load no third-party scripts).
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -62,19 +68,36 @@ app.use((req, res, next) => {
 // can end up in another venue's account. The main address keeps the home page, sign-up, owner login and /super.
 // Without BASE_DOMAIN everything runs on one address (own installation, local use, tests).
 // ---------------------------------------------------------------------------
-const BASE_DOMAIN = (process.env.BASE_DOMAIN || '').trim().toLowerCase().replace(/^\.+|\/+$/g, '');
-const BASE_HOST = BASE_DOMAIN.replace(/:\d+$/, '');
-const originProtocol = (req) => (APP_URL ? new URL(APP_URL).protocol.slice(0, -1) : req?.protocol || 'https');
-const venueOrigin = (venue, req) => `${originProtocol(req)}://${venue.slug}.${BASE_DOMAIN}`;
-const mainOrigin = (req) => APP_URL || `${originProtocol(req)}://${BASE_DOMAIN}`;
+const cleanDomain = (v) => String(v || '').trim().toLowerCase().replace(/^\.+|\/+$/g, '');
+const BASE_DOMAIN = cleanDomain(process.env.BASE_DOMAIN);
+// Venues of the United States market live on <code>.kalimenu.com (US_BASE_DOMAIN), Greek venues on <code>.kalimenu.gr.
+const DOMAINS = { gr: BASE_DOMAIN, us: cleanDomain(process.env.US_BASE_DOMAIN) || BASE_DOMAIN };
+const HOSTS = { gr: DOMAINS.gr.replace(/:\d+$/, ''), us: DOMAINS.us.replace(/:\d+$/, '') };
+const MAIN_URLS = { gr: APP_URL, us: US_APP_URL };
+const originProtocol = (req, market = 'gr') => (MAIN_URLS[market] || APP_URL ? new URL(MAIN_URLS[market] || APP_URL).protocol.slice(0, -1) : req?.protocol || 'https');
+const venueOrigin = (venue, req) => `${originProtocol(req, venue.market)}://${venue.slug}.${DOMAINS[venue.market]}`;
+const mainOrigin = (req, market = marketOf(req)) => MAIN_URLS[market] || (DOMAINS[market] ? `${originProtocol(req, market)}://${DOMAINS[market]}`
+  : `${req.protocol}://${req.get('host')}`);
 
-// The venue code in the address, or null on the main address.
-function hostCode(req) {
-  if (!BASE_HOST) return null;
+// Which market a request belongs to: the venue of the address, or the site (kalimenu.com is the United States).
+function marketOf(req) {
+  if (req.hostVenue) return req.hostVenue.market;
   const host = String(req.hostname || '').toLowerCase();
-  if (!host.endsWith(`.${BASE_HOST}`)) return null;
-  const label = host.slice(0, -BASE_HOST.length - 1);
-  return /^[a-z0-9-]+$/.test(label) && !MAIN_LABELS.has(label) ? label : null;
+  if (US_HOST && host === US_HOST) return 'us';
+  if (HOSTS.us && HOSTS.us !== HOSTS.gr && (host === HOSTS.us || host.endsWith(`.${HOSTS.us}`))) return 'us';
+  return 'gr';
+}
+
+// The venue code in the address, or null on a main address.
+function hostCode(req) {
+  if (!BASE_DOMAIN) return null;
+  const host = String(req.hostname || '').toLowerCase();
+  for (const base of new Set(Object.values(HOSTS).filter(Boolean))) {
+    if (!host.endsWith(`.${base}`)) continue;
+    const label = host.slice(0, -base.length - 1);
+    if (/^[a-z0-9-]+$/.test(label) && !MAIN_LABELS.has(label)) return label;
+  }
+  return null;
 }
 const MAIN_LABELS = new Set(['www']);
 
@@ -86,6 +109,9 @@ app.use((req, res, next) => {
       return req.path.startsWith('/api/') ? res.status(404).json({ error: 'not_found' }) : res.redirect(302, mainOrigin(req));
     }
     req.hostVenue = venue;
+    // A venue answers on its own market's domain (a New York venue on kalimenu.com, not on kalimenu.gr).
+    const expected = `${venue.slug}.${HOSTS[venue.market]}`;
+    if (String(req.hostname).toLowerCase() !== expected && req.method === 'GET') return res.redirect(302, venueOrigin(venue, req) + req.originalUrl);
     // Sign-up and the platform administration exist only on the main address.
     if (/^\/(super|signup|api\/super|api\/account\/signup)(\/|$)/.test(req.path)) {
       return req.path.startsWith('/api/') ? res.status(404).json({ error: 'not_found' }) : res.redirect(302, mainOrigin(req) + req.originalUrl);
@@ -669,6 +695,8 @@ app.post('/api/public/table/:token/calls', wrap(async (req, res) => {
 function paymentSettings(venue) {
   const p = venue.settings.payments || {};
   let provider = p.provider || (venue.settings.onlinePayments === 'demo' ? 'demo' : 'off');
+  // Viva Wallet works in Europe only: venues in the United States take payment at the table or the counter for now.
+  if (venue.market === 'us') provider = 'off';
   if (provider === 'demo' && !canUseDemoPayments(venue)) provider = 'off';
   if (provider === 'viva' && !(p.clientId && p.clientSecret)) provider = 'off';
   if (provider === 'viva-connect' && !(isvConfig() && p.isv?.merchantId)) provider = 'off';
@@ -847,6 +875,7 @@ function venueSummary(venue) {
   return {
     slug: venue.slug, name: venue.name, plan: planOf(venue), status: venue.status, trialEndsAt: venue.trial_ends_at,
     interval: venue.interval, effectivePlan: plan, features: features(venue), isDemo: venue.isDemo,
+    market: venue.market, currency: venue.currency,
   };
 }
 
@@ -973,8 +1002,8 @@ async function restoreStock(t, lines) {
   return changed;
 }
 
-const STAFF_ROLE_NAMES = { admin: 'Διαχείριση', waiter: 'Σερβιτόρος', kitchen: 'Κουζίνα' };
-const staffName = (req) => req.member?.name || STAFF_ROLE_NAMES[req.role] || '';
+const STAFF_ROLE_NAMES = { gr: { admin: 'Διαχείριση', waiter: 'Σερβιτόρος', kitchen: 'Κουζίνα' }, us: { admin: 'Admin', waiter: 'Server', kitchen: 'Kitchen' } };
+const staffName = (req) => req.member?.name || STAFF_ROLE_NAMES[req.venue.market][req.role] || '';
 
 async function staffTable(req, id = req.params.id) {
   const table = mapTable(await db.get("SELECT * FROM tables WHERE id = ? AND venue_id = ? AND kind != 'takeaway'", [Number(id) || 0, req.venue.id]));
@@ -999,7 +1028,9 @@ app.post('/api/staff/tables/:id/orders', requireStaff('waiter'), wrap(async (req
   if (!table.active) fail(409, 'Η θέση είναι ανενεργή');
   if (!features(req.venue).ordering) fail(403, 'Οι παραγγελίες είναι κλειστές (δεν υπάρχει ενεργή συνδρομή)');
   const b = req.body || {};
-  res.status(201).json(await placeOrder(req.venue, table, { items: b.items, note: b.note, lang: 'el' }, null, { staff: staffName(req) }));
+  // The bill of an order taken by the staff is in the venue's own language.
+  const lang = req.venue.settings.defaultLanguage || (req.venue.market === 'us' ? 'en' : 'el');
+  res.status(201).json(await placeOrder(req.venue, table, { items: b.items, note: b.note, lang }, null, { staff: staffName(req) }));
 }));
 
 // Correction: fewer portions of a dish, or the dish removed (wrong entry, the guest changed their mind, returned dish).
@@ -1307,7 +1338,7 @@ admin.put('/settings', wrap(async (req, res) => {
     const seen = new Set();
     const stations = b.stations.slice(0, 8).map((x) => ({ id: cleanText(x?.id, 20).toLowerCase().replace(/[^a-z0-9_-]/g, ''), name: cleanText(x?.name, 30) }))
       .filter((x) => x.id && x.name && !seen.has(x.id) && seen.add(x.id));
-    await set('stations', stations.length ? stations : DEFAULT_STATIONS);
+    await set('stations', stations.length ? stations : req.venue.market === 'us' ? DEFAULT_STATIONS_US : DEFAULT_STATIONS);
   }
   if (typeof b.brandColor === 'string') {
     if (!/^#[0-9a-fA-F]{6}$/.test(b.brandColor)) fail(400, 'Μη έγκυρο χρώμα');
@@ -1377,6 +1408,7 @@ const saveIsv = async (venue, isv, provider) => {
 
 admin.post('/payments/viva-connect', wrap(async (req, res) => {
   demoGuard(req);
+  if (req.venue.market === 'us') fail(400, 'Η πληρωμή από το κινητό δεν είναι ακόμη διαθέσιμη στις ΗΠΑ');
   const cfg = needIsv();
   const prev = req.venue.settings.payments?.isv;
   // Demo environment only: Viva's onboarding page works only in production, so a demo merchant id is typed in.
@@ -1439,7 +1471,9 @@ function categoryInput(b, venue) {
 
 // Prep stations (kitchen, bar, …): each has its own screen and printer.
 const DEFAULT_STATIONS = [{ id: 'kitchen', name: 'Κουζίνα' }, { id: 'bar', name: 'Μπαρ' }];
-const stationsOf = (venue) => (Array.isArray(venue.settings.stations) && venue.settings.stations.length ? venue.settings.stations : DEFAULT_STATIONS);
+const DEFAULT_STATIONS_US = [{ id: 'kitchen', name: 'Kitchen' }, { id: 'bar', name: 'Bar' }];
+const stationsOf = (venue) => (Array.isArray(venue.settings.stations) && venue.settings.stations.length ? venue.settings.stations
+  : venue.market === 'us' ? DEFAULT_STATIONS_US : DEFAULT_STATIONS);
 
 admin.post('/categories', wrap(async (req, res) => {
   const c = categoryInput(req.body || {}, req.venue);
@@ -1677,6 +1711,18 @@ function dateRange(q) {
 const STATUS_EL = { pending: 'Αναμονή έγκρισης', accepted: 'Εγκρίθηκε', preparing: 'Ετοιμάζεται', ready: 'Έτοιμη',
   served: 'Σερβιρίστηκε', rejected: 'Απορρίφθηκε' };
 const KIND_EL = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
+// Exports of United States venues are in English, with US dates and decimal points.
+const CSV_TEXT = {
+  gr: { locale: 'el-GR', status: STATUS_EL, kind: KIND_EL, yes: 'Ναι', no: 'Όχι', guest: 'Πελάτης (QR)', dec: ',',
+    orders: ['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Κατάσταση', 'Γλώσσα', 'Πιάτα', 'Σημείωση', 'Σύνολο (€)', 'Εξοφλήθηκε', 'Καταχώριση', 'Διορθώσεις'],
+    receipts: ['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Τρόπος πληρωμής', 'Αρ. απόδειξης ταμειακής / ΜΑΡΚ', 'Σύνολο (€)'],
+    pay: { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' }, files: ['paraggelies', 'apodeixeis'] },
+  us: { locale: 'en-US', status: { pending: 'Awaiting approval', accepted: 'Approved', preparing: 'Preparing', ready: 'Ready', served: 'Served', rejected: 'Rejected' },
+    kind: { table: 'Table', room: 'Room', sunbed: 'Sunbed' }, yes: 'Yes', no: 'No', guest: 'Guest (QR)', dec: '.',
+    orders: ['Number', 'Date', 'Time', 'Spot', 'Status', 'Language', 'Dishes', 'Note', 'Total ($)', 'Paid', 'Entered by', 'Corrections'],
+    receipts: ['Number', 'Date', 'Time', 'Spot', 'Payment', 'Register receipt no.', 'Total ($)'],
+    pay: { cash: 'Cash', card: 'Card', online: 'Online', room: 'Room charge' }, files: ['orders', 'receipts'] },
+};
 
 async function historyQuery(req) {
   const q = req.query;
@@ -1699,20 +1745,22 @@ admin.get('/orders', wrap(async (req, res) => {
 
 admin.get('/orders.csv', wrap(async (req, res) => {
   const orders = await historyQuery(req);
+  const T = CSV_TEXT[req.venue.market];
+  const nm = (n) => (req.venue.market === 'us' ? n?.en || n?.el : n?.el || n?.en) || '';
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const money = (c) => (c / 100).toFixed(2).replace('.', ',');
-  const rows = [['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Κατάσταση', 'Γλώσσα', 'Πιάτα', 'Σημείωση', 'Σύνολο (€)', 'Εξοφλήθηκε', 'Καταχώριση', 'Διορθώσεις']];
+  const money = (c) => (c / 100).toFixed(2).replace('.', T.dec);
+  const rows = [T.orders];
   for (const o of [...orders].reverse()) {
     const d = new Date(o.createdAt);
-    rows.push([o.id, d.toLocaleDateString('el-GR'), d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }),
-      `${KIND_EL[o.tableKind] || ''} ${o.tableLabel}`, STATUS_EL[o.status] || o.status, o.lang.toUpperCase(),
-      o.items.map((i) => `${i.qty}x ${i.name.el || i.name.en || ''}${i.options.length ? ` (${i.options.map((x) => x.choice.el || x.choice.en).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? 'Ναι' : 'Όχι',
-      o.takenBy || 'Πελάτης (QR)', o.voids.map((v) => `-${v.qty}x ${v.name.el || v.name.en || ''} (${v.by}${v.reason ? `: ${v.reason}` : ''})`).join(', ')]);
+    rows.push([o.id, d.toLocaleDateString(T.locale), d.toLocaleTimeString(T.locale, { hour: '2-digit', minute: '2-digit' }),
+      `${T.kind[o.tableKind] || ''} ${o.tableLabel}`, T.status[o.status] || o.status, o.lang.toUpperCase(),
+      o.items.map((i) => `${i.qty}x ${nm(i.name)}${i.options.length ? ` (${i.options.map((x) => nm(x.choice)).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? T.yes : T.no,
+      o.takenBy || T.guest, o.voids.map((v) => `-${v.qty}x ${nm(v.name)} (${v.by}${v.reason ? `: ${v.reason}` : ''})`).join(', ')]);
   }
   // Semicolons + BOM so Excel in Greek locale opens it with correct columns and characters.
   const csv = `﻿${rows.map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
   const { from, to } = dateRange(req.query);
-  res.setHeader('Content-Disposition', `attachment; filename="paraggelies_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${T.files[0]}_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
   res.type('text/csv; charset=utf-8').send(csv);
 }));
 
@@ -1752,14 +1800,14 @@ admin.get('/receipts.csv', wrap(async (req, res) => {
   const receipts = (await db.all('SELECT * FROM receipts WHERE venue_id = ? AND created_at >= ? AND created_at < ? ORDER BY id',
     [req.venue.id, from, to])).map(mapReceipt);
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const PAY_EL = { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' };
-  const rows = [['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Τρόπος πληρωμής', 'Αρ. απόδειξης ταμειακής / ΜΑΡΚ', 'Σύνολο (€)']];
+  const T = CSV_TEXT[req.venue.market];
+  const rows = [T.receipts];
   for (const r of receipts) {
     const d = new Date(r.createdAt);
-    rows.push([r.number, d.toLocaleDateString('el-GR'), d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }),
-      `${KIND_EL[r.tableKind] || ''} ${r.tableLabel}`, PAY_EL[r.payment] || r.payment, r.fiscalRef, (r.total / 100).toFixed(2).replace('.', ',')]);
+    rows.push([r.number, d.toLocaleDateString(T.locale), d.toLocaleTimeString(T.locale, { hour: '2-digit', minute: '2-digit' }),
+      `${T.kind[r.tableKind] || ''} ${r.tableLabel}`, T.pay[r.payment] || r.payment, r.fiscalRef, (r.total / 100).toFixed(2).replace('.', T.dec)]);
   }
-  res.setHeader('Content-Disposition', `attachment; filename="apodeixeis_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${T.files[1]}_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
   res.type('text/csv; charset=utf-8').send(`\uFEFF${rows.map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`);
 }));
 
@@ -1770,7 +1818,8 @@ app.use('/api/admin', admin);
 // ---------------------------------------------------------------------------
 const cleanEmail = (v) => cleanText(v, 120).toLowerCase();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const appBase = (req) => (BASE_DOMAIN ? mainOrigin(req) : APP_URL || `${req.protocol}://${req.get('host')}`);
+// Main address of the service for a market (links in e-mails): kalimenu.gr or kalimenu.com.
+const appBase = (req, market = marketOf(req)) => (BASE_DOMAIN || MAIN_URLS[market] ? mainOrigin(req, market) : APP_URL || `${req.protocol}://${req.get('host')}`);
 const isUnique = (e) => /unique|duplicate/i.test(e?.message || '');
 
 app.post('/api/account/signup', wrap(async (req, res) => {
@@ -1790,6 +1839,9 @@ app.post('/api/account/signup', wrap(async (req, res) => {
   const needed = planForSpots(spots.table + spots.room + spots.sunbed);
   const plan = needed === 'plus' || b.plan === 'plus' ? 'plus' : 'pro';
   const f = PLANS[plan];
+  // Signing up on kalimenu.com creates a United States venue (English screens, dollars, New York time).
+  const market = marketOf(req);
+  const us = market === 'us';
   if (await db.get('SELECT id FROM accounts WHERE email = ?', [email])) fail(409, 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Συνδεθείτε.');
 
   const hash = await hashPassword(password);
@@ -1799,7 +1851,7 @@ app.post('/api/account/signup', wrap(async (req, res) => {
       const id = await createVenue(t, {
         name: business, plan, interval, status: 'trialing',
         trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString(),
-        sample: b.sample !== false, spots,
+        sample: b.sample !== false, spots, market,
       });
       await t.insert(`INSERT INTO accounts (venue_id, email, password_hash, terms_version, terms_accepted_at, created_at)
         VALUES (?, ?, ?, ?, ?, ?)`, [id, email, hash, TERMS_VERSION, now(), now()]);
@@ -1814,7 +1866,14 @@ app.post('/api/account/signup', wrap(async (req, res) => {
   const next = beginSession(req, res, venue, 'admin', account.id, '/staff/admin?welcome=1');
 
   const base = appBase(req);
-  sendMail({
+  sendMail(us ? {
+    to: email,
+    subject: `Welcome to Kalimenu – ${business}`,
+    text: `Your account is ready.\n\nAdmin: ${base}/login\n`
+      + `Staff sign-in (servers, kitchen): ${staffLink(venue, req)}\n`
+      + `\nYour free trial of "${f.name}" lasts ${TRIAL_DAYS} days, no credit card required.\n`
+      + '\nYou will find the staff PINs in Admin → Settings.\n',
+  } : {
     to: email,
     subject: `Καλώς ήρθατε στο Kalimenu – ${business}`,
     text: `Ο λογαριασμός σας είναι έτοιμος.\n\nΔιαχείριση: ${base}/login\n`
@@ -1823,8 +1882,8 @@ app.post('/api/account/signup', wrap(async (req, res) => {
       + '\nΤα PIN του προσωπικού θα τα βρείτε στη Διαχείριση → Ρυθμίσεις.\n',
   });
   if (process.env.NOTIFY_EMAIL) {
-    sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Νέα εγγραφή: ${business}`,
-      text: `${business}\n${email}\nΠλάνο: ${f.name} (${interval === 'year' ? 'ετήσιο' : 'μηνιαίο'})\nΘέσεις: ${JSON.stringify(spots)}` });
+    sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Νέα εγγραφή${us ? ' (ΗΠΑ)' : ''}: ${business}`,
+      text: `${business}\n${email}\nΑγορά: ${us ? 'ΗΠΑ (kalimenu.com, $)' : 'Ελλάδα'}\nΠλάνο: ${f.name} (${interval === 'year' ? 'ετήσιο' : 'μηνιαίο'})\nΘέσεις: ${JSON.stringify(spots)}` });
   }
   res.status(201).json({ ok: true, venue: venueSummary(venue), next });
 }));
@@ -1857,9 +1916,14 @@ async function sendResetLink(req, account, hours = 1) {
   const token = randomBytes(24).toString('base64url');
   await db.run('UPDATE accounts SET reset_hash = ?, reset_expires = ? WHERE id = ?',
     [sha256(token), new Date(Date.now() + hours * 3600_000).toISOString(), account.id]);
-  const link = `${appBase(req)}/reset?token=${token}`;
-  sendMail({ to: account.email, subject: 'Kalimenu – νέος κωδικός',
-    text: `Για να ορίσετε νέο κωδικό ανοίξτε τον σύνδεσμο (ισχύει ${hours === 1 ? '1 ώρα' : `${hours} ώρες`}):\n${link}\n\nΑν δεν το ζητήσατε εσείς, αγνοήστε αυτό το μήνυμα.` });
+  const row = await db.get('SELECT venue_id FROM accounts WHERE id = ?', [account.id]);
+  const market = (await getVenue(row?.venue_id))?.market || 'gr';
+  const link = `${appBase(req, market)}/reset?token=${token}`;
+  sendMail(market === 'us'
+    ? { to: account.email, subject: 'Kalimenu – reset your password',
+      text: `To set a new password, open this link (valid for ${hours === 1 ? '1 hour' : `${hours} hours`}):\n${link}\n\nIf you did not ask for this, you can ignore this e-mail.` }
+    : { to: account.email, subject: 'Kalimenu – νέος κωδικός',
+      text: `Για να ορίσετε νέο κωδικό ανοίξτε τον σύνδεσμο (ισχύει ${hours === 1 ? '1 ώρα' : `${hours} ώρες`}):\n${link}\n\nΑν δεν το ζητήσατε εσείς, αγνοήστε αυτό το μήνυμα.` });
   return link;
 }
 
@@ -1883,7 +1947,7 @@ app.get('/api/account', ...requireOwner, wrap(async (req, res) => {
   const { items } = await db.get('SELECT COUNT(*) AS items FROM items WHERE venue_id = ?', [v]);
   const { spots } = await db.get("SELECT COUNT(*) AS spots FROM tables WHERE venue_id = ? AND kind != 'takeaway'", [v]);
   res.json({
-    email: account?.email, venue: venueSummary(req.venue), plans: PLANS, trialDays: TRIAL_DAYS,
+    email: account?.email, venue: venueSummary(req.venue), plans: plansIn(req.venue.currency), trialDays: TRIAL_DAYS,
     usage: { items: Number(items), spots: Number(spots) },
     billing: { stripe: stripeEnabled(), demo: !stripeEnabled() && !PRODUCTION, customer: !!req.venue.stripeCustomerId,
       subscription: !!req.venue.stripeSubscriptionId },
@@ -1917,7 +1981,7 @@ app.post('/api/account/checkout', ...requireOwner, wrap(async (req, res) => {
     await updateVenue(venue.id, { plan, interval, status: 'active' });
     return res.json({ demo: true });
   }
-  const priceData = { currency: 'eur', unit_amount: priceCents(plan, interval), recurring: { interval },
+  const priceData = { currency: venue.currency.toLowerCase(), unit_amount: priceCents(plan, interval, venue.currency), recurring: { interval },
     product: await ensureProduct(plan), tax_behavior: 'exclusive' };
   const metadata = { venue_id: String(venue.id), plan, interval };
 
@@ -1948,7 +2012,7 @@ app.post('/api/account/checkout', ...requireOwner, wrap(async (req, res) => {
     tax_id_collection: { enabled: true },
     allow_promotion_codes: true,
     ...(process.env.STRIPE_AUTOMATIC_TAX === '1' ? { automatic_tax: { enabled: true } } : {}),
-    locale: 'el',
+    locale: venue.market === 'us' ? 'en' : 'el',
     success_url: `${base}/staff/admin?tab=billing&checkout=success`,
     cancel_url: `${base}/staff/admin?tab=billing`,
   });
@@ -2004,7 +2068,7 @@ app.post('/api/account/venues', ...requireOwner, wrap(async (req, res) => {
   const spots = { table: count(b.tables ?? 10, 100), room: count(b.rooms, 300), sunbed: count(b.sunbeds, 300) };
   const plan = planForSpots(spots.table + spots.room + spots.sunbed);
   const id = await db.tx(async (t) => {
-    const vid = await createVenue(t, { name: business, plan, status: 'trialing',
+    const vid = await createVenue(t, { name: business, plan, status: 'trialing', market: req.venue.market,
       trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString(), sample: b.sample !== false, spots });
     await t.run('INSERT INTO account_venues (account_id, venue_id) VALUES (?, ?)', [req.accountId, vid]);
     return vid;
@@ -2150,7 +2214,7 @@ superApi.get('/me', (req, res) => res.json({ email: req.admin.email }));
 
 // Monthly recurring revenue of a venue in cents (yearly plans spread over 12 months).
 const venueMrr = (v) => (['active', 'past_due'].includes(v.status) && !v.isDemo
-  ? Math.round(priceCents(planOf(v), v.interval) / (v.interval === 'year' ? 12 : 1)) : 0);
+  ? Math.round(priceCents(planOf(v), v.interval, v.currency) / (v.interval === 'year' ? 12 : 1)) : 0);
 
 superApi.get('/overview', wrap(async (req, res) => {
   const since = new Date(Date.now() - 30 * 86400_000).toISOString();
@@ -2170,7 +2234,7 @@ superApi.get('/overview', wrap(async (req, res) => {
     venues.push({
       id: v.id, slug: v.slug, url: BASE_DOMAIN ? venueOrigin(v, req) : '', name: v.name, email: owners.get(id)?.email || '', plan: planOf(v), status: v.status,
       effectivePlan: effectivePlan(v), interval: v.interval, trialEndsAt: v.trial_ends_at, createdAt: v.createdAt,
-      isDemo: v.isDemo, stripe: !!v.stripeSubscriptionId, mrr: venueMrr(v),
+      isDemo: v.isDemo, stripe: !!v.stripeSubscriptionId, mrr: venueMrr(v), market: v.market, currency: v.currency,
       items: Number(items.get(id)?.n || 0), spots: Number(spots.get(id)?.n || 0),
       orders30: Number(orders.get(id)?.n || 0), revenue30: Number(orders.get(id)?.revenue || 0), lastOrderAt: orders.get(id)?.last || '',
       payments: paymentStatus(v), cardPayments30: Number(paid.get(id)?.n || 0), cardTotal30: Number(paid.get(id)?.total || 0),
@@ -2187,7 +2251,9 @@ superApi.get('/overview', wrap(async (req, res) => {
       inactive: real.filter((v) => !v.effectivePlan && !['paused', 'suspended'].includes(v.status)).length,
       paused: real.filter((v) => v.status === 'paused').length,
       suspended: real.filter((v) => v.status === 'suspended').length,
-      mrr: real.reduce((s, v) => s + v.mrr, 0),
+      mrr: real.filter((v) => v.currency === 'EUR').reduce((s, v) => s + v.mrr, 0),
+      mrrUsd: real.filter((v) => v.currency === 'USD').reduce((s, v) => s + v.mrr, 0),
+      usVenues: real.filter((v) => v.market === 'us').length,
       signups30: real.filter((v) => v.createdAt >= since).length,
       trialsEnding7: real.filter((v) => trialActive(v) && new Date(v.trialEndsAt) - Date.now() < 7 * 86400_000).length,
       cardPayments: real.filter((v) => v.payments === 'viva' || v.payments === 'viva-connect').length,
@@ -2300,14 +2366,15 @@ app.get('/terms', page('terms.html'));
 app.get('/privacy', page('privacy.html'));
 app.get('/dpa', page('dpa.html'));
 // Company details for the footer and the legal pages.
-app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS }));
+app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS, market: marketOf(req) }));
 app.get('/super', page('super.html'));
 app.get('/healthz', (req, res) => res.json({ ok: true }));
-app.get('/api/plans', (req, res) => res.json({ plans: PLANS, trialDays: TRIAL_DAYS }));
+app.get('/api/plans', (req, res) => res.json({ plans: plansIn(marketOf(req) === 'us' ? 'USD' : 'EUR'), trialDays: TRIAL_DAYS }));
 
 // Demo links for the presentation page: the demo venue, or the only venue of an own installation.
 app.get('/api/demo', wrap(async (req, res) => {
-  const row = (await db.get('SELECT id FROM venues WHERE is_demo = 1 ORDER BY id LIMIT 1'))
+  const row = (await db.get('SELECT id FROM venues WHERE is_demo = 1 AND slug = ?', [DEMO_SLUGS[marketOf(req)]]))
+    || (await db.get('SELECT id FROM venues WHERE is_demo = 1 ORDER BY id LIMIT 1'))
     || (await db.get('SELECT id FROM venues ORDER BY id LIMIT 1'));
   const venue = row && await getVenue(row.id);
   if (!venue) return res.json({ tables: [], pins: null });
@@ -2354,8 +2421,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   // Copy the shared images into the database, and add the photos to a demo menu created before photos existed.
   loadSharedAssets().then(async () => {
-    const demo = await db.get('SELECT id FROM venues WHERE is_demo = 1');
-    if (demo) await addSamplePhotos(demo.id);
+    for (const demo of await db.all('SELECT id FROM venues WHERE is_demo = 1')) await addSamplePhotos(demo.id);
   }).catch((e) => console.error('sample photos', e));
   app.listen(PORT, '0.0.0.0', () => {
     const lan = Object.values(networkInterfaces()).flat()

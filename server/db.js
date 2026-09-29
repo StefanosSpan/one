@@ -34,7 +34,13 @@ const mapVenue = (r, settings) => r && {
   id: r.id, slug: r.slug, name: r.name, plan: r.plan, status: r.status, trial_ends_at: r.trial_ends_at || '',
   interval: r.billing_interval || 'month', stripeCustomerId: r.stripe_customer_id || '',
   stripeSubscriptionId: r.stripe_subscription_id || '', isDemo: !!r.is_demo, createdAt: r.created_at, settings,
+  // Greece (kalimenu.gr, euros, Greek staff screens) or the United States (kalimenu.com, dollars, English).
+  market: settings?.market === 'us' ? 'us' : 'gr', currency: settings?.currency === 'USD' ? 'USD' : 'EUR',
 };
+
+// The United States market is on when its address is configured (kalimenu.com).
+export const US_ENABLED = !!(process.env.US_APP_URL || process.env.US_BASE_DOMAIN);
+export const DEMO_SLUGS = { gr: 'demo', us: 'demo-us' };
 
 /** Venue with its settings, or undefined. */
 export async function getVenue(id) {
@@ -102,12 +108,14 @@ export async function createVenue(t, { name, plan = 'pro', status = 'active', tr
   return venueId;
 }
 
-// The public demo venue (slug "demo") with the example menu and well-known PINs.
+// The public demo venues with the example menu and well-known PINs: "demo" (Greece) and "demo-us" (New York).
 export const DEMO_PINS = { admin: '1234', waiter: '1111', kitchen: '2222' };
-export async function createDemoVenue() {
+export async function createDemoVenue(market = 'gr') {
+  const us = market === 'us';
   return db.tx((t) => createVenue(t, {
-    name: 'Το εστιατόριό σας', slug: 'demo', plan: 'plus', status: 'active', isDemo: true,
-    pins: DEMO_PINS, onlinePayments: 'demo', sample: true, demoInfo: true,
+    name: us ? 'Your Restaurant' : 'Το εστιατόριό σας', slug: DEMO_SLUGS[market], plan: 'plus', status: 'active', isDemo: true,
+    // Paying from the phone is not offered in the United States yet.
+    pins: DEMO_PINS, onlinePayments: us ? 'off' : 'demo', sample: true, demoInfo: true, market,
   }));
 }
 
@@ -125,15 +133,21 @@ export async function deleteVenue(id) {
 
 // Deletes the demo venue and creates it again, so changes made by visitors do not stay forever.
 export async function resetDemoVenue() {
-  const old = await db.get('SELECT id FROM venues WHERE is_demo = 1');
-  if (old) await deleteVenue(old.id);
-  return createDemoVenue();
+  for (const market of US_ENABLED ? ['gr', 'us'] : ['gr']) {
+    const old = await db.get('SELECT id FROM venues WHERE is_demo = 1 AND slug = ?', [DEMO_SLUGS[market]]);
+    if (old) await deleteVenue(old.id);
+    await createDemoVenue(market);
+  }
 }
 
 export const ready = (async () => {
   db = await openDatabase({ file: process.env.DB_FILE || join(DATA_DIR, 'taverna.db') });
   const { n } = await db.get('SELECT COUNT(*) AS n FROM venues');
   if (Number(n) === 0 && process.env.DEMO_VENUE !== 'off') await createDemoVenue();
+  // The New York demo is added once the United States market is switched on.
+  if (US_ENABLED && process.env.DEMO_VENUE !== 'off' && !(await db.get('SELECT id FROM venues WHERE slug = ?', [DEMO_SLUGS.us]))) {
+    await createDemoVenue('us');
+  }
   await ensureSuperAdmin(process.env.SUPERADMIN_EMAIL, process.env.SUPERADMIN_PASSWORD);
   return db;
 })();

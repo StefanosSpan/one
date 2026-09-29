@@ -133,24 +133,52 @@ export const DEFAULT_RESTAURANT = {
   reviewUrl: '',
 };
 
+// The example venue on kalimenu.com (New York).
+export const US_DEMO_RESTAURANT = {
+  ...DEFAULT_RESTAURANT,
+  name: 'Your Restaurant',
+  hours: t('Κάθε μέρα 11:30 – 23:00', 'Every day 11:30 am – 11:00 pm', 'Täglich 11:30 – 23:00', 'Tous les jours 11h30 – 23h00',
+    'Tutti i giorni 11:30 – 23:00', 'Todos los días 11:30 – 23:00', 'Dagelijks 11:30 – 23:00', 'Codziennie 11:30 – 23:00'),
+  address: '123 Mulberry St, New York, NY 10013',
+  phone: '+1 212 555 0123',
+  mapsUrl: 'https://maps.google.com/?q=Mulberry+St+New+York',
+  wifiName: 'Restaurant-Guests',
+  wifiPassword: 'welcome123',
+};
+
+// What differs per market: Greece (kalimenu.gr) and the United States (kalimenu.com).
+const MARKET_DEFAULTS = {
+  gr: { currency: 'EUR', defaultLanguage: 'el', timezone: 'Europe/Athens', priceFactor: 1 },
+  us: {
+    currency: 'USD', defaultLanguage: 'en', timezone: 'America/New_York', priceFactor: 2,
+    stations: [{ id: 'kitchen', name: 'Kitchen' }, { id: 'bar', name: 'Bar' }],
+  },
+};
+// Example menu prices for New York: about twice the Greek prices, rounded to 50 cents.
+const localPrice = (cents, factor) => (factor === 1 ? cents : Math.round((cents * factor) / 50) * 50);
+
 // Creates the settings, starter menu and spots of a venue.
 //   sample:   include the example menu (21 dishes in 8 languages) that the owner can edit or delete
 //   demoInfo: also use the example venue details (address, phone, Wi-Fi)
 //   spots:  how many tables / rooms / sunbeds get a QR code
 export async function seed(db, {
   newToken, venueId, name, sample = true, demoInfo = false, pins, onlinePayments = 'off',
-  spots = { table: 12, room: 4, sunbed: 4 },
+  spots = { table: 12, room: 4, sunbed: 4 }, market = 'gr',
 }) {
+  const m = MARKET_DEFAULTS[market] || MARKET_DEFAULTS.gr;
   // Address, phone and Wi-Fi of the example are only for the public demo; real venues fill in their own.
-  const restaurant = demoInfo ? { ...DEFAULT_RESTAURANT } : { name, description: {}, hours: {}, address: '', phone: '' };
+  const restaurant = demoInfo ? { ...(market === 'us' ? US_DEMO_RESTAURANT : DEFAULT_RESTAURANT) } : { name, description: {}, hours: {}, address: '', phone: '' };
   if (name) restaurant.name = name;
   const settings = {
     restaurant,
+    market: market === 'us' ? 'us' : 'gr',
     languages: LANGS,
-    defaultLanguage: 'el',
+    defaultLanguage: m.defaultLanguage,
+    timezone: m.timezone,
+    ...(m.stations ? { stations: m.stations } : {}),
     requireApproval: true,
     onlinePayments,
-    currency: 'EUR',
+    currency: m.currency,
     brandColor: '#1f3a5f',
     pins: pins || randomPins(),
     secret: randomBytes(32).toString('hex'),
@@ -168,8 +196,9 @@ export async function seed(db, {
     }
     for (const [i, [cat, emoji, price, allergens, tags, dish, desc]] of ITEMS.entries()) {
       await db.insert(`INSERT INTO items (venue_id, category_id, name, description, price_cents, allergens, tags, emoji, sort, options, image_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venueId, catIds[cat], JSON.stringify(dish), JSON.stringify(desc), price,
-        JSON.stringify(allergens), JSON.stringify(tags), emoji, i, JSON.stringify(OPTIONS[i] || []), samplePhotoUrl(i)]);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [venueId, catIds[cat], JSON.stringify(dish), JSON.stringify(desc), localPrice(price, m.priceFactor),
+        JSON.stringify(allergens), JSON.stringify(tags), emoji, i,
+        JSON.stringify((OPTIONS[i] || []).map((g) => ({ ...g, choices: g.choices.map((c) => ({ ...c, price_cents: localPrice(c.price_cents, m.priceFactor) })) }))), samplePhotoUrl(i)]);
     }
   } else {
     for (const [i, c] of CATEGORIES.filter((x) => ['starters', 'mains', 'drinks'].includes(x.key)).entries()) {
