@@ -1,0 +1,47 @@
+# Checks every push the way Render deploys it: tests on SQLite and on PostgreSQL, then a production start.
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: taverna
+          POSTGRES_PASSWORD: taverna
+          POSTGRES_DB: taverna_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests (SQLite)
+        run: npm test
+      - name: Tests (PostgreSQL)
+        run: npm run test:pg
+        env:
+          DATABASE_URL: postgres://taverna:taverna@127.0.0.1:5432/taverna_test
+      - name: Production build and start (as on Render)
+        env:
+          NODE_ENV: production
+          PORT: 3000
+          DATABASE_URL: postgres://taverna:taverna@127.0.0.1:5432/taverna_test
+          APP_URL: https://kalimenu.gr
+          US_APP_URL: https://kalimenu.com
+        run: |
+          npm ci --omit=dev
+          npm start > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:3000/healthz && break; sleep 1; done
+          curl -sf http://127.0.0.1:3000/healthz
+          curl -sf -H 'Host: kalimenu.gr' http://127.0.0.1:3000/ | grep -q '<html lang="el">'
+          curl -sf -H 'Host: kalimenu.com' http://127.0.0.1:3000/ | grep -q '<html lang="en">'
+          curl -sf -H 'Host: kalimenu.gr' http://127.0.0.1:3000/api/demo | grep -q '"venue":"demo"'
+          cat server.log
