@@ -148,7 +148,9 @@ export const ready = (async () => {
   if (US_ENABLED && process.env.DEMO_VENUE !== 'off' && !(await db.get('SELECT id FROM venues WHERE slug = ?', [DEMO_SLUGS.us]))) {
     await createDemoVenue('us');
   }
-  await ensureSuperAdmin(process.env.SUPERADMIN_EMAIL, process.env.SUPERADMIN_PASSWORD);
+  // A wrong super admin setting never takes the whole service down: the venues keep working and the log says what to fix.
+  await ensureSuperAdmin(process.env.SUPERADMIN_EMAIL, process.env.SUPERADMIN_PASSWORD)
+    .catch((err) => console.warn(`SUPERADMIN_PASSWORD: ${err.message}. Η σύνδεση στο /super δεν ενημερώθηκε.`));
   return db;
 })();
 
