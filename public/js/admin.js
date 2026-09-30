@@ -1172,6 +1172,10 @@ function renderSettings() {
     <p class="muted small" style="margin-top:0">Στείλτε αυτόν τον σύνδεσμο στους σερβιτόρους και στην κουζίνα. Ανοίγει από κινητό, tablet ή υπολογιστή· συνδέονται με το PIN τους.</p>
     <div class="copy-row"><input class="input" id="staffUrl" readonly value="${esc(s.staffUrl)}"><button class="btn secondary sm" id="copyStaff" type="button">Αντιγραφή</button></div>
     <p class="muted small">Κωδικός καταστήματος: <b>${esc(s.venue.slug)}</b></p>
+    <div class="note-box small" style="margin-top:.6rem">Για ασφάλεια, τα PIN δουλεύουν μόνο σε συσκευές που έχετε εγκρίνει: την πρώτη φορά σε κάθε
+      κινητό ή tablet βάζετε εσείς το e-mail και τον κωδικό σας στη σελίδα σύνδεσης προσωπικού. Αν χαθεί μια συσκευή ή φύγει κάποιος υπάλληλος,
+      πατήστε «Αποσύνδεση όλων των συσκευών» και αλλάξτε το PIN του.
+      <div style="margin-top:.5rem"><button class="btn secondary sm" type="button" id="resetDevices">Αποσύνδεση όλων των συσκευών</button></div></div>
 
     <h3>Σύνδεσμος μενού και παραλαβή</h3>
     <p class="muted small" style="margin-top:0">Το μενού σας χωρίς τραπέζι, για Instagram, Google Maps, το site σας και QR στην είσοδο.
@@ -1288,6 +1292,10 @@ function renderSettings() {
   if (vc.available) drawConnect(s, vc);
   $('#copyMenu').onclick = async () => {
     try { await navigator.clipboard.writeText(s.menuUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#menuUrl').select(); }
+  };
+  $('#resetDevices').onclick = async () => {
+    if (!confirm('Όλες οι συσκευές του προσωπικού θα χρειαστούν ξανά έγκριση από εσάς (e-mail και κωδικό). Συνέχεια;')) return;
+    try { await api('/api/admin/devices/reset', { method: 'POST' }); toast('Οι συσκευές αποσυνδέθηκαν', 'ok'); } catch (err) { toast(err.message, 'err'); }
   };
   $('#copyStaff').onclick = async () => {
     try { await navigator.clipboard.writeText(s.staffUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#staffUrl').select(); }

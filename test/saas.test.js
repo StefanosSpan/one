@@ -117,8 +117,22 @@ test('staff log in with the venue code once there is more than one venue', async
   assert.equal(r.data.code, 'venue_required');
   const pins = (await owner('/api/admin/settings')).data.pins;
   assert.equal((await b('/api/staff/login', { method: 'POST', body: { venue: 'demo', pin: pins.waiter } })).status, 401);
+  // A PIN works only on a device the owner has approved with e-mail and password.
+  const unapproved = await b('/api/staff/login', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', pin: pins.waiter } });
+  assert.deepEqual([unapproved.status, unapproved.data.code], [403, 'device_not_approved']);
+  assert.equal((await b('/api/staff/approve-device', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', email: 'owner@example.com', password: 'wrong-pass' } })).status, 401);
+  assert.equal((await b('/api/staff/approve-device', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', email: 'owner@example.com', password: 'secret-pass-1' } })).status, 200);
+  assert.equal((await b('/api/staff/me')).status, 401, 'approving a device does not sign the owner in');
   const ok = await b('/api/staff/login', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', pin: pins.waiter } });
   assert.equal(ok.data.role, 'waiter');
+  // "Sign out all devices": the approval stops working.
+  await owner('/api/admin/devices/reset', { method: 'POST' });
+  assert.equal((await browser()('/api/staff/login', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', pin: pins.waiter } })).status, 403);
+  const again = await b('/api/staff/login', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', pin: pins.waiter } });
+  assert.equal(again.status, 403);
+  // The owner's own device stays approved.
+  assert.equal((await owner('/api/staff/login', { method: 'POST', body: { venue: 'psarotaverna-to-kyma', pin: pins.waiter } })).status, 200);
+  await owner('/api/account/login', { method: 'POST', body: { email: 'owner@example.com', password: 'secret-pass-1' } });
   assert.equal((await b('/api/account')).status, 403); // billing needs the owner's e-mail login
 });
 

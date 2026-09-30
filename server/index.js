@@ -183,9 +183,30 @@ function readCookie(req, name) {
 
 // `who` is the owner's account id, `s<id>` for a named staff member, or 0 for a shared role PIN.
 function setSession(req, res, venue, role, who = 0) {
-  const hours = typeof who === 'number' && who ? OWNER_SESSION_HOURS : SESSION_HOURS;
+  const owner = typeof who === 'number' && who > 0;
+  const hours = owner ? OWNER_SESSION_HOURS : SESSION_HOURS;
   const value = `${venue.id}.${role}.${Date.now() + hours * 3600_000}.${who}`;
-  res.setHeader('Set-Cookie', `staff=${value}.${sign(venue, value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${hours * 3600}${req.secure ? '; Secure' : ''}`);
+  res.appendHeader('Set-Cookie', `staff=${value}.${sign(venue, value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${hours * 3600}${req.secure ? '; Secure' : ''}`);
+  // The owner signing in with e-mail and password also approves this device for the staff PINs.
+  if (owner) approveDevice(req, res, venue);
+}
+
+// Devices of the venue: a staff PIN works only on a phone, tablet or computer the owner has approved by signing in on it
+// with e-mail and password once. So a PIN is useless anywhere else, and staff of one venue can never sign in to another.
+// The approval is a long-lived cookie signed with the venue's secret; "sign out all devices" in the administration
+// raises the venue's device generation and every earlier approval stops working.
+const DEVICE_DAYS = 400;
+const deviceCookie = (venue) => `device${venue.id}`;
+function approveDevice(req, res, venue) {
+  const value = `${venue.id}.${Number(venue.settings.deviceEpoch) || 0}.${Date.now()}`;
+  res.appendHeader('Set-Cookie', `${deviceCookie(venue)}=${value}.${sign(venue, `device:${value}`)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DEVICE_DAYS * 86400}${req.secure ? '; Secure' : ''}`);
+}
+function deviceApproved(req, venue) {
+  if (venue.isDemo) return true; // the demo is open to everyone
+  const [id, epoch, at, sig] = String(readCookie(req, deviceCookie(venue)) || '').split('.');
+  if (!sig || Number(id) !== venue.id || Number(epoch) !== (Number(venue.settings.deviceEpoch) || 0)) return false;
+  const expected = sign(venue, `device:${id}.${epoch}.${at}`);
+  return expected.length === sig.length && timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
 }
 
 // Starts a session and returns where the browser goes next. When the venue lives on another address, the
@@ -856,6 +877,11 @@ app.post('/api/staff/login', wrap(async (req, res) => {
   const pin = String(req.body?.pin ?? '');
   const pins = venue.settings.pins || {};
   if (venue.status === 'suspended') fail(403, 'Ο λογαριασμός του καταστήματος έχει ανασταλεί');
+  if (!deviceApproved(req, venue)) {
+    const e = new HttpError(403, 'Η συσκευή δεν έχει εγκριθεί. Ο ιδιοκτήτης συνδέεται μία φορά εδώ με e-mail και κωδικό.');
+    e.code = 'device_not_approved';
+    throw e;
+  }
   const member = (venue.settings.staff || []).find((m) => m.pin === pin);
   const role = member?.role || ROLES.find((r) => pins[r] && pins[r] === pin);
   if (!role) {
@@ -865,6 +891,19 @@ app.post('/api/staff/login', wrap(async (req, res) => {
   }
   const next = beginSession(req, res, venue, role, member ? `s${member.id}` : 0, STAFF_HOME[role]);
   res.json({ role, venue: venue.slug, name: member?.name || '', next });
+}));
+
+// The owner approves this device for the staff PINs with e-mail and password, without staying signed in on it.
+app.post('/api/staff/approve-device', wrap(async (req, res) => {
+  if (!rateLimit(`owner-login:${req.ip}`, 10, 60_000)) fail(429, 'Πολλές προσπάθειες. Δοκιμάστε σε ένα λεπτό.');
+  const venue = await venueForLogin(cleanText(req.body?.venue, 40).toLowerCase(), req);
+  const account = await db.get('SELECT * FROM accounts WHERE email = ?', [cleanEmail(req.body?.email)]);
+  const ok = await checkPassword(req.body?.password, account?.password_hash || 'scrypt$x$x');
+  if (!ok || !(await venueIdsOf(account.id)).includes(venue.id)) fail(401, 'Λάθος e-mail ή κωδικός του ιδιοκτήτη');
+  // On the main address the approval would not reach the venue's own address.
+  if (BASE_DOMAIN && req.hostVenue?.id !== venue.id) fail(400, 'Ανοίξτε τη σελίδα από τη διεύθυνση του καταστήματος');
+  approveDevice(req, res, venue);
+  res.json({ ok: true });
 }));
 
 app.post('/api/staff/logout', (req, res) => {
@@ -1387,6 +1426,16 @@ admin.put('/settings', wrap(async (req, res) => {
   req.venue = await getVenue(v);
   broadcastMenuUpdate(req.venue);
   res.json(await adminSettings(req));
+}));
+
+// "Sign out all devices": every approval for the staff PINs stops working (e.g. a lost tablet or staff who left).
+// The owner stays approved on the device they do it from.
+admin.post('/devices/reset', wrap(async (req, res) => {
+  const epoch = (Number(req.venue.settings.deviceEpoch) || 0) + 1;
+  await setSetting(req.venue.id, 'deviceEpoch', epoch);
+  const venue = await getVenue(req.venue.id);
+  if (req.accountId) approveDevice(req, res, venue);
+  res.json({ ok: true });
 }));
 
 // Payment settings from the owner. With their own Viva account (provider "viva") the keys must be complete, and new

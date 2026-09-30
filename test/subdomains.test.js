@@ -127,7 +127,14 @@ test('staff PINs work only on their own venue address', async () => {
   const guest = browser();
   // The demo venue's PIN on venue A's address: A is used whatever code is sent, so the demo PIN does not open it.
   const r = await guest(`${a}.kalimenu.test`, '/api/staff/login', { method: 'POST', body: { pin: DEMO_PINS.admin, venue: 'demo' } });
-  assert.equal(r.status, 401);
+  assert.equal(r.status, 403, 'this device is not approved by the owner of A');
+  // The owner of A approves the device on A's address only; the owner of another venue cannot.
+  const approve = (host, email) => guest(host, '/api/staff/approve-device', { method: 'POST', body: { email, password: 'secret-pass-1' } });
+  assert.equal((await approve(`${a}.kalimenu.test`, 'vita@example.com')).status, 401);
+  assert.equal((await approve(`${a}.kalimenu.test`, 'alfa@example.com')).status, 200);
+  assert.equal((await guest(`${a}.kalimenu.test`, '/api/staff/login', { method: 'POST', body: { pin: DEMO_PINS.admin, venue: 'demo' } })).status, 401);
+  // The approval of A does not open B.
+  assert.equal((await guest(`${b}.kalimenu.test`, '/api/staff/login', { method: 'POST', body: { pin: '0000' } })).status, 403);
   const ok = await guest('demo.kalimenu.test', '/api/staff/login', { method: 'POST', body: { pin: DEMO_PINS.waiter, venue: a } });
   assert.equal(ok.status, 200);
   assert.equal(ok.data.venue, 'demo');

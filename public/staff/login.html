@@ -21,6 +21,14 @@
         <input class="input" id="venueCode" autocapitalize="off" autocomplete="off" placeholder="π.χ. taverna-to-kyma"></label>
       <div class="pin-dots" id="dots"></div>
       <div class="pad" id="pad"></div>
+      <form id="approve" hidden style="margin-top:1rem;text-align:left" class="note-box">
+        <b>Έγκριση συσκευής</b>
+        <p class="small" style="margin:.3rem 0 .6rem">Για ασφάλεια, τα PIN του προσωπικού δουλεύουν μόνο σε συσκευές που έχει εγκρίνει ο ιδιοκτήτης.
+          Ο ιδιοκτήτης βάζει μία φορά το e-mail και τον κωδικό του λογαριασμού. Δεν μένει συνδεδεμένος.</p>
+        <label class="field"><span>E-mail ιδιοκτήτη</span><input class="input" id="apEmail" type="email" autocomplete="off" required></label>
+        <label class="field"><span>Κωδικός</span><input class="input" id="apPass" type="password" autocomplete="off" required></label>
+        <button class="btn block" style="margin-top:.6rem">Έγκριση αυτής της συσκευής</button>
+      </form>
       <p class="muted small" id="demo" style="margin-top:1rem"></p>
       <p class="small" style="margin-top:1rem"><a href="/login">Είστε ιδιοκτήτης; Σύνδεση με e-mail</a></p>
     </div>
@@ -63,10 +71,24 @@
         location.href = /^https?:/.test(go || '') ? go : next && next.startsWith('/staff/') ? next : HOME[role];
       } catch (e) {
         if (e.reason === 'venue_required') { venueField.hidden = false; venueInput.focus(); }
+        if (e.reason === 'device_not_approved') { approveForm.hidden = false; lastPin = pin; document.getElementById('apEmail').focus(); }
         toast(e.message === 'error' ? 'Σφάλμα σύνδεσης' : e.message, 'err');
         pin = ''; render();
       }
     }
+    // The owner approves this device once; the PIN typed before is then tried again.
+    const approveForm = document.getElementById('approve');
+    let lastPin = '';
+    approveForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/staff/approve-device', { method: 'POST', body: { venue, email: document.getElementById('apEmail').value.trim(), password: document.getElementById('apPass').value } });
+        approveForm.hidden = true;
+        document.getElementById('apPass').value = '';
+        toast('Η συσκευή εγκρίθηκε', 'ok');
+        if (lastPin) { pin = lastPin; render(); submit(); }
+      } catch (err) { toast(err.message, 'err'); }
+    });
     const press = (k) => {
       if (k === '⌫') pin = pin.slice(0, -1);
       else if (k === 'OK') return submit();
@@ -76,6 +98,7 @@
     pad.addEventListener('click', (e) => { const k = e.target.dataset.k; if (k) press(k); });
     document.addEventListener('keydown', (e) => {
       if (e.target === venueInput) { if (e.key === 'Enter') press('OK'); return; }
+      if (approveForm.contains(e.target)) return;
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') press('⌫');
       else if (e.key === 'Enter') press('OK');
