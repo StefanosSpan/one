@@ -834,4 +834,12 @@ export const EN = {
   'κινητό ή tablet βάζετε εσείς το e-mail και τον κωδικό σας στη σελίδα σύνδεσης προσωπικού. Αν χαθεί μια συσκευή ή φύγει κάποιος υπάλληλος': 'phone or tablet you enter your e-mail and password on the staff sign-in page. If a device is lost or someone leaves',
   'πατήστε': 'press',
   'την πρώτη φορά σε κάθε': 'the first time on each',
+  // Menu notices (Greece) and the frozen tag.
+  'Αγορανομικά στοιχεία μενού': 'Menu notices required in Greece',
+  'Αγορανομικός υπεύθυνος': 'Person in charge',
+  'Κατεψυγμένο': 'Frozen',
+  'Το μενού δείχνει αυτόματα ότι οι τιμές περιλαμβάνουν όλους τους φόρους και ότι ο πελάτης δεν υποχρεούται': 'The menu shows automatically that prices include all taxes and that guests do not have',
+  'να πληρώσει χωρίς νόμιμη απόδειξη. Σημειώστε τα κατεψυγμένα πιάτα με την ετικέτα': 'to pay without a legal receipt. Mark frozen dishes with the tag',
+  'ονοματεπώνυμο': 'full name',
+  'στο Μενού': 'in Menu',
 };

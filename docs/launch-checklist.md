@@ -67,6 +67,7 @@
 | 4.1 | Τηλέφωνο και e-mail επικοινωνίας στη σελίδα παρουσίασης (από τα `CONTACT_EMAIL` και `CONTACT_PHONE`) | 🟡 |
 | 4.2 | Θυρίδα `hello@kalimenu.gr`, που υπάρχει ήδη μέσω securemail του Papaki | 🟡 |
 | 4.3 | **Google Search Console** και **Google Business Profile** για το kalimenu.gr | 🟡 |
+| 4.3α | Search Console: προσθέστε **Domain property** (`kalimenu.gr`, και `kalimenu.com`) με εγγραφή TXT στο DNS, ώστε να καλύπτονται και τα subdomain των καταστημάτων. Μετά Sitemaps → `https://kalimenu.gr/sitemap.xml` (και `https://kalimenu.com/sitemap.xml`). Το sitemap περιλαμβάνει αυτόματα τα μενού των ενεργών καταστημάτων | 🟡 |
 | 4.4 | Λογαριασμοί social `@kalimenu` (Instagram, Facebook, TikTok) | 🟡 |
 | 4.5 | 3–5 **πιλοτικά καταστήματα** δωρεάν, με αντάλλαγμα φωτογραφίες και μια σύσταση (βλ. [πλάνο](kalimenu-plan.md)) | 🟡 |
 | 4.6 | Τρόπος υποστήριξης: τηλέφωνο, Viber ή e-mail, και ώρες απάντησης γραμμένες στο site | 🟡 |

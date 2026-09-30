@@ -61,10 +61,17 @@
       <li>Backups: deleted automatically within a few days.</li>
     </ul>
 
-    <h2>6. Guests of restaurants</h2>
-    <p>When someone scans a restaurant's QR code, we don't ask for their name, phone number or an account. We store the dishes, the table,
-      the time, the language and optional notes. This data belongs to the restaurant, which decides how it is used. For requests about it,
-      contact the restaurant; we help it respond.</p>
+    <h2 id="guests">6. Guests of restaurants</h2>
+    <p>Guests who scan a restaurant's QR code don't need an account. For the restaurant we store:</p>
+    <ul>
+      <li><b>Orders from the table:</b> the dishes, the table, the time, the language and optional notes. No name or phone number.</li>
+      <li><b>Pick-up orders:</b> also a name, a phone number and the pick-up time, so the restaurant can prepare and hand over the order.</li>
+      <li><b>Feedback and loyalty card:</b> the rating and optional comment, and a random code of the device so visits can be counted, with nothing that identifies the guest.</li>
+    </ul>
+    <p>On the guest's device we keep only the language, the cart and that random code (browser storage, no tracking cookies).
+      This data belongs to the restaurant, which decides how it is used; we process it on the restaurant's behalf
+      (<a href="/dpa">data processing terms</a>) and keep it as long as the restaurant keeps its order history or its account.
+      For requests about it, contact the restaurant; we help it respond. We do not sell guests' data or use it for advertising.</p>
 
     <h2>7. Security</h2>
     <p>Encrypted connections (HTTPS), passwords stored with scrypt, data kept separate per restaurant, each restaurant on its own address,
@@ -76,14 +83,20 @@
       you may have additional rights, such as knowing what we collect and opting out of targeted advertising. We answer within 30 days and
       we never treat you differently for using your rights.</p>
 
-    <h2>9. International transfers</h2>
+    <h2 id="us-rights">9. Your privacy choices in the United States</h2>
+    <p>We do not sell personal information. If you accept advertising cookies on our website, the Meta Pixel may count as "sharing" for
+      cross-context behavioral advertising under some state laws (for example California's CCPA/CPRA). You can opt out at any time with
+      <a href="#" data-cookie-settings>Your privacy choices</a>, and we honor the Global Privacy Control (GPC) signal of your browser as an
+      opt-out. You may use an authorized agent to make a request; we may need to verify your identity first.</p>
+
+    <h2>10. International transfers</h2>
     <p>The service is run from the European Union, and data is hosted in Frankfurt, Germany. Transfers to providers in the United States
       follow the EU-U.S. Data Privacy Framework or standard contractual clauses.</p>
 
-    <h2>10. Changes</h2>
+    <h2>11. Changes</h2>
     <p>If this policy changes materially, we will tell you by e-mail before the change applies.</p>
   </div></main>
-  <footer class="legal-foot"><a href="/">Kalimenu</a> · <a href="/cookies">Cookies</a> · <a href="#" data-cookie-settings>Cookie settings</a> · Built by <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></footer>
+  <footer class="legal-foot"><a href="/">Kalimenu</a> · <a href="/cookies">Cookies</a> · <a href="#" data-cookie-settings>Your privacy choices</a> · Built by <a href="https://walkupdigital.com" target="_blank" rel="noopener">Walkup Digital</a></footer>
   <script type="module" src="/js/legal.js"></script>
   <script type="module" src="/js/cookies.js"></script>
 </body>

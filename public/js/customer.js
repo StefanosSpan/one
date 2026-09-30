@@ -357,7 +357,7 @@ function renderMenu() {
       <h2 class="section-title" id="cat-${c.id}">${esc(tr(c.name))}</h2>
       <div class="dish-list">${items.filter((i) => i.category_id === c.id).map(dishRow).join('')}</div>
     `).join('') : `<div class="empty"><p>${esc(t('noResults'))}</p></div>`}
-    <p class="footnote">${esc(t('allergyNotice'))} ${esc(t('pricesVat'))}</p>
+    ${menuNotices(items)}
   `;
 
   $('#announce')?.addEventListener('click', () => { if (ann.itemId && itemById(ann.itemId)) openItem(ann.itemId); });
@@ -408,11 +408,29 @@ function setupScrollSpy() {
   spyHandler();
 }
 
+// Notices at the end of the menu (and in Info) that the law asks for, with the privacy notice for guests.
+function menuNotices(items = S.data.items) {
+  const r = S.data.restaurant;
+  const us = r.market === 'us';
+  const lines = [t('allergyNotice')];
+  if (us) lines.push(t('pricesBeforeTax'), t('rawAdvisory'));
+  else {
+    lines.push(t('pricesAllTaxes'), t('receiptNotice'));
+    if (r.responsible) lines.push(`${t('responsible')}: ${r.responsible}`);
+  }
+  if (items.some((i) => i.tags.includes('frozen'))) lines.push(t('frozenNote'));
+  const site = r.site || location.origin.replace(/\/\/[^.]+\.(?=[^.]+\.[^.]+$)/, '//');
+  return `<footer class="notices">${lines.map((l) => `<p>${esc(l)}</p>`).join('')}
+    <p class="notice-links"><a href="${esc(site)}/privacy#guests" target="_blank" rel="noopener">${esc(t('privacy'))}</a> ·
+      ${esc(t('menuBy'))} <a href="${esc(site)}/" target="_blank" rel="noopener">Kalimenu</a></p></footer>`;
+}
+
 function dietText(i) {
   const out = [];
   if (i.tags.includes('vegan')) out.push(t('vegan'));
   else if (i.tags.includes('vegetarian')) out.push(t('vegetarian'));
   if (i.tags.includes('gluten_free')) out.push(t('gluten_free'));
+  if (i.tags.includes('frozen')) out.push(`* ${t('frozen')}`);
   return out.join(' · ');
 }
 
@@ -442,7 +460,7 @@ function dishRow(i) {
   return `
     <button class="dish ${i.available ? '' : 'off'}" data-id="${i.id}">
       <div class="dish-text">
-        <div class="dish-name">${inCart ? `<span class="incart">${inCart}×</span>` : ''}${esc(tr(i.name))}</div>
+        <div class="dish-name">${inCart ? `<span class="incart">${inCart}×</span>` : ''}${esc(tr(i.name))}${i.tags.includes('frozen') ? ' *' : ''}</div>
         ${tr(i.description) ? `<div class="dish-desc">${esc(tr(i.description))}</div>` : ''}
         ${dishMeta(i)}
       </div>
@@ -834,6 +852,7 @@ function renderInfo() {
       ${r.reviewUrl ? row('star', t('leaveReview'), `<p><a href="${esc(r.reviewUrl)}" target="_blank" rel="noopener">Google / TripAdvisor</a></p>`) : ''}
       ${row('alert', t('allergens'), `<p class="muted">${esc(t('allergyNotice'))}</p>`)}
     </div>
+    ${menuNotices()}
   `;
   showLoyalty('#loyInfo');
   $('#copyWifi')?.addEventListener('click', async () => {

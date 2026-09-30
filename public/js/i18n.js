@@ -614,3 +614,50 @@ export function money(cents, lang = 'el') {
   const locale = { el: 'el-GR', en: us ? 'en-US' : 'en-IE', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: us ? 'es-US' : 'es-ES', nl: 'nl-NL', pl: 'pl-PL' }[lang] || 'el-GR';
   return new Intl.NumberFormat(locale, { style: 'currency', currency: CURRENCY }).format(cents / 100);
 }
+
+// Notices at the end of the menu. Greece (market rules): prices with all taxes, the guest pays only with a legal
+// receipt, the person responsible, frozen products marked. United States: prices before sales tax and the
+// consumer advisory for raw or undercooked food.
+const NOTICES = {
+  el: { frozen: 'Κατεψυγμένο', frozenNote: '* Κατεψυγμένο προϊόν', pricesAllTaxes: 'Οι τιμές περιλαμβάνουν όλους τους φόρους.',
+    receiptNotice: 'Ο καταναλωτής δεν έχει υποχρέωση να πληρώσει εάν δεν λάβει το νόμιμο παραστατικό (απόδειξη ή τιμολόγιο).',
+    responsible: 'Αγορανομικός υπεύθυνος', pricesBeforeTax: 'Οι τιμές δεν περιλαμβάνουν φόρο πωλήσεων.',
+    rawAdvisory: 'Η κατανάλωση ωμού ή ατελώς μαγειρεμένου κρέατος, πουλερικών, θαλασσινών, οστρακοειδών ή αυγών μπορεί να αυξήσει τον κίνδυνο τροφιμογενούς νόσου.',
+    privacy: 'Απόρρητο', menuBy: 'Ψηφιακό μενού από' },
+  en: { frozen: 'Frozen', frozenNote: '* Frozen product', pricesAllTaxes: 'Prices include all taxes.',
+    receiptNotice: 'You are not obliged to pay if you do not receive a legal receipt or invoice.',
+    responsible: 'Person in charge', pricesBeforeTax: 'Prices do not include sales tax.',
+    rawAdvisory: 'Consuming raw or undercooked meats, poultry, seafood, shellfish, or eggs may increase your risk of foodborne illness.',
+    privacy: 'Privacy', menuBy: 'Digital menu by' },
+  de: { frozen: 'Tiefgekühlt', frozenNote: '* Tiefkühlprodukt', pricesAllTaxes: 'Alle Preise inklusive Steuern.',
+    receiptNotice: 'Sie müssen nicht bezahlen, wenn Sie keinen gesetzlichen Beleg (Quittung oder Rechnung) erhalten.',
+    responsible: 'Verantwortliche Person', pricesBeforeTax: 'Preise zuzüglich Umsatzsteuer.',
+    rawAdvisory: 'Der Verzehr von rohem oder nicht durchgegartem Fleisch, Geflügel, Fisch, Meeresfrüchten oder Eiern kann das Risiko lebensmittelbedingter Erkrankungen erhöhen.',
+    privacy: 'Datenschutz', menuBy: 'Digitale Speisekarte von' },
+  fr: { frozen: 'Surgelé', frozenNote: '* Produit surgelé', pricesAllTaxes: 'Prix toutes taxes comprises.',
+    receiptNotice: 'Vous n’êtes pas tenu de payer si vous ne recevez pas de justificatif légal (reçu ou facture).',
+    responsible: 'Responsable', pricesBeforeTax: 'Prix hors taxe de vente.',
+    rawAdvisory: 'La consommation de viandes, volailles, poissons, fruits de mer ou œufs crus ou insuffisamment cuits peut augmenter le risque d’intoxication alimentaire.',
+    privacy: 'Confidentialité', menuBy: 'Menu numérique par' },
+  it: { frozen: 'Surgelato', frozenNote: '* Prodotto surgelato', pricesAllTaxes: 'Prezzi comprensivi di tutte le tasse.',
+    receiptNotice: 'Non è obbligatorio pagare se non si riceve lo scontrino o la fattura.',
+    responsible: 'Responsabile', pricesBeforeTax: 'Prezzi al netto dell’imposta sulle vendite.',
+    rawAdvisory: 'Il consumo di carne, pollame, pesce, frutti di mare o uova crudi o poco cotti può aumentare il rischio di malattie di origine alimentare.',
+    privacy: 'Privacy', menuBy: 'Menu digitale di' },
+  es: { frozen: 'Congelado', frozenNote: '* Producto congelado', pricesAllTaxes: 'Precios con todos los impuestos incluidos.',
+    receiptNotice: 'No está obligado a pagar si no recibe el justificante legal (recibo o factura).',
+    responsible: 'Responsable', pricesBeforeTax: 'Los precios no incluyen el impuesto sobre las ventas.',
+    rawAdvisory: 'Consumir carnes, aves, pescados, mariscos o huevos crudos o poco cocidos puede aumentar el riesgo de enfermedades transmitidas por alimentos.',
+    privacy: 'Privacidad', menuBy: 'Menú digital de' },
+  nl: { frozen: 'Diepvries', frozenNote: '* Diepvriesproduct', pricesAllTaxes: 'Prijzen inclusief alle belastingen.',
+    receiptNotice: 'U hoeft niet te betalen als u geen wettelijk betaalbewijs (bon of factuur) ontvangt.',
+    responsible: 'Verantwoordelijke', pricesBeforeTax: 'Prijzen exclusief omzetbelasting.',
+    rawAdvisory: 'Het eten van rauw of onvoldoende verhit vlees, gevogelte, vis, schaaldieren of eieren kan het risico op voedselinfecties verhogen.',
+    privacy: 'Privacy', menuBy: 'Digitaal menu door' },
+  pl: { frozen: 'Mrożone', frozenNote: '* Produkt mrożony', pricesAllTaxes: 'Ceny zawierają wszystkie podatki.',
+    receiptNotice: 'Nie masz obowiązku płacić, jeśli nie otrzymasz paragonu lub faktury.',
+    responsible: 'Osoba odpowiedzialna', pricesBeforeTax: 'Ceny nie zawierają podatku od sprzedaży.',
+    rawAdvisory: 'Spożywanie surowego lub niedogotowanego mięsa, drobiu, ryb, owoców morza lub jaj może zwiększać ryzyko chorób przenoszonych przez żywność.',
+    privacy: 'Prywatność', menuBy: 'Cyfrowe menu od' },
+};
+for (const [lang, strings] of Object.entries(NOTICES)) Object.assign(STRINGS[lang], strings);

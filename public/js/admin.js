@@ -12,7 +12,7 @@ const me = await requireLogin(['admin']);
 if (me) start();
 
 const TAG_LABELS = { popular: 'Δημοφιλές', new: 'Νέο', vegetarian: 'Χορτοφαγικό', vegan: 'Vegan', gluten_free: 'Χωρίς γλουτένη', spicy: 'Πικάντικο',
-  suggest: 'Προτείνεται στο καλάθι' };
+  frozen: 'Κατεψυγμένο', suggest: 'Προτείνεται στο καλάθι' };
 const DAY_SHORT = ['Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα', 'Κυ'];
 
 // Days + hours editor, e.g. breakfast Mon–Sun 07:00–11:00 or happy hour 18:00–20:00.
@@ -1008,12 +1008,18 @@ function renderStore() {
       <label class="field" data-gr-only><span>ΔΟΥ</span><input class="input" id="taxOffice" value="${esc(r.taxOffice || '')}"></label>
       <label class="field"><span>Κείμενο στο τέλος της απόδειξης</span><input class="input" id="receiptFooter" value="${esc(r.receiptFooter || '')}" placeholder="π.χ. Σας περιμένουμε ξανά!"></label>
     </div>
+    <div data-gr-only>
+      <h3>Αγορανομικά στοιχεία μενού</h3>
+      <p class="muted small" style="margin-top:0">Το μενού δείχνει αυτόματα ότι οι τιμές περιλαμβάνουν όλους τους φόρους και ότι ο πελάτης δεν υποχρεούται
+        να πληρώσει χωρίς νόμιμη απόδειξη. Σημειώστε τα κατεψυγμένα πιάτα με την ετικέτα «Κατεψυγμένο» στο Μενού.</p>
+      <label class="field" style="max-width:380px"><span>Αγορανομικός υπεύθυνος (ονοματεπώνυμο)</span><input class="input" id="responsible" maxlength="80" value="${esc(r.responsible || '')}"></label>
+    </div>
     <button class="btn" id="save">Αποθήκευση</button>
   </div>`;
   const read = bindI18n($('#app'));
   $('#save').onclick = async () => {
     const fields = ['name', 'address', 'mapsUrl', 'phone', 'email', 'wifiName', 'wifiPassword', 'instagram', 'reviewUrl',
-      'legalName', 'vatNumber', 'taxOffice', 'receiptFooter'];
+      'legalName', 'vatNumber', 'taxOffice', 'receiptFooter', 'responsible'];
     const restaurant = { ...settings.restaurant, ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read() };
     try { await api('/api/admin/settings', { method: 'PUT', body: { restaurant } }); toast('Αποθηκεύτηκε', 'ok'); }
     catch (err) { toast(err.message, 'err'); }

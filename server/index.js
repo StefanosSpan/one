@@ -318,7 +318,7 @@ function cleanI18n(obj, max = 300) {
 
 const ALLERGENS = ['gluten', 'crustaceans', 'eggs', 'fish', 'peanuts', 'soy', 'milk', 'nuts',
   'celery', 'mustard', 'sesame', 'sulphites', 'lupin', 'molluscs'];
-const TAGS = ['vegetarian', 'vegan', 'gluten_free', 'spicy', 'popular', 'new', 'suggest'];
+const TAGS = ['vegetarian', 'vegan', 'gluten_free', 'spicy', 'frozen', 'popular', 'new', 'suggest'];
 
 // Validates the customer's option choices ([[groupIndex, choiceIndex], ...]) and returns the unit price.
 // `base` is the dish price for this spot and moment (happy hour, all-inclusive); options are free when the dish is included.
@@ -415,6 +415,9 @@ function publicRestaurant(venue) {
     theme: cleanTheme(s.theme),
     currency: venue.currency,
     legalName: r.legalName || '', vatNumber: r.vatNumber || '', taxOffice: r.taxOffice || '', receiptFooter: r.receiptFooter || '',
+    // Notices the menu must show: in Greece the person responsible under market rules (αγορανομικός υπεύθυνος).
+    market: venue.market, responsible: venue.market === 'us' ? '' : r.responsible || '',
+    site: MAIN_URLS[venue.market] || '',
   };
 }
 
@@ -1355,7 +1358,7 @@ admin.put('/settings', wrap(async (req, res) => {
       address: cleanText(r.address, 200), phone: cleanText(r.phone, 40), email: cleanText(r.email, 120),
       mapsUrl: cleanText(r.mapsUrl, 500), wifiName: cleanText(r.wifiName, 60), wifiPassword: cleanText(r.wifiPassword, 60),
       instagram: cleanText(r.instagram, 200), reviewUrl: cleanText(r.reviewUrl, 500), logoUrl: cleanText(r.logoUrl, 500), coverUrl: cleanText(r.coverUrl, 500),
-      legalName: cleanText(r.legalName, 120), vatNumber: cleanText(r.vatNumber, 20), taxOffice: cleanText(r.taxOffice, 60),
+      responsible: cleanText(r.responsible, 80), legalName: cleanText(r.legalName, 120), vatNumber: cleanText(r.vatNumber, 20), taxOffice: cleanText(r.taxOffice, 60),
       receiptFooter: cleanText(r.receiptFooter, 300),
     });
   }
