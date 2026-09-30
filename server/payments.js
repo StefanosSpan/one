@@ -7,6 +7,8 @@
 // Flow: create a payment order → redirect the guest to Viva → Viva sends the guest back to
 // /pay/viva/return?t=<transactionId>&s=<orderCode> → we confirm the transaction with Viva before marking it paid.
 // Endpoints per Viva's Smart Checkout and ISV Payment API documentation; test first with demo accounts.
+import { createHash } from 'node:crypto';
+
 const HOSTS = {
   demo: { accounts: 'https://demo-accounts.vivapayments.com', api: 'https://demo-api.vivapayments.com', checkout: 'https://demo.vivapayments.com' },
   live: { accounts: 'https://accounts.vivapayments.com', api: 'https://api.vivapayments.com', checkout: 'https://www.vivapayments.com' },
@@ -35,21 +37,41 @@ export function isvFee(cfg, amount, tip = 0) {
 
 const tokens = new Map(); // clientId -> { token, until }
 
-async function vivaToken(cfg) {
-  const hit = tokens.get(cfg.clientId);
+// Tokens are kept per set of keys, so new keys (or another environment) take effect at once.
+const tokenKey = (cfg) => `${cfg.environment}:${cfg.clientId}:${createHash('sha256').update(String(cfg.clientSecret)).digest('hex')}`;
+
+async function vivaToken(cfg, { fresh = false } = {}) {
+  const hit = !fresh && tokens.get(tokenKey(cfg));
   if (hit && hit.until > Date.now()) return hit.token;
-  const res = await fetch(`${hostOf(cfg).accounts}/connect/token`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  });
+  let res;
+  try {
+    res = await fetch(`${hostOf(cfg).accounts}/connect/token`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
+    });
+  } catch {
+    throw Object.assign(new Error('Αποτυχία σύνδεσης με το Viva Wallet'), { status: 502, unreachable: true });
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.access_token) throw Object.assign(new Error('Αποτυχία σύνδεσης με το Viva Wallet'), { status: 502 });
-  tokens.set(cfg.clientId, { token: data.access_token, until: Date.now() + ((data.expires_in || 3600) - 60) * 1000 });
+  if (!res.ok || !data.access_token) {
+    // 400/401: Viva does not know these keys (wrong keys, or keys of the other environment).
+    const rejected = res.status === 400 || res.status === 401 || res.status === 403;
+    throw Object.assign(new Error('Αποτυχία σύνδεσης με το Viva Wallet'), { status: 502, rejected, unreachable: !rejected });
+  }
+  tokens.set(tokenKey(cfg), { token: data.access_token, until: Date.now() + ((data.expires_in || 3600) - 60) * 1000 });
   return data.access_token;
+}
+
+/**
+ * Checks the venue's own Viva keys (Client ID / Client Secret of the Smart Checkout credentials) with Viva.
+ * Returns 'ok', 'rejected' (Viva does not accept them) or 'unreachable' (Viva could not be reached).
+ */
+export async function vivaCheck(cfg) {
+  try { await vivaToken(cfg, { fresh: true }); return 'ok'; } catch (e) { return e.rejected ? 'rejected' : 'unreachable'; }
 }
 
 async function vivaFetch(cfg, path, { method = 'GET', body } = {}) {

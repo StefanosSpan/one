@@ -357,7 +357,7 @@ test('guests pay from the phone: own dishes, equal shares, tip, room charge', as
   assert.equal(rr.payment, 'room');
 
   // The Viva secret is never sent back to the browser.
-  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { payments: { provider: 'viva', clientId: 'id', clientSecret: 'topsecret', sourceCode: '1234' } } });
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { payments: { provider: 'off', clientId: 'id', clientSecret: 'topsecret', sourceCode: '1234' } } });
   const settings = (await call('/api/admin/settings', { as: 'admin' })).data;
   assert.equal(settings.payments.hasSecret, true);
   assert.ok(!JSON.stringify(settings).includes('topsecret'));
@@ -393,6 +393,15 @@ test('public menu link and pick-up orders', async () => {
   const h = await call(`/api/staff/orders/${o.data.id}/handover`, { method: 'POST', as: 'waiter', body: { paymentMethod: 'card' } });
   assert.equal(h.data.receipt.total, o.data.total);
   assert.equal((await call(`/api/staff/orders/${o.data.id}/handover`, { method: 'POST', as: 'waiter', body: {} })).status, 409);
+  // The order history can show pick-up orders only; the export names the customer instead of a table.
+  const only = (await call('/api/admin/orders?channel=takeaway', { as: 'admin' })).data.orders;
+  assert.deepEqual(only.map((x) => x.id), [o.data.id]);
+  assert.ok(!(await call('/api/admin/orders?channel=table', { as: 'admin' })).data.orders.some((x) => x.id === o.data.id));
+  const csv = await (await fetch(`${base}/api/admin/orders.csv?channel=takeaway`, { headers: { Cookie: cookies.admin } })).text();
+  assert.match(csv, /"Παραλαβή · Μαρία · 6912345678"/);
+  // QR of the menu link for the print page.
+  const svg = await fetch(`${base}/api/admin/menu-qr.svg`, { headers: { Cookie: cookies.admin } });
+  assert.equal(svg.headers.get('content-type'), 'image/svg+xml; charset=utf-8');
   await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { takeaway: { enabled: false } } });
 });
 

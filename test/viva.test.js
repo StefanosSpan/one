@@ -1,5 +1,6 @@
 // Viva Connect (ISV partner): an owner connects with one button, guests pay the venue's merchant account and
-// Kalimenu's fee is sent to Viva. A local mock stands in for Viva.
+// Kalimenu's fee is sent to Viva. Or the owner sets up card payments with the keys of their own Viva account.
+// A local mock stands in for Viva.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -18,7 +19,21 @@ const viva = createServer(async (req, res) => {
   const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   if (url.pathname === '/connect/token') {
     const [id, secret] = Buffer.from(req.headers.authorization.split(' ')[1], 'base64').toString().split(':');
+    if (id === 'own-id' && secret === 'own-secret') return send(200, { access_token: 'tok-own', expires_in: 3600 });
     return id === 'isv-id' && secret === 'isv-secret' ? send(200, { access_token: 'tok', expires_in: 3600 }) : send(401, {});
+  }
+  // A venue's own keys: plain Smart Checkout orders and transactions.
+  if (req.headers.authorization === 'Bearer tok-own') {
+    if (url.pathname === '/checkout/v2/orders' && req.method === 'POST') {
+      const body = JSON.parse(raw);
+      const orderCode = 5000 + (seen.own ||= []).length;
+      seen.own.push(body);
+      orders.set(String(orderCode), { amount: body.amount, own: true });
+      return send(200, { orderCode });
+    }
+    const own = url.pathname.match(/^\/checkout\/v2\/transactions\/tx-(\d+)$/);
+    if (own && orders.get(own[1])?.own) return send(200, { statusId: 'F', amount: orders.get(own[1]).amount / 100, orderCode: Number(own[1]) });
+    return send(404, {});
   }
   if (req.headers.authorization !== 'Bearer tok') return send(401, {});
   if (url.pathname === '/isv/v1/accounts' && req.method === 'POST') {
@@ -186,4 +201,52 @@ test('a payment counts through the Viva webhook even if the guest never comes ba
   const back = await guest(`/pay/viva/return?t=tx-${orderCode}&s=${orderCode}`);
   assert.match(back.location, /\?pay=ok$/);
   assert.equal((await guest(`/api/public/table/${token}/state`)).data.bill.paid, (await guest(`/api/public/table/${token}/state`)).data.bill.total);
+});
+
+test('an owner sets up card payments with the keys of their own Viva account', async () => {
+  const me = browser();
+  const r = await me('/api/account/signup', { method: 'POST', body: {
+    business: 'Taverna Own Keys', email: 'own-keys@example.com', password: 'secret-pass-1', acceptTerms: true, tables: 3 } });
+  assert.equal(r.status, 201);
+  const token = (await me('/api/admin/tables')).data[0].token;
+  const save = (payments) => me('/api/admin/settings', { method: 'PUT', body: { payments: { provider: 'viva', environment: 'demo', ...payments } } });
+
+  // Incomplete or wrong keys are refused, so guests never see a payment that cannot work.
+  assert.equal((await save({ clientId: 'own-id', sourceCode: '4321' })).status, 400);
+  assert.equal((await save({ clientId: 'own-id', clientSecret: 'own-secret', sourceCode: '12' })).status, 400);
+  const wrong = await save({ clientId: 'own-id', clientSecret: 'nope', sourceCode: '4321' });
+  assert.equal(wrong.status, 400);
+  assert.match(wrong.data.error, /Viva/);
+  assert.equal((await guest(`/api/public/table/${token}`)).data.payments.provider, 'off');
+
+  // "Check connection" before saving.
+  assert.equal((await me('/api/admin/payments/viva-test', { method: 'POST', body: { clientId: 'own-id', clientSecret: 'nope' } })).status, 400);
+  assert.equal((await me('/api/admin/payments/viva-test', { method: 'POST', body: { clientId: 'own-id', clientSecret: 'own-secret' } })).status, 200);
+
+  assert.equal((await save({ clientId: 'own-id', clientSecret: 'own-secret', sourceCode: '4321' })).status, 200);
+  const s = (await me('/api/admin/settings')).data;
+  assert.deepEqual([s.payments.provider, s.payments.hasSecret, s.payments.clientSecret], ['viva', true, undefined]);
+  // Saving again without typing the secret keeps it (and the stored keys are checked again only when they change).
+  assert.equal((await save({ clientId: 'own-id', sourceCode: '4321', tips: [0, 10] })).status, 200);
+  assert.equal((await me('/api/admin/payments/viva-test', { method: 'POST', body: {} })).status, 200);
+  assert.equal((await guest(`/api/public/table/${token}`)).data.payments.provider, 'viva');
+
+  // A guest pays: the order is created with the venue's own keys and source, with no Kalimenu fee.
+  const menu = (await guest(`/api/public/table/${token}`)).data;
+  const dish = menu.items.find((i) => i.available && !i.options.some((o) => o.required));
+  const order = await guest(`/api/public/table/${token}/orders`, { method: 'POST', body: { items: [{ id: dish.id, qty: 1 }] } });
+  await me(`/api/staff/orders/${order.data.id}/status`, { method: 'POST', body: { status: 'accepted' } });
+  const pay = await guest(`/api/public/table/${token}/pay`, { method: 'POST', body: { mode: 'all', tipPercent: 10 } });
+  assert.equal(pay.status, 200, JSON.stringify(pay.data));
+  const sent = seen.own.at(-1);
+  assert.equal(sent.sourceCode, '4321');
+  assert.equal(sent.isvAmount, undefined);
+  const code = pay.data.url.split('ref=')[1];
+  assert.match((await guest(`/pay/viva/return?t=tx-${code}&s=${code}`)).location, /\?pay=ok$/);
+  assert.equal((await db.get('SELECT status FROM payments WHERE ref = ?', [code])).status, 'paid');
+  assert.equal((await guest(`/api/public/table/${token}/state`)).data.bill.due, 0);
+
+  // Switching it off stops card payments from the phone.
+  await me('/api/admin/settings', { method: 'PUT', body: { payments: { provider: 'off' } } });
+  assert.equal((await guest(`/api/public/table/${token}`)).data.payments.provider, 'off');
 });

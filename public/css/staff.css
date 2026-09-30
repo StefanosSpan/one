@@ -122,6 +122,7 @@ body.kitchen .bar a:hover, body.kitchen .bar button:hover, body.kitchen .bar a.a
 .langs-mini span.ok { color: var(--muted); border-color: #cfcfcf; }
 .mini { border: 1px solid #d6d6d6; background: #fff; border-radius: 6px; width: 30px; height: 30px; display: grid; place-items: center; color: var(--text); }
 .mini:hover { background: var(--fill); }
+.mini.inline { display: inline-grid; width: 24px; height: 24px; vertical-align: middle; margin: 0 .15rem; }
 .toggle { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; }
 .toggle input { opacity: 0; width: 0; height: 0; }
 .toggle span { position: absolute; inset: 0; background: #cfcfcf; border-radius: 999px; transition: .15s; cursor: pointer; }
@@ -142,6 +143,10 @@ body.kitchen .bar a:hover, body.kitchen .bar button:hover, body.kitchen .bar a.a
 .switch { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; margin-bottom: .6rem; }
 .switch input { width: 18px; height: 18px; flex: none; }
 .qr-img { width: 76px; height: 76px; background: #fff; border-radius: 4px; border: 1px solid var(--line); padding: 2px; }
+.qr-img.big { width: 132px; height: 132px; padding: 4px; flex: none; }
+.panel.menu-link { display: flex; gap: 1.2rem; align-items: flex-start; }
+.panel.menu-link .grow { flex: 1; min-width: 0; }
+@media (max-width: 640px) { .panel.menu-link { flex-direction: column; } .panel.menu-link .qr-img.big { width: 112px; height: 112px; } }
 .note-box { background: var(--amber-bg); color: #6b4200; border-radius: var(--radius); padding: .7rem .9rem; font-size: .88rem; margin: .5rem 0 1rem; }
 .bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
 .bars div { flex: 1; background: #5b7fa8; border-radius: 2px 2px 0 0; min-height: 2px; position: relative; }

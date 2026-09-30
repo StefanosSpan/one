@@ -65,6 +65,20 @@
     .size-tent .sub { font-size: 9pt; margin-top: 1mm; }
     .size-tent .codes { font-size: 8pt; margin-top: 3mm; letter-spacing: .05em; }
 
+    .size-poster .sheetgrid { grid-template-columns: repeat(1, 150mm); }
+    .size-poster .qcard { padding: 14mm 10mm; width: 150mm; min-height: 200mm; justify-content: center; }
+    .size-poster .logo { height: 26mm; max-width: 90mm; margin-bottom: 5mm; }
+    .size-poster .rn { font-size: 20pt; }
+    .size-poster .tn { font-size: 40pt; margin-top: 3mm; }
+    .size-poster .tn-en { font-size: 14pt; margin-bottom: 7mm; }
+    .size-poster .qr { width: 95mm; height: 95mm; }
+    .size-poster .cta { font-size: 16pt; margin-top: 7mm; }
+    .size-poster .sub { font-size: 12pt; margin-top: 1.5mm; }
+    .size-poster .codes { font-size: 10pt; margin-top: 4mm; letter-spacing: .05em; }
+    .size-poster .url { font-size: 11pt; }
+    .qcard .url { color: #6b6b6b; font-size: 7pt; margin-top: 1mm; word-break: break-all; }
+    .size-sticker .url { display: none; }
+
     @media print {
       body { background: #fff; }
       .toolbar, .hint { display: none; }
@@ -81,9 +95,13 @@
         <option value="sticker">Αυτοκόλλητο (4,4 cm, 20 ανά σελίδα)</option>
         <option value="card" selected>Κάρτα (6 cm, 12 ανά σελίδα)</option>
         <option value="tent">Επιτραπέζια πινακίδα (A6, 4 ανά σελίδα)</option>
+        <option value="poster" hidden>Αφίσα (A4)</option>
       </select>
     </label>
-    <label>Θέσεις
+    <label id="copiesBox" hidden>Αντίγραφα
+      <select class="input" id="copies"><option>1</option><option>2</option><option>4</option><option>8</option><option>12</option><option>20</option></select>
+    </label>
+    <label id="kindBox">Θέσεις
       <select class="input" id="kind">
         <option value="">Όλες</option>
         <option value="table">Τραπέζια</option>
@@ -110,7 +128,13 @@
       ? { table: ['Table', 'Mesa'], room: ['Room', 'Habitación'], sunbed: ['Lounge chair', 'Tumbona'] }
       : { table: ['Τραπέζι', 'Table'], room: ['Δωμάτιο', 'Room'], sunbed: ['Ξαπλώστρα', 'Sunbed'] };
     const CTA = US ? ['Scan to view the menu and order', 'Escanee para ver el menú y pedir'] : ['Σκανάρετε για μενού και παραγγελία', 'Scan to view the menu and order'];
+    // The menu link without a table (entrance, flyers, pick-up orders): ?menu=1
+    const MENU_WORD = US ? ['Menu', 'Menú'] : ['Μενού', 'Menu'];
+    const MENU_CTA = US
+      ? { take: ['Scan for the menu and to order for pick-up', 'Escanee para ver el menú y pedir para llevar'], view: ['Scan to view the menu', 'Escanee para ver el menú'] }
+      : { take: ['Σκανάρετε για το μενού και παραγγελία για παραλαβή', 'Scan for the menu and to order for pick-up'], view: ['Σκανάρετε για να δείτε το μενού', 'Scan to view the menu'] };
     const params = new URLSearchParams(location.search);
+    const MENU = params.get('menu') === '1';
     const onlyIds = (params.get('ids') || '').split(',').filter(Boolean).map(Number);
     const $ = (s) => document.querySelector(s);
 
@@ -118,7 +142,8 @@
     const svgCache = new Map();
     const qrSvg = async (id, ecl) => {
       const key = `${id}:${ecl}`;
-      if (!svgCache.has(key)) svgCache.set(key, await fetch(`/api/admin/tables/${id}/qr.svg?ecl=${ecl}`).then((r) => r.text()));
+      const url = id === 'menu' ? `/api/admin/menu-qr.svg?ecl=${ecl}` : `/api/admin/tables/${id}/qr.svg?ecl=${ecl}`;
+      if (!svgCache.has(key)) svgCache.set(key, await fetch(url).then((r) => r.text()));
       return svgCache.get(key);
     };
 
@@ -129,9 +154,27 @@
       const showLogo = $('#showLogo').checked && logo;
       const logoInQr = $('#logoInQr').checked && logo;
       $('#paper').className = `paper size-${size}`;
-      const list = tables.filter((t) => t.active && (!onlyIds.length || onlyIds.includes(t.id)) && (!kind || t.kind === kind));
-      $('#count').textContent = `${list.length} ${list.length === 1 ? 'QR' : 'QR'}`;
       const codes = s.languages.map((l) => LANGUAGES[l].short).join(' · ');
+      if (MENU) {
+        const n = Number($('#copies').value) || 1;
+        const svg = await qrSvg('menu', logoInQr ? 'H' : 'M');
+        const cta = s.takeaway?.enabled ? MENU_CTA.take : MENU_CTA.view;
+        $('#count').textContent = `${n} QR`;
+        $('#grid').innerHTML = Array.from({ length: n }, () => `<div class="qcard">
+          ${showLogo ? `<img class="logo" src="${esc(logo)}" alt="">` : ''}
+          <div class="rn">${esc(s.restaurant.name)}</div>
+          <div class="tn" translate="no">${MENU_WORD[0]}</div>
+          <div class="tn-en" translate="no">${MENU_WORD[1]}</div>
+          <div class="qr">${svg}${logoInQr ? `<div class="center"><img src="${esc(logo)}" alt=""></div>` : ''}</div>
+          <div class="cta" translate="no">${cta[0]}</div>
+          <div class="sub" translate="no">${cta[1]}</div>
+          <div class="url" translate="no">${esc(s.menuUrl.replace(/^https?:\/\//, ''))}</div>
+          <div class="codes">${codes}</div>
+        </div>`).join('');
+        return;
+      }
+      const list = tables.filter((t) => t.active && (!onlyIds.length || onlyIds.includes(t.id)) && (!kind || t.kind === kind));
+      $('#count').textContent = `${list.length} QR`;
       const svgs = await Promise.all(list.map((t) => qrSvg(t.id, logoInQr ? 'H' : 'M')));
       $('#grid').innerHTML = list.map((t, i) => {
         const [el, en] = KIND[t.kind] || KIND.table;
@@ -160,7 +203,16 @@
       $('#hint').textContent += ' Ανεβάστε λογότυπο στη Διαχείριση → Κατάστημα για να εμφανίζεται στις κάρτες.';
     }
     if (onlyIds.length === 1) $('#size').value = 'tent';
-    ['#size', '#kind', '#showLogo', '#logoInQr'].forEach((sel) => $(sel).addEventListener('change', render));
+    if (MENU) {
+      document.title = US ? 'Print the menu QR' : 'Εκτύπωση QR μενού';
+      $('#kindBox').hidden = true;
+      $('#copiesBox').hidden = false;
+      $('#size').querySelector('[value=poster]').hidden = false;
+      $('#size').value = 'poster';
+      $('#hint').textContent = 'Αφίσα για την είσοδο ή τη βιτρίνα, κάρτες για το ταμείο και τις σακούλες της παραλαβής. Το QR ανοίγει το μενού χωρίς τραπέζι.';
+      $('#size').addEventListener('change', () => { $('#copies').value = { poster: '1', tent: '4', card: '12', sticker: '20' }[$('#size').value]; });
+    }
+    ['#size', '#kind', '#copies', '#showLogo', '#logoInQr'].forEach((sel) => $(sel).addEventListener('change', render));
     render();
   </script>
 </body>

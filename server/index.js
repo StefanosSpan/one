@@ -13,7 +13,7 @@ import {
 import { LANGS } from './seed.js';
 import { PLANS, PAID_PLANS, TRIAL_DAYS, STANDARD_SPOTS, effectivePlan, features, priceCents, planOf, planForSpots, plansIn } from './plans.js';
 import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js';
-import { vivaCreateOrder, vivaVerify, isvConfig, isvCreateAccount, isvGetAccount, isvWebhookKey, isvCreateWebhook } from './payments.js';
+import { vivaCreateOrder, vivaVerify, vivaCheck, isvConfig, isvCreateAccount, isvGetAccount, isvWebhookKey, isvCreateWebhook } from './payments.js';
 import { sendMail } from './mail.js';
 import { loadSharedAssets, sharedAsset, addSamplePhotos } from './assets.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
@@ -1303,6 +1303,8 @@ admin.put('/settings', wrap(async (req, res) => {
   const v = req.venue.id;
   const cur = req.venue.settings;
   const set = (key, value) => setSetting(v, key, value);
+  // Checked before anything is saved: card payments with the owner's own Viva keys start only with keys Viva accepts.
+  const payments = b.payments && typeof b.payments === 'object' ? await cleanPayments(req.venue, b.payments) : null;
   if (b.restaurant) {
     const r = b.restaurant;
     await set('restaurant', {
@@ -1345,21 +1347,7 @@ admin.put('/settings', wrap(async (req, res) => {
     if (!/^#[0-9a-fA-F]{6}$/.test(b.brandColor)) fail(400, 'Μη έγκυρο χρώμα');
     await set('brandColor', b.brandColor.toLowerCase());
   }
-  if (b.payments && typeof b.payments === 'object') {
-    const p = b.payments;
-    const prev = cur.payments || {};
-    const provider = ['off', 'viva'].includes(p.provider) || (p.provider === 'viva-connect' && isvConfig())
-      || (p.provider === 'demo' && canUseDemoPayments(req.venue)) ? p.provider : 'off';
-    await set('payments', {
-      provider, environment: p.environment === 'live' ? 'live' : 'demo',
-      isv: prev.isv || null, // changed only through the Viva Connect routes below
-      clientId: cleanText(p.clientId ?? prev.clientId, 200), sourceCode: cleanText(p.sourceCode ?? prev.sourceCode, 20),
-      // The secret is write-only: an empty field keeps the stored one.
-      clientSecret: p.clientSecret ? cleanText(p.clientSecret, 200) : prev.clientSecret || '',
-      tips: [...new Set((Array.isArray(p.tips) ? p.tips : [0, 5, 10, 15]).map(Number).filter((x) => x >= 0 && x <= 30))].slice(0, 5).sort((a, c) => a - c),
-      roomCharge: !!p.roomCharge,
-    });
-  }
+  if (payments) await set('payments', payments);
   if (b.loyalty && typeof b.loyalty === 'object') {
     await set('loyalty', { enabled: !!b.loyalty.enabled, visits: Math.min(Math.max(Math.trunc(Number(b.loyalty.visits)) || 5, 2), 50),
       reward: cleanI18n(b.loyalty.reward, 80) });
@@ -1398,6 +1386,46 @@ admin.put('/settings', wrap(async (req, res) => {
   req.venue = await getVenue(v);
   broadcastMenuUpdate(req.venue);
   res.json(await adminSettings(req));
+}));
+
+// Payment settings from the owner. With their own Viva account (provider "viva") the keys must be complete, and new
+// keys are checked with Viva, so card payment never shows to guests with keys that cannot work.
+const VIVA_KEYS_REJECTED = 'Η Viva δεν δέχτηκε τα κλειδιά. Ελέγξτε ότι είναι τα «Smart Checkout Credentials» και ότι το περιβάλλον (δοκιμαστικό ή πραγματικό) είναι το σωστό.';
+async function cleanPayments(venue, p) {
+  const prev = venue.settings.payments || {};
+  const provider = ['off', 'viva'].includes(p.provider) || (p.provider === 'viva-connect' && isvConfig())
+    || (p.provider === 'demo' && canUseDemoPayments(venue)) ? p.provider : 'off';
+  const next = {
+    provider, environment: p.environment === 'live' ? 'live' : 'demo',
+    isv: prev.isv || null, // changed only through the Viva Connect routes below
+    clientId: cleanText(p.clientId ?? prev.clientId, 200), sourceCode: cleanText(p.sourceCode ?? prev.sourceCode, 20),
+    // The secret is write-only: an empty field keeps the stored one.
+    clientSecret: p.clientSecret ? cleanText(p.clientSecret, 200) : prev.clientSecret || '',
+    tips: [...new Set((Array.isArray(p.tips) ? p.tips : [0, 5, 10, 15]).map(Number).filter((x) => x >= 0 && x <= 30))].slice(0, 5).sort((a, c) => a - c),
+    roomCharge: !!p.roomCharge,
+  };
+  if (provider === 'viva' && venue.market !== 'us') {
+    if (!next.clientId || !next.clientSecret) fail(400, 'Συμπληρώστε Client ID και Client Secret από τη Viva (Settings → API Access)');
+    if (!/^\d{4}$/.test(next.sourceCode)) fail(400, 'Ο κωδικός πηγής πληρωμών (Source Code) της Viva έχει 4 ψηφία');
+    const changed = next.clientId !== prev.clientId || next.clientSecret !== prev.clientSecret || next.environment !== (prev.environment || 'demo');
+    // If Viva cannot be reached right now the keys are kept; they are checked again at the first payment.
+    if (changed && await vivaCheck(next) === 'rejected') fail(400, VIVA_KEYS_REJECTED);
+  }
+  return next;
+}
+
+// Checks the owner's own Viva keys: the ones typed in the form, or the stored ones.
+admin.post('/payments/viva-test', wrap(async (req, res) => {
+  const prev = req.venue.settings.payments || {};
+  const b = req.body || {};
+  const cfg = { clientId: cleanText(b.clientId || prev.clientId, 200), clientSecret: b.clientSecret ? cleanText(b.clientSecret, 200) : prev.clientSecret || '',
+    environment: (b.environment || prev.environment) === 'live' ? 'live' : 'demo' };
+  if (!cfg.clientId || !cfg.clientSecret) fail(400, 'Συμπληρώστε Client ID και Client Secret από τη Viva (Settings → API Access)');
+  if (!rateLimit(`viva-test:${req.venue.id}`, 10, 10 * 60_000)) fail(429, 'Πολλές δοκιμές. Δοκιμάστε ξανά σε λίγα λεπτά.');
+  const result = await vivaCheck(cfg);
+  if (result === 'rejected') fail(400, VIVA_KEYS_REJECTED);
+  if (result === 'unreachable') fail(502, 'Η Viva δεν απαντά αυτή τη στιγμή. Δοκιμάστε ξανά σε λίγο.');
+  res.json({ ok: true, environment: cfg.environment });
 }));
 
 // Viva Connect: the owner connects (or creates) their Viva account with one button; Viva handles the verification.
@@ -1655,7 +1683,12 @@ async function qrTable(req) {
   return { t, url: `${baseUrl(req)}/t/${t.token}`, errorCorrectionLevel };
 }
 
-// QR of the public menu link (for the entrance, flyers, Instagram).
+// QR of the public menu link (for the entrance, flyers, Instagram): SVG for the print page, PNG to download.
+admin.get('/menu-qr.svg', wrap(async (req, res) => {
+  const errorCorrectionLevel = req.query.ecl === 'H' ? 'H' : 'M';
+  res.type('image/svg+xml').send(await QRCode.toString(`${baseUrl(req)}/m/${req.venue.slug}`, { type: 'svg', margin: 1, errorCorrectionLevel }));
+}));
+
 admin.get('/menu-qr.png', wrap(async (req, res) => {
   const png = await QRCode.toBuffer(`${baseUrl(req)}/m/${req.venue.slug}`, { type: 'png', width: 1200, margin: 2, errorCorrectionLevel: 'M' });
   res.setHeader('Content-Disposition', `attachment; filename="qr-menu-${req.venue.slug}.png"`);
@@ -1714,12 +1747,12 @@ const STATUS_EL = { pending: 'Αναμονή έγκρισης', accepted: 'Εγ�
 const KIND_EL = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
 // Exports of United States venues are in English, with US dates and decimal points.
 const CSV_TEXT = {
-  gr: { locale: 'el-GR', status: STATUS_EL, kind: KIND_EL, yes: 'Ναι', no: 'Όχι', guest: 'Πελάτης (QR)', dec: ',',
+  gr: { locale: 'el-GR', status: STATUS_EL, kind: KIND_EL, pickup: 'Παραλαβή', yes: 'Ναι', no: 'Όχι', guest: 'Πελάτης (QR)', dec: ',',
     orders: ['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Κατάσταση', 'Γλώσσα', 'Πιάτα', 'Σημείωση', 'Σύνολο (€)', 'Εξοφλήθηκε', 'Καταχώριση', 'Διορθώσεις'],
     receipts: ['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Τρόπος πληρωμής', 'Αρ. απόδειξης ταμειακής / ΜΑΡΚ', 'Σύνολο (€)'],
     pay: { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' }, files: ['paraggelies', 'apodeixeis'] },
   us: { locale: 'en-US', status: { pending: 'Awaiting approval', accepted: 'Approved', preparing: 'Preparing', ready: 'Ready', served: 'Served', rejected: 'Rejected' },
-    kind: { table: 'Table', room: 'Room', sunbed: 'Sunbed' }, yes: 'Yes', no: 'No', guest: 'Guest (QR)', dec: '.',
+    kind: { table: 'Table', room: 'Room', sunbed: 'Sunbed' }, pickup: 'Pick-up', yes: 'Yes', no: 'No', guest: 'Guest (QR)', dec: '.',
     orders: ['Number', 'Date', 'Time', 'Spot', 'Status', 'Language', 'Dishes', 'Note', 'Total ($)', 'Paid', 'Entered by', 'Corrections'],
     receipts: ['Number', 'Date', 'Time', 'Spot', 'Payment', 'Register receipt no.', 'Total ($)'],
     pay: { cash: 'Cash', card: 'Card', online: 'Online', room: 'Room charge' }, files: ['orders', 'receipts'] },
@@ -1731,6 +1764,7 @@ async function historyQuery(req) {
   const where = ['o.created_at >= ?', 'o.created_at < ?'];
   const params = [from, to];
   if (STATUS_EL[q.status]) { where.push('o.status = ?'); params.push(q.status); }
+  if (q.channel === 'takeaway' || q.channel === 'table') { where.push('o.channel = ?'); params.push(q.channel); }
   return loadOrders(req.venue.id, where.join(' AND '), params, { order: 'o.id DESC', limit: 2000 });
 }
 
@@ -1754,7 +1788,7 @@ admin.get('/orders.csv', wrap(async (req, res) => {
   for (const o of [...orders].reverse()) {
     const d = new Date(o.createdAt);
     rows.push([o.id, d.toLocaleDateString(T.locale), d.toLocaleTimeString(T.locale, { hour: '2-digit', minute: '2-digit' }),
-      `${T.kind[o.tableKind] || ''} ${o.tableLabel}`, T.status[o.status] || o.status, o.lang.toUpperCase(),
+      o.channel === 'takeaway' ? [T.pickup, o.customer?.name, o.customer?.phone].filter(Boolean).join(' · ') : `${T.kind[o.tableKind] || ''} ${o.tableLabel}`, T.status[o.status] || o.status, o.lang.toUpperCase(),
       o.items.map((i) => `${i.qty}x ${nm(i.name)}${i.options.length ? ` (${i.options.map((x) => nm(x.choice)).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? T.yes : T.no,
       o.takenBy || T.guest, o.voids.map((v) => `-${v.qty}x ${nm(v.name)} (${v.by}${v.reason ? `: ${v.reason}` : ''})`).join(', ')]);
   }
@@ -1806,7 +1840,7 @@ admin.get('/receipts.csv', wrap(async (req, res) => {
   for (const r of receipts) {
     const d = new Date(r.createdAt);
     rows.push([r.number, d.toLocaleDateString(T.locale), d.toLocaleTimeString(T.locale, { hour: '2-digit', minute: '2-digit' }),
-      `${T.kind[r.tableKind] || ''} ${r.tableLabel}`, T.pay[r.payment] || r.payment, r.fiscalRef, (r.total / 100).toFixed(2).replace('.', T.dec)]);
+      r.tableKind === 'takeaway' ? T.pickup : `${T.kind[r.tableKind] || ''} ${r.tableLabel}`, T.pay[r.payment] || r.payment, r.fiscalRef, (r.total / 100).toFixed(2).replace('.', T.dec)]);
   }
   res.setHeader('Content-Disposition', `attachment; filename="${T.files[1]}_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);
   res.type('text/csv; charset=utf-8').send(`\uFEFF${rows.map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`);

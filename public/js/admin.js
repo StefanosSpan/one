@@ -1,6 +1,6 @@
 import { $, $$, esc, api, toast, sheet, euro, L10N } from './util.js';
 import { icon } from './icons.js';
-import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND } from './staff.js';
+import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND, spotName } from './staff.js';
 import { LANGUAGES, STRINGS } from './i18n.js';
 import { applyTheme, THEME_PRESETS } from './theme.js';
 
@@ -394,7 +394,7 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 const hist = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(new Date()), status: '' };
 
 async function renderHistory() {
-  const qs = new URLSearchParams({ from: hist.from, to: hist.to, ...(hist.status ? { status: hist.status } : {}) });
+  const qs = new URLSearchParams({ from: hist.from, to: hist.to, ...(hist.status ? { status: hist.status } : {}), ...(hist.channel ? { channel: hist.channel } : {}) });
   const { orders, summary } = await api(`/api/admin/orders?${qs}`);
   const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   $('#app').innerHTML = `
@@ -404,6 +404,11 @@ async function renderHistory() {
       <label>Κατάσταση<select class="input" id="hStatus">
         <option value="">Όλες</option>
         ${Object.entries(STATUS_LABEL).map(([k, v]) => `<option value="${k}" ${hist.status === k ? 'selected' : ''}>${v}</option>`).join('')}
+      </select></label>
+      <label>Είδος<select class="input" id="hChannel">
+        <option value="">Όλες</option>
+        <option value="table" ${hist.channel === 'table' ? 'selected' : ''}>Στις θέσεις</option>
+        <option value="takeaway" ${hist.channel === 'takeaway' ? 'selected' : ''}>Παραλαβή (takeaway)</option>
       </select></label>
       <a class="btn secondary sm" id="csv" href="/api/admin/orders.csv?${qs}">Εξαγωγή σε Excel (CSV)</a>
     </div>
@@ -420,7 +425,7 @@ async function renderHistory() {
           ${orders.length ? orders.map((o) => `<tr>
             <td>${o.id}</td>
             <td style="white-space:nowrap">${when(o.createdAt)}</td>
-            <td style="white-space:nowrap">${esc((KIND[o.tableKind] || KIND.table).one)} ${esc(o.tableLabel)}</td>
+            <td style="white-space:nowrap">${esc(spotName(o.tableKind, o.tableLabel))}${o.customer ? `<br><span class="muted small">${esc(o.customer.name)} · ${esc(o.customer.phone)}${o.customer.pickupAt ? ` · ${when(o.customer.pickupAt)}` : ''}</span>` : ''}</td>
             <td class="items">${o.items.map((i) => `${i.qty}× ${esc(itemName(i.name))}${optionNames(i) ? ` (${esc(optionNames(i))})` : ''}`).join(', ')}${o.note ? `<br><i>${esc(o.note)}</i>` : ''}
               ${o.takenBy ? `<br><span class="muted small">Καταχώριση: ${esc(o.takenBy)}</span>` : ''}
               ${o.voids.map((v) => `<br><span class="voided">Αφαιρέθηκε ${v.qty}× ${esc(itemName(v.name))} (${euro(v.qty * v.price)}) · ${esc(v.by)}${v.reason ? ` · ${esc(v.reason)}` : ''}</span>`).join('')}</td>
@@ -432,8 +437,8 @@ async function renderHistory() {
       </table>
     </div>
     <p class="muted small">Όλες οι παραγγελίες αποθηκεύονται μόνιμα στη βάση δεδομένων. Εμφανίζονται έως 2.000 ανά αναζήτηση.</p>`;
-  const apply = () => { hist.from = $('#hFrom').value; hist.to = $('#hTo').value; hist.status = $('#hStatus').value; renderHistory(); };
-  ['#hFrom', '#hTo', '#hStatus'].forEach((sel) => $(sel).addEventListener('change', apply));
+  const apply = () => { hist.from = $('#hFrom').value; hist.to = $('#hTo').value; hist.status = $('#hStatus').value; hist.channel = $('#hChannel').value; renderHistory(); };
+  ['#hFrom', '#hTo', '#hStatus', '#hChannel'].forEach((sel) => $(sel).addEventListener('change', apply));
 }
 
 // ---------------------------------------------------------------------------
@@ -465,7 +470,7 @@ async function renderReceipts() {
           ${receipts.length ? receipts.map((r) => `<tr>
             <td><b>${esc(r.number)}</b></td>
             <td style="white-space:nowrap">${when(r.createdAt)}</td>
-            <td style="white-space:nowrap">${esc((KIND[r.tableKind] || KIND.table).one)} ${esc(r.tableLabel)}</td>
+            <td style="white-space:nowrap">${esc(spotName(r.tableKind, r.tableLabel))}</td>
             <td>${PAY_LABEL[r.payment] || esc(r.payment)}</td>
             <td><input class="input fiscal" data-rid="${r.id}" value="${esc(r.fiscalRef)}" placeholder="—" maxlength="80"></td>
             <td class="num">${euro(r.total)}</td>
@@ -741,7 +746,26 @@ const kindOptions = (sel) => Object.entries(KIND).map(([k, v]) => `<option value
 
 async function renderTables() {
   const tables = await api('/api/admin/tables');
+  const take = settings.takeaway || {};
   $('#app').innerHTML = `
+    <div class="panel menu-link">
+      <img class="qr-img big" src="/api/admin/menu-qr.svg" alt="QR">
+      <div class="grow">
+        <h3 style="margin-top:0">Μενού χωρίς τραπέζι · Παραλαβή (takeaway)</h3>
+        <p class="muted small" style="margin-top:0">Ένας σύνδεσμος και ένα QR για Instagram, Google Maps, το site σας και την είσοδο.
+          Με ενεργή την παραλαβή, οι πελάτες παραγγέλνουν από εκεί, διαλέγουν ώρα και περνούν να την πάρουν.</p>
+        <div class="copy-row"><input class="input" id="tMenuUrl" readonly value="${esc(settings.menuUrl)}">
+          <button class="btn secondary sm" id="tCopyMenu" type="button">Αντιγραφή</button>
+          <a class="btn secondary sm" href="${esc(settings.menuUrl)}" target="_blank" rel="noopener">Άνοιγμα</a></div>
+        <label class="switch" style="margin:.7rem 0"><input type="checkbox" id="tTake" ${take.enabled ? 'checked' : ''}>
+          <span><b>Παραγγελίες για παραλαβή</b><br><span class="muted small">Έτοιμες τουλάχιστον ${esc(take.minMinutes || 20)}′ μετά την παραγγελία
+            (αλλάζει στις Ρυθμίσεις). Εμφανίζονται στον σερβιτόρο και στην κουζίνα όπως οι παραγγελίες των τραπεζιών.</span></span></label>
+        <div class="toolbar" style="margin:0">
+          <a class="btn success sm" href="/staff/qr?menu=1" target="_blank">Εκτύπωση αφίσας με QR</a>
+          <a class="btn secondary sm" href="/api/admin/menu-qr.png" download>PNG για τυπογραφείο</a>
+        </div>
+      </div>
+    </div>
     <div class="panel">
       <h3>Νέες θέσεις</h3>
       <p class="muted small" style="margin-top:0">Κάθε θέση έχει δικό της QR. Χρησιμοποιήστε «Δωμάτιο» για room service ξενοδοχείου και «Ξαπλώστρα» για πισίνα ή παραλία.</p>
@@ -779,6 +803,17 @@ async function renderTables() {
     </div>`;
   const byId = (id) => tables.find((t) => t.id === Number(id));
   const reload = () => renderTables();
+  $('#tCopyMenu').onclick = async () => {
+    try { await navigator.clipboard.writeText(settings.menuUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#tMenuUrl').select(); }
+  };
+  $('#tTake').onchange = async (e) => {
+    const next = { enabled: e.target.checked, minMinutes: take.minMinutes || 20 };
+    try {
+      await api('/api/admin/settings', { method: 'PUT', body: { takeaway: next } });
+      settings.takeaway = next;
+      toast(next.enabled ? 'Η παραλαβή ενεργοποιήθηκε' : 'Η παραλαβή απενεργοποιήθηκε', 'ok');
+    } catch (err) { e.target.checked = !next.enabled; toast(err.message, 'err'); }
+  };
   $('#addOne').onclick = async () => {
     const label = $('#newLabel').value.trim();
     if (!label) return toast('Γράψτε όνομα ή αριθμό', 'err');
@@ -1057,6 +1092,20 @@ function drawConnect(s, vc) {
   }
 }
 
+// Whether guests can pay by card from their phone right now, and what is missing if not.
+function payStatus(s) {
+  const p = s.payments;
+  const line = (color, text) => `<p class="small" style="margin:.2rem 0 .6rem"><span class="badge ${color}">${text[0]}</span> ${text[1]}</p>`;
+  if (p.provider === 'viva' || p.provider === 'viva-connect') {
+    return line('green', ['Ενεργή', p.provider === 'viva' && p.environment !== 'live'
+      ? 'Δοκιμαστικό περιβάλλον Viva: δεν χρεώνονται πραγματικές κάρτες. Για πραγματικές πληρωμές επιλέξτε «Πραγματικό» με τα κλειδιά του κανονικού λογαριασμού.'
+      : 'Οι πελάτες βλέπουν «Πληρωμή» στο κινητό και πληρώνουν με κάρτα.']);
+  }
+  if (p.provider === 'demo') return line('amber', ['Δοκιμή', 'Δοκιμαστική λειτουργία χωρίς χρέωση.']);
+  if (p.chosen === 'viva') return line('amber', ['Δεν ενεργοποιήθηκε', 'Συμπληρώστε τα κλειδιά Viva και πατήστε «Αποθήκευση».']);
+  return line('gray', ['Ανενεργή', 'Οι πελάτες πληρώνουν στο τραπέζι. Επιλέξτε Viva Wallet για πληρωμή με κάρτα από το κινητό.']);
+}
+
 function renderSettings() {
   const s = settings;
   const vc = s.vivaConnect || { available: false };
@@ -1077,6 +1126,7 @@ function renderSettings() {
       Until then guests order and ask for the check from their phone, and you close it on your POS.</p>
     <p class="muted small" style="margin-top:0" data-gr-only>Ο πελάτης πληρώνει όλο τον λογαριασμό, μόνο τα δικά του πιάτα ή ίσο μερίδιο, με φιλοδώρημα.
       Τα χρήματα πάνε κατευθείαν στον δικό σας λογαριασμό Viva Wallet.</p>
+    <div data-gr-only>${payStatus(s)}</div>
     <select class="input" id="payProvider" style="max-width:420px" data-gr-only>
       <option value="off" ${chosen === 'off' ? 'selected' : ''}>Απενεργοποιημένη (μετρητά ή κάρτα στη θέση)</option>
       ${vc.available ? `<option value="viva-connect" ${chosen === 'viva-connect' ? 'selected' : ''}>Viva Wallet · σύνδεση με ένα κουμπί (προτείνεται)</option>` : ''}
@@ -1085,11 +1135,15 @@ function renderSettings() {
     </select>
     ${vc.available ? `<div id="connectBox" class="note-box" style="margin-top:.7rem" data-gr-only></div>` : ''}
     <div id="vivaBox" class="note-box" style="margin-top:.7rem" data-gr-only>
-      <b>Σύνδεση Viva Wallet</b>
+      <b>Σύνδεση με τον δικό σας λογαριασμό Viva Wallet</b>
       <ol class="small" style="margin:.4rem 0 .6rem;padding-left:1.1rem">
-        <li>Στο Viva: Settings → API Access → «Smart Checkout Credentials»: Client ID και Client Secret.</li>
-        <li>Sales → Online Payments → Websites/Apps → νέα πηγή πληρωμών. Success URL και Failure URL:
-          <code>${esc(s.payments.returnUrl)}</code>. Κρατήστε τον 4ψήφιο κωδικό της πηγής (Source Code).</li>
+        <li>Χρειάζεστε επαγγελματικό λογαριασμό στη <a href="https://www.viva.com/el-gr" target="_blank" rel="noopener">Viva</a> (δωρεάν). Για δοκιμές φτιάξτε και έναν στο
+          <a href="https://demo.vivapayments.com" target="_blank" rel="noopener">demo.vivapayments.com</a>.</li>
+        <li>Στη Viva: Settings → API Access → «Smart Checkout Credentials» → Client ID και Client Secret.</li>
+        <li>Sales → Online Payments → Websites/Apps → «Add website/app» (νέα πηγή πληρωμών). Domain: <code>${esc(new URL(s.payments.returnUrl).host)}</code>,
+          Success URL και Failure URL: <code>${esc(s.payments.returnUrl)}</code> <button class="mini inline" type="button" id="copyReturn" title="Αντιγραφή">${icon('copy', 14)}</button>.
+          Κρατήστε τον 4ψήφιο κωδικό της πηγής (Source Code).</li>
+        <li>Συμπληρώστε τα παρακάτω, πατήστε «Έλεγχος σύνδεσης» και μετά «Αποθήκευση». Κάντε μια δοκιμαστική πληρωμή από το QR ενός τραπεζιού.</li>
       </ol>
       <div class="two">
         <label class="field"><span>Client ID</span><input class="input" id="vivaId" value="${esc(s.payments.clientId || '')}" autocomplete="off"></label>
@@ -1099,6 +1153,11 @@ function renderSettings() {
           <option value="demo" ${s.payments.environment !== 'live' ? 'selected' : ''}>Δοκιμαστικό (demo.vivapayments.com)</option>
           <option value="live" ${s.payments.environment === 'live' ? 'selected' : ''}>Πραγματικό</option></select></label>
       </div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:.6rem">
+        <button class="btn secondary sm" type="button" id="vivaTest">${icon('check', 16)} Έλεγχος σύνδεσης</button>
+        <span class="small" id="vivaTestOut"></span></div>
+      <p class="small muted" style="margin:.5rem 0 0">Τα χρήματα πάνε κατευθείαν στον λογαριασμό Viva σας. Το Kalimenu δεν κρατά προμήθεια·
+        ισχύουν μόνο οι χρεώσεις της Viva για τις κάρτες.</p>
     </div>
     <div class="two" style="margin-top:.6rem">
       <label class="field" data-gr-only><span>Επιλογές φιλοδωρήματος (%)</span><input class="input" id="tips" value="${esc((s.payments.tips || [0, 5, 10, 15]).join(', '))}"></label>
@@ -1121,7 +1180,8 @@ function renderSettings() {
     <p class="muted small" style="margin-top:0">Το μενού σας χωρίς τραπέζι, για Instagram, Google Maps, το site σας και QR στην είσοδο.
       Αν ενεργοποιήσετε την παραλαβή, οι πελάτες παραγγέλνουν από εκεί και περνούν να την πάρουν.</p>
     <div class="copy-row"><input class="input" id="menuUrl" readonly value="${esc(s.menuUrl)}"><button class="btn secondary sm" id="copyMenu" type="button">Αντιγραφή</button>
-      <a class="btn secondary sm" href="/api/admin/menu-qr.png" download>QR</a></div>
+      <a class="btn secondary sm" href="/api/admin/menu-qr.png" download>QR</a>
+      <a class="btn secondary sm" href="/staff/qr?menu=1" target="_blank">Αφίσα</a></div>
     <div class="two" style="margin-top:.6rem">
       <label class="switch"><input type="checkbox" id="takeaway" ${s.takeaway?.enabled ? 'checked' : ''}> Παραγγελίες για παραλαβή</label>
       <label class="field"><span>Ελάχιστος χρόνος ετοιμασίας (λεπτά)</span><input class="input" id="takeMin" type="number" min="5" max="240" value="${esc(s.takeaway?.minMinutes || 20)}"></label>
@@ -1217,6 +1277,17 @@ function renderSettings() {
   };
   $('#payProvider').onchange = syncViva;
   syncViva();
+  $('#copyReturn').onclick = async () => {
+    try { await navigator.clipboard.writeText(s.payments.returnUrl); toast('Αντιγράφηκε', 'ok'); } catch { /* shown on the page */ }
+  };
+  $('#vivaTest').onclick = async () => {
+    const out = $('#vivaTestOut');
+    out.textContent = 'Έλεγχος…'; out.style.color = '';
+    try {
+      await api('/api/admin/payments/viva-test', { method: 'POST', body: { clientId: $('#vivaId').value.trim(), clientSecret: $('#vivaSecret').value.trim(), environment: $('#vivaEnv').value } });
+      out.textContent = 'Η Viva δέχτηκε τα κλειδιά. Πατήστε «Αποθήκευση».'; out.style.color = 'var(--green)';
+    } catch (err) { out.textContent = err.message; out.style.color = 'var(--red)'; }
+  };
   if (vc.available) drawConnect(s, vc);
   $('#copyMenu').onclick = async () => {
     try { await navigator.clipboard.writeText(s.menuUrl); toast('Ο σύνδεσμος αντιγράφηκε', 'ok'); } catch { $('#menuUrl').select(); }
