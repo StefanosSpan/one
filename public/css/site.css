@@ -179,7 +179,9 @@ table.cmp tr.us td:first-child { color: var(--terra); }
 
 /* FAQ */
 .faq { display: grid; grid-template-columns: .8fr 1.2fr; gap: 48px; align-items: start; }
-@media (max-width: 820px) { .faq { grid-template-columns: 1fr; gap: 16px; } }
+/* The heading stays next to the questions while they scroll, so the left side is never empty. */
+.faq > :first-child { position: sticky; top: 110px; }
+@media (max-width: 820px) { .faq { grid-template-columns: 1fr; gap: 16px; } .faq > :first-child { position: static; } }
 details { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 10px; }
 details summary { font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
 details summary::-webkit-details-marker { display: none; }
@@ -191,7 +193,7 @@ details p { color: var(--muted); margin: .6rem 0 0; }
 .cta-band { background: radial-gradient(800px 300px at 90% 0%, rgba(210,100,60,.35), transparent 60%), var(--navy); color: #fff; border-radius: 28px;
   padding: 64px 40px; text-align: center; }
 .cta-band h2 { color: #fff; }
-.cta-band .sub { color: rgba(255,255,255,.78); }
+.cta-band .sub { color: rgba(255,255,255,.78); margin: 0 auto 2rem; }
 .cta-band .ctas { justify-content: center; }
 .cta-band .btn.secondary { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
 .cta-band .btn.secondary:hover { border-color: #fff; }
