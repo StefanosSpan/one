@@ -1,12 +1,10 @@
 // Renders printable order slips and bills (used by the staff print page and the guest's digital copy).
-import { esc, L10N } from './util.js';
+import { esc, L10N, hm } from './util.js';
 
 const KIND_EL = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
 // Amounts in the venue's currency (dollars for venues in the United States).
 const money = (c, r, locale = L10N.locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: r?.currency || L10N.currency }).format(c / 100);
-const when = (iso, locale = L10N.locale) => new Date(iso).toLocaleString(locale, {
-  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-});
+const when = (iso, locale = L10N.locale) => new Date(iso).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', ...hm(locale) });
 // The staff's printouts use their own language (English for venues in the United States); the guest copy uses the guest's.
 const nameIn = (obj, lang = L10N.market === 'us' ? 'en' : 'el') => obj?.[lang] || obj?.el || obj?.en || Object.values(obj || {})[0] || '';
 

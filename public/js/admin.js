@@ -1,8 +1,8 @@
-import { $, $$, esc, api, toast, sheet, euro, L10N } from './util.js';
+import { $, $$, esc, api, toast, sheet, euro, L10N, hm } from './util.js';
 import { icon } from './icons.js';
 import { requireLogin, topBar, liveStaff, itemName, optionNames, KIND, spotName } from './staff.js';
 import { LANGUAGES, STRINGS } from './i18n.js';
-import { applyTheme, THEME_PRESETS } from './theme.js';
+import { applyTheme, applyBrand, THEME_PRESETS } from './theme.js';
 
 let settings = null;
 const TAB_KEYS = ['dash', 'history', 'receipts', 'menu', 'tables', 'look', 'store', 'settings', 'billing'];
@@ -396,7 +396,7 @@ const hist = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(ne
 async function renderHistory() {
   const qs = new URLSearchParams({ from: hist.from, to: hist.to, ...(hist.status ? { status: hist.status } : {}), ...(hist.channel ? { channel: hist.channel } : {}) });
   const { orders, summary } = await api(`/api/admin/orders?${qs}`);
-  const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', ...hm() });
   $('#app').innerHTML = `
     <div class="filters">
       <label>Από<input class="input" type="date" id="hFrom" value="${hist.from}"></label>
@@ -450,7 +450,7 @@ const rec = { from: isoDay(new Date(Date.now() - 6 * 86400_000)), to: isoDay(new
 async function renderReceipts() {
   const qs = new URLSearchParams(rec);
   const { receipts, summary } = await api(`/api/admin/receipts?${qs}`);
-  const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = (iso) => new Date(iso).toLocaleString(L10N.locale, { day: '2-digit', month: '2-digit', year: 'numeric', ...hm() });
   $('#app').innerHTML = `
     <div class="filters">
       <label>Από<input class="input" type="date" id="rFrom" value="${rec.from}"></label>
@@ -946,10 +946,7 @@ function renderLook() {
       <div class="pv-dish"><div><b>Φάβα Σαντορίνης</b><p>Με κάπαρη και κρεμμύδι</p><em>${euro(L10N.market === 'us' ? 1100 : 550)}</em></div><span class="pv-add">+</span></div>
       <div class="pv-cart"><span>2</span>Καλάθι<span>${euro(L10N.market === 'us' ? 2000 : 1000)}</span></div>`;
     applyTheme(t, pv);
-    const n = parseInt(brand.slice(1), 16);
-    const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-    pv.style.setProperty('--brand', brand);
-    pv.style.setProperty('--brand-ink', lum > 0.6 ? '#1a1a1a' : '#ffffff');
+    applyBrand(brand, pv);
   }
 
   $$('[data-preset]').forEach((b) => b.onclick = () => {

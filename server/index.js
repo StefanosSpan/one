@@ -1747,11 +1747,11 @@ const STATUS_EL = { pending: 'Αναμονή έγκρισης', accepted: 'Εγ�
 const KIND_EL = { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα' };
 // Exports of United States venues are in English, with US dates and decimal points.
 const CSV_TEXT = {
-  gr: { locale: 'el-GR', status: STATUS_EL, kind: KIND_EL, pickup: 'Παραλαβή', yes: 'Ναι', no: 'Όχι', guest: 'Πελάτης (QR)', dec: ',',
+  gr: { locale: 'el-GR', hours: 'h23', status: STATUS_EL, kind: KIND_EL, pickup: 'Παραλαβή', yes: 'Ναι', no: 'Όχι', guest: 'Πελάτης (QR)', dec: ',',
     orders: ['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Κατάσταση', 'Γλώσσα', 'Πιάτα', 'Σημείωση', 'Σύνολο (€)', 'Εξοφλήθηκε', 'Καταχώριση', 'Διορθώσεις'],
     receipts: ['Αριθμός', 'Ημερομηνία', 'Ώρα', 'Θέση', 'Τρόπος πληρωμής', 'Αρ. απόδειξης ταμειακής / ΜΑΡΚ', 'Σύνολο (€)'],
     pay: { cash: 'Μετρητά', card: 'Κάρτα', online: 'Online', room: 'Χρέωση δωματίου' }, files: ['paraggelies', 'apodeixeis'] },
-  us: { locale: 'en-US', status: { pending: 'Awaiting approval', accepted: 'Approved', preparing: 'Preparing', ready: 'Ready', served: 'Served', rejected: 'Rejected' },
+  us: { locale: 'en-US', hours: 'h12', status: { pending: 'Awaiting approval', accepted: 'Approved', preparing: 'Preparing', ready: 'Ready', served: 'Served', rejected: 'Rejected' },
     kind: { table: 'Table', room: 'Room', sunbed: 'Sunbed' }, pickup: 'Pick-up', yes: 'Yes', no: 'No', guest: 'Guest (QR)', dec: '.',
     orders: ['Number', 'Date', 'Time', 'Spot', 'Status', 'Language', 'Dishes', 'Note', 'Total ($)', 'Paid', 'Entered by', 'Corrections'],
     receipts: ['Number', 'Date', 'Time', 'Spot', 'Payment', 'Register receipt no.', 'Total ($)'],
@@ -1781,13 +1781,14 @@ admin.get('/orders', wrap(async (req, res) => {
 admin.get('/orders.csv', wrap(async (req, res) => {
   const orders = await historyQuery(req);
   const T = CSV_TEXT[req.venue.market];
+  const tz = req.venue.settings.timezone || DEFAULT_TZ;
   const nm = (n) => (req.venue.market === 'us' ? n?.en || n?.el : n?.el || n?.en) || '';
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const money = (c) => (c / 100).toFixed(2).replace('.', T.dec);
   const rows = [T.orders];
   for (const o of [...orders].reverse()) {
     const d = new Date(o.createdAt);
-    rows.push([o.id, d.toLocaleDateString(T.locale), d.toLocaleTimeString(T.locale, { hour: '2-digit', minute: '2-digit' }),
+    rows.push([o.id, d.toLocaleDateString(T.locale, { timeZone: tz }), d.toLocaleTimeString(T.locale, { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: T.hours }),
       o.channel === 'takeaway' ? [T.pickup, o.customer?.name, o.customer?.phone].filter(Boolean).join(' · ') : `${T.kind[o.tableKind] || ''} ${o.tableLabel}`, T.status[o.status] || o.status, o.lang.toUpperCase(),
       o.items.map((i) => `${i.qty}x ${nm(i.name)}${i.options.length ? ` (${i.options.map((x) => nm(x.choice)).join(', ')})` : ''}`).join(', '), o.note, money(o.total), o.paid ? T.yes : T.no,
       o.takenBy || T.guest, o.voids.map((v) => `-${v.qty}x ${nm(v.name)} (${v.by}${v.reason ? `: ${v.reason}` : ''})`).join(', ')]);
@@ -1836,10 +1837,11 @@ admin.get('/receipts.csv', wrap(async (req, res) => {
     [req.venue.id, from, to])).map(mapReceipt);
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const T = CSV_TEXT[req.venue.market];
+  const tz = req.venue.settings.timezone || DEFAULT_TZ;
   const rows = [T.receipts];
   for (const r of receipts) {
     const d = new Date(r.createdAt);
-    rows.push([r.number, d.toLocaleDateString(T.locale), d.toLocaleTimeString(T.locale, { hour: '2-digit', minute: '2-digit' }),
+    rows.push([r.number, d.toLocaleDateString(T.locale, { timeZone: tz }), d.toLocaleTimeString(T.locale, { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: T.hours }),
       r.tableKind === 'takeaway' ? T.pickup : `${T.kind[r.tableKind] || ''} ${r.tableLabel}`, T.pay[r.payment] || r.payment, r.fiscalRef, (r.total / 100).toFixed(2).replace('.', T.dec)]);
   }
   res.setHeader('Content-Disposition', `attachment; filename="${T.files[1]}_${from.slice(0, 10)}_${to.slice(0, 10)}.csv"`);

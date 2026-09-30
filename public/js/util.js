@@ -87,4 +87,6 @@ export function timeAgo(iso) {
 
 // Language, date format and currency of the staff screens: Greece (euros) or the United States (dollars); see lang.js.
 export const L10N = { market: 'gr', locale: 'el-GR', currency: 'EUR' };
+// Hours and minutes: Greek uses the 24-hour clock (Intl would write "07:40 μ.μ."), English in the United States 12 hours.
+export const hm = (locale = L10N.locale) => ({ hour: '2-digit', minute: '2-digit', ...(/^el\b/.test(locale) ? { hourCycle: 'h23' } : {}) });
 export const euro = (cents) => new Intl.NumberFormat(L10N.locale, { style: 'currency', currency: L10N.currency }).format(cents / 100);

@@ -1,6 +1,6 @@
-import { $, $$, esc, api, toast, sheet, stream } from './util.js';
+import { $, $$, esc, api, toast, sheet, stream, hm } from './util.js';
 import { LANGUAGES, STRINGS, pick, money, setCurrency } from './i18n.js';
-import { applyTheme } from './theme.js';
+import { applyTheme, applyBrand } from './theme.js';
 import { icon } from './icons.js';
 
 const token = location.pathname.split('/').filter(Boolean)[1];
@@ -57,18 +57,6 @@ function errorText(e) {
   return t('error');
 }
 
-// Venue colour: buttons, active tabs and highlights use it; text on it is white or black for contrast.
-function applyBrand(hex = '#1f3a5f') {
-  const n = parseInt(hex.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  document.documentElement.style.setProperty('--brand', hex);
-  document.documentElement.style.setProperty('--brand-ink', lum > 0.45 ? '#1a1a1a' : '#ffffff');
-}
-
 function setFavicon(url) {
   if (!url) return;
   let link = document.querySelector('link[rel="icon"]');
@@ -106,8 +94,8 @@ async function boot() {
   S.lang = chooseLanguage();
   setCurrency(S.data.currency);
   document.title = S.data.restaurant.name;
-  applyBrand(S.data.restaurant.brandColor);
   applyTheme(S.data.restaurant.theme);
+  applyBrand(S.data.restaurant.brandColor);
   setFavicon(S.data.restaurant.logoUrl);
   $('#bottom').hidden = false;
   bindChrome();
@@ -149,8 +137,8 @@ async function refreshMenu() {
   try {
     S.data = await api(API);
     if (!S.data.languages.includes(S.lang)) S.lang = chooseLanguage();
+    applyTheme(S.data.restaurant.theme);
     applyBrand(S.data.restaurant.brandColor);
-  applyTheme(S.data.restaurant.theme);
     // Drop cart lines (or option picks) that no longer exist after the owner edited the menu.
     S.cart = S.cart.filter((l) => itemById(l.id)).map((l) => ({
       ...l, options: (l.options || []).filter(([g, c]) => itemById(l.id).options?.[g]?.choices?.[c]),
@@ -585,7 +573,7 @@ function openTakeaway(orderNote, done) {
     <label class="field"><span>${esc(t('yourPhone'))}</span><input class="input" id="tp" type="tel" autocomplete="tel" maxlength="30"></label>
     <label class="field"><span>${esc(t('pickupTime'))}</span><select class="input" id="tt">
       <option value="">${esc(t('asap'))}</option>
-      ${slots.map((d) => `<option value="${d.toISOString()}">${d.toLocaleTimeString(S.lang, { hour: '2-digit', minute: '2-digit' })}</option>`).join('')}</select></label>
+      ${slots.map((d) => `<option value="${d.toISOString()}">${d.toLocaleTimeString(S.lang, hm(S.lang))}</option>`).join('')}</select></label>
     <button class="btn block" id="tsend">${esc(t('sendOrder'))}</button>`);
   try { $('#tn', el).value = localStorage.getItem('pickupName') || ''; $('#tp', el).value = localStorage.getItem('pickupPhone') || ''; } catch { /* ignore */ }
   $('#tsend', el).onclick = async (e) => {
@@ -681,7 +669,7 @@ function openCart() {
 // Orders & bill
 // ---------------------------------------------------------------------------
 const STEPS = ['pending', 'accepted', 'preparing', 'ready', 'served'];
-const clock = (iso) => new Date(iso).toLocaleTimeString(S.lang, { hour: '2-digit', minute: '2-digit' });
+const clock = (iso) => new Date(iso).toLocaleTimeString(S.lang, hm(S.lang));
 
 function renderOrder() {
   const { orders, bill } = S.state;
@@ -693,12 +681,14 @@ function renderOrder() {
     $('#goMenu').onclick = () => switchTab('menu');
     return;
   }
+  // Orders still waiting for the staff are not on the bill yet, but the guest sees them in the total.
+  const waiting = orders.filter((o) => o.status === 'pending').reduce((sum, o) => sum + o.items.reduce((x, i) => x + i.price * i.qty, 0), 0);
   $('#app').innerHTML = `
     ${head}
     ${[...orders].reverse().map((o) => {
       const step = STEPS.indexOf(o.status);
       return `<div class="order-block">
-        <div class="order-head"><b>${esc(t('order'))} #${o.id} <span class="muted small" style="font-weight:400">· ${clock(o.createdAt)}</span></b>
+        <div class="order-head"><b>${esc(t('order'))} #${o.id} <span class="muted small nowrap" style="font-weight:400">· ${clock(o.createdAt)}</span></b>
           <span class="status s-${o.status}">${esc(t(`status_${o.status}`))}</span></div>
         ${o.status !== 'rejected' ? `<div class="progress">${STEPS.map((_, i) => `<i class="${i <= step ? 'on' : ''}"></i>`).join('')}</div>` : ''}
         ${o.etaAt && ['accepted', 'preparing'].includes(o.status) && new Date(o.etaAt) > Date.now()
@@ -709,7 +699,8 @@ function renderOrder() {
       </div>`;
     }).join('')}
     <div class="bill">
-      ${MODE === 'menu' ? '' : `<div class="total-row" style="margin:0"><span>${esc(t('total'))}</span><span>${fmt(bill.total)}</span></div>`}
+      ${MODE === 'menu' ? '' : `<div class="total-row" style="margin:0"><span>${esc(t('total'))}</span><span>${fmt(bill.total + waiting)}</span></div>`}
+      ${MODE !== 'menu' && waiting ? `<div class="line muted"><span>${esc(t('status_pending'))}</span><span>${fmt(waiting)}</span></div>` : ''}
       ${bill.paid ? `<div class="line"><span>${esc(t('paidLabel'))}</span><span>− ${fmt(bill.paid)}</span></div>
         <div class="line"><b>${esc(t('due'))}</b><b>${fmt(bill.due)}</b></div>` : ''}
       ${bill.total > 0 && bill.due === 0 ? `<p class="paid-note">${icon('check', 16)} ${esc(t('paid'))}</p>` : ''}
