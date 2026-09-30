@@ -16,6 +16,7 @@ import { stripe, stripeEnabled, verifyWebhook, venueStatus } from './billing.js'
 import { vivaCreateOrder, vivaVerify, vivaCheck, isvConfig, isvCreateAccount, isvGetAccount, isvWebhookKey, isvCreateWebhook } from './payments.js';
 import { sendMail } from './mail.js';
 import { loadSharedAssets, sharedAsset, addSamplePhotos } from './assets.js';
+import { installSeo } from './seo.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -2372,6 +2373,11 @@ app.use('/api/super', superApi);
 // Pages & static files
 // ---------------------------------------------------------------------------
 const page = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, file));
+// Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one.
+const EN_PAGES = new Set(['index.html', 'signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
+// Search engines: robots.txt, sitemap.xml, tags of the website pages and previews of the venues' menus (see seo.js).
+const { sitePage, menuPage } = installSeo(app, { PUBLIC_DIR, PRODUCTION, EN_PAGES, marketOf, mainOrigin, venueOrigin, MAIN_URLS, BASE_DOMAIN,
+  db, getVenue, venueBySlug, features, publicRestaurant });
 // With an address per venue, links to the main address (older printed QR codes, the home page demo) move on
 // to the venue's own address.
 const toVenueAddress = (find) => (req, res, next) => {
@@ -2386,7 +2392,7 @@ const toVenueAddress = (find) => (req, res, next) => {
 const venueOfRow = async (row) => row && getVenue(row.venue_id);
 app.get('/t/:token', toVenueAddress(async (req) => venueOfRow(await db.get('SELECT venue_id FROM tables WHERE token = ?', [String(req.params.token)]))),
   page('customer.html'));
-app.get('/m/:slug', toVenueAddress((req) => venueBySlug(req.params.slug)), page('customer.html'));
+app.get('/m/:slug', toVenueAddress((req) => venueBySlug(req.params.slug)), menuPage);
 app.get('/r/:token', toVenueAddress(async (req) => venueOfRow(await db.get('SELECT venue_id FROM receipts WHERE token = ?', [String(req.params.token)]))),
   page('receipt.html'));
 app.get('/staff', toVenueAddress(async (req) => (req.query.v ? venueBySlug(String(req.query.v)) : null)), page('staff/login.html'));
@@ -2396,9 +2402,6 @@ app.get('/staff/admin', page('staff/admin.html'));
 app.get('/staff/qr', page('staff/qr.html'));
 app.get('/staff/print/order/:id', page('staff/print.html'));
 app.get('/staff/print/receipt/:id', page('staff/print.html'));
-// Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one.
-const EN_PAGES = new Set(['index.html', 'signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
-const sitePage = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, marketOf(req) === 'us' && EN_PAGES.has(file) ? `en/${file}` : file));
 app.get('/', sitePage('index.html'));
 app.get('/demo', sitePage('demo.html'));
 app.get('/signup', sitePage('signup.html'));
