@@ -153,20 +153,38 @@ async function openPostgres(url) {
   pg.types.setTypeParser(20, (v) => Number(v));
   pg.types.setTypeParser(1700, (v) => Number(v));
   const ssl = /sslmode=require|supabase|neon\.tech|render\.com/.test(url) ? { rejectUnauthorized: false } : undefined;
-  const pool = new pg.Pool({ connectionString: url, ssl, max: 10 });
+  // Hosted databases (Neon, Supabase) close connections that stay idle, or all of them when the database sleeps.
+  // Idle connections are let go before that happens, and a connection closed by the server is only logged:
+  // without this listener Node stops the whole service on the pool's 'error' event.
+  const pool = new pg.Pool({ connectionString: url, ssl, max: 10, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 20_000, keepAlive: true });
+  pool.on('error', (err) => console.warn('PostgreSQL: an idle connection was closed by the server:', err.message));
 
-  const wrap = (client) => ({
-    dialect: 'postgres',
-    async all(sql, params = []) { return (await client.query(toPg(sql), params)).rows; },
-    async get(sql, params = []) { return (await client.query(toPg(sql), params)).rows[0]; },
-    async run(sql, params = []) { return { changes: (await client.query(toPg(sql), params)).rowCount }; },
-    async insert(sql, params = []) { return (await client.query(`${toPg(sql)} RETURNING id`, params)).rows[0].id; },
-    async exec(sql) { await client.query(sql); },
-  });
+  // A query that meets a connection the server has just closed is tried once more on a fresh connection.
+  // (Only outside transactions: inside one, the whole transaction fails and is rolled back.)
+  const lost = (e) => /Connection terminated|ECONNRESET|EPIPE|server closed the connection|terminating connection/i.test(String(e?.message))
+    || ['57P01', '57P02', '57P03', '08006', '08003'].includes(e?.code);
+  const retrying = (client) => (client === pool
+    ? async (sql, params) => { try { return await pool.query(sql, params); } catch (e) { if (!lost(e)) throw e; return pool.query(sql, params); } }
+    : (sql, params) => client.query(sql, params));
+
+  const wrap = (client) => {
+    const query = retrying(client);
+    return {
+      dialect: 'postgres',
+      async all(sql, params = []) { return (await query(toPg(sql), params)).rows; },
+      async get(sql, params = []) { return (await query(toPg(sql), params)).rows[0]; },
+      async run(sql, params = []) { return { changes: (await query(toPg(sql), params)).rowCount }; },
+      async insert(sql, params = []) { return (await query(`${toPg(sql)} RETURNING id`, params)).rows[0].id; },
+      async exec(sql) { await query(sql); },
+    };
+  };
 
   const api = wrap(pool);
   api.tx = async (fn) => {
     const client = await pool.connect();
+    // A connection closed by the server during the transaction fails the transaction, not the service.
+    const onError = (err) => console.warn('PostgreSQL: connection closed during a transaction:', err.message);
+    client.on('error', onError);
     try {
       await client.query('BEGIN');
       const r = await fn(wrap(client));
@@ -176,6 +194,7 @@ async function openPostgres(url) {
       await client.query('ROLLBACK').catch(() => {});
       throw e;
     } finally {
+      client.off('error', onError);
       client.release();
     }
   };
