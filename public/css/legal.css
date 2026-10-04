@@ -1,8 +1,9 @@
 /* Terms, privacy and data processing pages */
-.legal h2 { font-size: 1.05rem; margin: 1.5rem 0 .45rem; }
-.legal p, .legal li, .legal td, .legal th { font-size: .94rem; line-height: 1.6; }
+.legal h2 { font-size: 1.15rem; margin: 2rem 0 .55rem; padding-top: 1.2rem; border-top: 1px solid var(--line); letter-spacing: -.015em; }
+.legal h2:first-of-type { border-top: 0; padding-top: 0; }
+.legal p, .legal li, .legal td, .legal th { font-size: .95rem; line-height: 1.7; color: #2b333d; }
 .legal ul { padding-left: 1.2rem; }
 .legal table.lt { width: 100%; border-collapse: collapse; margin: .4rem 0 .8rem; }
 .legal table.lt th, .legal table.lt td { text-align: left; vertical-align: top; border: 1px solid var(--line); padding: .45rem .6rem; }
-.legal table.lt th { background: #fafafa; font-weight: 600; }
+.legal table.lt th { background: #fafbfc; font-weight: 700; }
 @media (max-width: 560px) { .legal table.lt { display: block; overflow-x: auto; } }

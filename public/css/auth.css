@@ -1,31 +1,38 @@
 /* Sign-up, login and super admin pages */
-body { background: #f6f6f4; }
-.auth-top { border-bottom: 1px solid var(--line); background: #fff; }
-.auth-top .in { max-width: 1080px; margin: 0 auto; padding: .8rem 16px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+body { background: radial-gradient(900px 420px at 88% -6%, #f3d6c4 0%, transparent 62%), radial-gradient(800px 480px at -8% 108%, #e6edf6 0%, transparent 60%), #f7f3ec;
+  background-attachment: fixed; min-height: 100vh; }
+.auth-top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(22, 32, 43, .07); background: rgba(255, 255, 255, .75);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); }
+.auth-top .in { max-width: 1080px; margin: 0 auto; padding: .9rem 20px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .wordmark { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; }
-.wordmark img { display: block; height: 26px; width: auto; }
-.auth-top a.link { color: var(--muted); font-size: .9rem; text-decoration: none; }
-.auth { max-width: 520px; margin: 2rem auto 3rem; padding: 0 16px; }
+.wordmark img { display: block; height: 28px; width: auto; }
+.auth-top a.link { color: #16202b; font-size: .9rem; font-weight: 700; text-decoration: none; padding: .5rem .95rem; border-radius: 999px; border: 1px solid rgba(22, 32, 43, .14);
+  background: #fff; transition: border-color .15s; }
+.auth-top a.link:hover { border-color: #16202b; }
+.auth { max-width: 520px; margin: 3rem auto 3rem; padding: 0 16px; }
 .auth.wide { max-width: 720px; }
-.auth .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 1.4rem 1.3rem; }
-.auth h1 { font-size: 1.45rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
-.auth .lead { color: var(--muted); margin: 0 0 1.2rem; }
+.auth .card { background: #fff; border: 1px solid rgba(22, 32, 43, .06); border-radius: 22px; padding: 2rem 1.8rem; box-shadow: 0 1px 2px rgba(22, 32, 43, .05), 0 24px 60px rgba(22, 32, 43, .12); }
+@media (max-width: 520px) { .auth { margin-top: 1.5rem; } .auth .card { padding: 1.5rem 1.2rem; border-radius: 18px; } }
+.auth h1 { font-size: 1.75rem; margin: 0 0 .35rem; letter-spacing: -.03em; line-height: 1.15; }
+.auth .lead { color: var(--muted); margin: 0 0 1.5rem; }
+.auth .btn { min-height: 48px; border-radius: 12px; }
 .auth .field { margin-bottom: .85rem; }
 .auth .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
 .auth .hint { color: var(--muted); font-size: .82rem; margin: .25rem 0 0; }
 .auth .foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 1rem; }
 .plan-pick { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin-bottom: .9rem; }
-.plan-pick label { border: 1px solid #d6d6d6; border-radius: var(--radius); padding: .6rem .7rem; cursor: pointer; display: block; }
-.plan-pick label:has(input:checked) { border-color: #1f3a5f; box-shadow: inset 0 0 0 1px #1f3a5f; background: #f3f6fa; }
+.plan-pick label { border: 1px solid #d8dce1; border-radius: 14px; padding: .75rem .85rem; cursor: pointer; display: block; transition: border-color .15s, box-shadow .15s; }
+.plan-pick label:hover { border-color: #aab2bd; }
+.plan-pick label:has(input:checked) { border-color: #d2643c; box-shadow: inset 0 0 0 1px #d2643c, 0 6px 16px rgba(210, 100, 60, .12); background: #fdf6f2; }
 .plan-pick input { position: absolute; opacity: 0; pointer-events: none; }
 .plan-pick b { display: block; }
 .plan-pick span { color: var(--muted); font-size: .82rem; }
 .check { display: flex; gap: .55rem; align-items: flex-start; font-size: .9rem; margin: .5rem 0; }
 .check input { margin-top: .2rem; }
-.trial-note { background: #eef5ee; border: 1px solid #cfe3cf; border-radius: var(--radius); padding: .6rem .8rem; font-size: .9rem; margin-bottom: 1rem; }
+.trial-note { background: #eef7f1; border: 1px solid #cfe6d7; border-radius: 12px; padding: .7rem .9rem; font-size: .9rem; margin-bottom: 1.1rem; color: #1e5c37; }
 @media (max-width: 520px) { .auth .row2, .plan-pick { grid-template-columns: 1fr; } }
 .table-scroll { overflow-x: auto; }
 
 /* Footer of the sign-up, sign-in and legal pages. */
-.legal-foot { text-align: center; color: var(--muted); font-size: .85rem; padding: 1.2rem 1rem 2rem; line-height: 1.8; }
+.legal-foot { text-align: center; color: var(--muted); font-size: .85rem; padding: 1.5rem 1rem 2.5rem; line-height: 1.9; }
 .legal-foot a { color: inherit; }

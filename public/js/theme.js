@@ -8,7 +8,7 @@ const FONTS = {
   rounded: ["ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", "ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"],
   traditional: ["Georgia, 'Times New Roman', serif", "Georgia, 'Times New Roman', serif"],
 };
-const RADIUS = { square: '2px', soft: '8px', round: '16px' };
+const RADIUS = { square: '3px', soft: '10px', round: '18px' };
 const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, w) => `#${rgb(a).map((v, i) => Math.round(v * (1 - w) + rgb(b)[i] * w).toString(16).padStart(2, '0')).join('')}`;
 const isDark = (hex) => { const [r, g, b] = rgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) < 140; };

@@ -1,29 +1,19 @@
-/* Home pages of kalimenu.gr and kalimenu.com. Manrope, self-hosted (latin + greek). */
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/manrope-greek-400-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/manrope-greek-500-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/manrope-greek-600-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/manrope-greek-700-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 800; src: url(/fonts/manrope-greek-800-normal.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/manrope-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/manrope-latin-500-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/manrope-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/manrope-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
-@font-face { font-family: Manrope; font-style: normal; font-display: swap; font-weight: 800; src: url(/fonts/manrope-latin-800-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+/* Home pages of kalimenu.gr and kalimenu.com. Manrope comes from app.css. */
 
 :root {
   --navy: #1f3a5f; --navy-deep: #152a45; --terra: #d2643c; --terra-soft: #f6e3d9;
   --cream: #f7f3ec; --sand: #efe8dc; --ink: #16202b; --text: #16202b; --muted: #5d6673; --line: #e6e0d6;
   --brand: var(--navy); --font: Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-  --r: 14px; --shadow: 0 1px 2px rgba(22,32,43,.06), 0 12px 32px rgba(22,32,43,.10);
+  --r: 16px; --shadow: 0 1px 2px rgba(22,32,43,.06), 0 12px 32px rgba(22,32,43,.10);
 }
 html { scroll-behavior: smooth; }
 body { background: #fff; font-size: 16px; line-height: 1.6; overflow-x: hidden; }
 h1, h2, h3 { font-family: var(--font); color: var(--ink); }
 .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
-.btn { border-radius: 10px; padding: .8rem 1.25rem; font-weight: 700; min-height: 48px; text-decoration: none; transition: transform .15s, box-shadow .15s, background .15s; }
+.btn { border-radius: 12px; padding: .8rem 1.3rem; font-weight: 800; min-height: 48px; text-decoration: none; letter-spacing: -.01em; transition: transform .15s, box-shadow .15s, background .15s, border-color .15s; }
 .btn:hover { transform: translateY(-1px); filter: none; }
-.btn.primary { background: var(--terra); color: #fff; box-shadow: 0 6px 16px rgba(210,100,60,.28); }
-.btn.primary:hover { background: #c2572f; }
+.btn.primary { background: linear-gradient(180deg, #db7046, var(--terra)); color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 8px 20px rgba(210,100,60,.32); }
+.btn.primary:hover { background: linear-gradient(180deg, #d0653b, #c2572f); box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 12px 26px rgba(210,100,60,.38); }
 .btn.secondary { background: #fff; color: var(--ink); border-color: #d9d2c6; }
 .btn.secondary:hover { background: #fff; border-color: var(--ink); }
 .btn.sm { min-height: 40px; padding: .5rem 1rem; white-space: nowrap; }
@@ -42,29 +32,30 @@ header.site.scrolled { border-bottom-color: var(--line); background: rgba(255,25
 header.site .wrap { display: flex; align-items: center; gap: 1.5rem; min-height: 68px; }
 .wordmark { display: inline-flex; text-decoration: none; }
 .wordmark img { display: block; height: 28px; width: auto; }
-header.site nav { display: flex; gap: 1.6rem; margin-left: auto; align-items: center; }
-header.site nav a { color: var(--ink); text-decoration: none; font-size: .95rem; font-weight: 600; opacity: .8; }
-header.site nav a:hover { opacity: 1; }
+header.site nav { display: flex; gap: .5rem; margin-left: auto; align-items: center; }
+header.site nav a { color: var(--ink); text-decoration: none; font-size: .95rem; font-weight: 600; opacity: .82; padding: .45rem .75rem; border-radius: 999px; transition: background .15s, opacity .15s; }
+header.site nav a:hover { opacity: 1; background: rgba(22,32,43,.06); }
+header.site nav a.btn:hover { background: linear-gradient(180deg, #d0653b, #c2572f); }
 header.site nav a.btn { opacity: 1; color: #fff; }
-@media (max-width: 900px) { header.site nav a.hide-m { display: none; } header.site nav { gap: 1rem; } }
-@media (max-width: 420px) { .wordmark img { height: 22px; } header.site .wrap { gap: .8rem; } header.site nav { gap: .8rem; } header.site nav a { font-size: .88rem; } .btn.sm { padding: .5rem .8rem; } }
+@media (max-width: 900px) { header.site nav a.hide-m { display: none; } header.site nav { gap: .3rem; } }
+@media (max-width: 420px) { .wordmark img { height: 22px; } header.site .wrap { gap: .8rem; } header.site nav { gap: .2rem; } header.site nav a { font-size: .88rem; padding: .4rem .55rem; } .btn.sm { padding: .5rem .8rem; } }
 
 /* Hero */
 .hero-bg { background: radial-gradient(1200px 500px at 85% -10%, #f3dccd 0%, transparent 60%), var(--cream); overflow: hidden; }
 .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; padding: 64px 20px 88px; }
 .hero h1 { font-size: clamp(2.2rem, 4.6vw, 3.6rem); line-height: 1.04; margin: 0 0 1.2rem; letter-spacing: -.035em; font-weight: 800; }
-.hero h1 em { font-style: normal; color: var(--terra); }
+.hero h1 em { font-style: normal; color: var(--terra); background: linear-gradient(100deg, #c9552c, #e0875f); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .hero .lead { font-size: 1.18rem; color: var(--muted); margin: 0 0 2rem; max-width: 540px; }
 .ctas { display: flex; gap: .75rem; flex-wrap: wrap; }
 .trust { list-style: none; padding: 0; margin: 1.6rem 0 0; display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; color: var(--muted); font-size: .92rem; font-weight: 600; }
 .trust li { display: inline-flex; align-items: center; gap: .4rem; }
 .trust .ic { color: #2f8a57; }
 .audience { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.4rem; }
-.audience span { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: .3rem .8rem; font-size: .85rem; font-weight: 600; color: var(--ink); }
+.audience span { background: rgba(255,255,255,.8); border: 1px solid var(--line); border-radius: 999px; padding: .32rem .85rem; font-size: .85rem; font-weight: 700; color: var(--ink); }
 .visual { position: relative; justify-self: center; }
-.phone { width: 300px; background: #0f1720; padding: 10px; border-radius: 44px; box-shadow: 0 30px 60px rgba(22,32,43,.22), 0 0 0 1px rgba(0,0,0,.04); position: relative; z-index: 1; }
+.phone { width: 300px; background: #0f1720; padding: 10px; border-radius: 46px; box-shadow: 0 40px 80px rgba(22,32,43,.26), 0 0 0 1px rgba(0,0,0,.04), inset 0 0 0 2px #2a3340; position: relative; z-index: 1; }
 .phone img { display: block; width: 100%; border-radius: 34px; }
-.float { position: absolute; z-index: 3; background: #fff; border-radius: 14px; box-shadow: var(--shadow); padding: .8rem 1rem; font-size: .85rem; line-height: 1.35; min-width: 200px; }
+.float { position: absolute; z-index: 3; background: rgba(255,255,255,.94); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 16px; box-shadow: 0 2px 4px rgba(22,32,43,.05), 0 16px 40px rgba(22,32,43,.14); padding: .8rem 1rem; font-size: .85rem; line-height: 1.35; min-width: 200px; }
 .float b { display: block; font-size: .95rem; color: var(--ink); }
 .float small { color: var(--muted); }
 .float .row { display: flex; align-items: center; gap: .7rem; }
@@ -89,7 +80,7 @@ header.site nav a.btn { opacity: 1; color: #fff; }
 .stats { background: var(--navy); color: #fff; padding: 36px 0; }
 .stats .wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .stats div { display: flex; flex-direction: column; }
-.stats b { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.stats b { font-size: 2.2rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; background: linear-gradient(180deg, #fff, #f6d3c2); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .stats span { color: rgba(255,255,255,.72); font-size: .92rem; }
 @media (max-width: 700px) { .stats .wrap { grid-template-columns: 1fr 1fr; } .stats b { font-size: 1.6rem; } }
 
@@ -137,7 +128,7 @@ header.site nav a.btn { opacity: 1; color: #fff; }
 .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .feat { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 22px; transition: border-color .15s, box-shadow .15s; }
 .feat:hover { border-color: #d9cfc0; box-shadow: 0 8px 24px rgba(22,32,43,.06); }
-.feat .fi { width: 40px; height: 40px; border-radius: 11px; background: #e9eef5; color: var(--navy); display: grid; place-items: center; margin-bottom: .9rem; }
+.feat .fi { width: 44px; height: 44px; border-radius: 13px; background: #e9eef5; color: var(--navy); display: grid; place-items: center; margin-bottom: .9rem; }
 .feat b { display: block; margin-bottom: .3rem; font-size: 1rem; }
 .feat p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.55; }
 @media (max-width: 1000px) { .features { grid-template-columns: repeat(2, 1fr); } }
@@ -150,7 +141,7 @@ header.site nav a.btn { opacity: 1; color: #fff; }
 .billing button.active { background: var(--ink); color: #fff; }
 .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 820px; margin: 0 auto; text-align: left; }
 @media (max-width: 680px) { .plans { grid-template-columns: 1fr; } }
-.plan { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 30px 28px; display: flex; flex-direction: column; position: relative; }
+.plan { background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 32px 28px; display: flex; flex-direction: column; position: relative; }
 .plan.best { border: 2px solid var(--terra); box-shadow: 0 18px 40px rgba(210,100,60,.14); }
 .plan.best::before { content: 'Δημοφιλέστερο'; position: absolute; top: -13px; left: 28px; background: var(--terra); color: #fff; font-size: .74rem;
   font-weight: 800; padding: .2rem .7rem; border-radius: 999px; letter-spacing: .02em; }
@@ -182,7 +173,7 @@ table.cmp tr.us td:first-child { color: var(--terra); }
 /* The heading stays next to the questions while they scroll, so the left side is never empty. */
 .faq > :first-child { position: sticky; top: 110px; }
 @media (max-width: 820px) { .faq { grid-template-columns: 1fr; gap: 16px; } .faq > :first-child { position: static; } }
-details { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 10px; }
+details { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 1.05rem 1.25rem; margin-bottom: 10px; }
 details summary { font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
 details summary::-webkit-details-marker { display: none; }
 details summary::after { content: '+'; color: var(--terra); font-weight: 800; font-size: 1.2rem; line-height: 1.2; }
@@ -190,7 +181,7 @@ details[open] summary::after { content: '−'; }
 details p { color: var(--muted); margin: .6rem 0 0; }
 
 /* CTA band */
-.cta-band { background: radial-gradient(800px 300px at 90% 0%, rgba(210,100,60,.35), transparent 60%), var(--navy); color: #fff; border-radius: 28px;
+.cta-band { background: radial-gradient(800px 300px at 90% 0%, rgba(210,100,60,.38), transparent 60%), radial-gradient(600px 300px at 0% 100%, rgba(80,130,190,.25), transparent 60%), var(--navy); color: #fff; border-radius: 32px;
   padding: 64px 40px; text-align: center; }
 .cta-band h2 { color: #fff; }
 .cta-band .sub { color: rgba(255,255,255,.78); margin: 0 auto 2rem; }
