@@ -98,15 +98,16 @@ async function boot() {
   applyBrand(S.data.restaurant.brandColor);
   setFavicon(S.data.restaurant.logoUrl);
   $('#bottom').hidden = false;
+  const payResult = new URLSearchParams(location.search).get('pay');
+  if (homeOn() && !payResult && !seenHome()) S.tab = 'home';
   bindChrome();
   // The venue name appears in the top bar once the big header has scrolled away.
-  const syncTop = () => $('.top').classList.toggle('scrolled', S.tab !== 'menu' || window.scrollY > 90);
+  const syncTop = () => $('.top').classList.toggle('scrolled', !['menu', 'home'].includes(S.tab) || window.scrollY > 90);
   window.addEventListener('scroll', syncTop, { passive: true });
   document.addEventListener('click', () => requestAnimationFrame(syncTop));
   syncTop();
   renderAll();
   // Back from the payment page (Viva Wallet).
-  const payResult = new URLSearchParams(location.search).get('pay');
   if (payResult) {
     toast(t(payResult === 'ok' ? 'paymentOk' : 'paymentFailed'), payResult === 'ok' ? 'ok' : 'err');
     history.replaceState(null, '', location.pathname);
@@ -226,6 +227,7 @@ function onState(state) {
   }
   renderBottom();
   if (S.tab === 'order') renderOrder();
+  else if (S.tab === 'home') renderHome();
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +246,7 @@ function bindChrome() {
 
 function switchTab(tab) {
   S.tab = tab;
+  if (tab !== 'home') markHomeSeen();
   $$('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   if (tab === 'order') S.seenOrders = S.state.orders.length;
   renderMain();
@@ -262,13 +265,16 @@ function renderAll(keepScroll = false) {
   $$('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
   const orderTab = $('.tabs button[data-tab="order"]');
   if (orderTab) orderTab.hidden = !canOrder();
+  $('.tabs button[data-tab="home"]').hidden = !homeOn();
+  $$('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === S.tab));
   renderMain();
   renderBottom();
   if (keepScroll) window.scrollTo({ top: y });
 }
 
 function renderMain() {
-  if (S.tab === 'menu') renderMenu();
+  if (S.tab === 'home') renderHome();
+  else if (S.tab === 'menu') renderMenu();
   else if (S.tab === 'order') renderOrder();
   else renderInfo();
 }
@@ -290,7 +296,7 @@ function serviceRow() {
 function renderBottom() {
   const count = S.cart.reduce((s, l) => s + l.qty, 0);
   const total = S.cart.reduce((s, l) => s + unitPrice(l) * l.qty, 0);
-  $('#cartBar').hidden = count === 0 || S.tab === 'info' || !canOrder();
+  $('#cartBar').hidden = count === 0 || S.tab === 'info' || S.tab === 'home' || !canOrder();
   $('#cartCount').textContent = count;
   $('#cartTotal').textContent = fmt(total);
   const svc = $('.service');
@@ -299,7 +305,7 @@ function renderBottom() {
     && !S.state.orders.some((o) => o.status === 'ready');
 }
 
-function venueHeader() {
+function venueHeader({ service = true } = {}) {
   const r = S.data.restaurant;
   return `
     ${r.coverUrl ? `<div class="cover"><img src="${esc(r.coverUrl)}" alt=""></div>` : ''}
@@ -311,8 +317,8 @@ function venueHeader() {
         <div class="meta"><span><b>${esc(spot())}</b></span>${tr(r.hours) ? `<span>${esc(tr(r.hours))}</span>` : ''}</div>
       </div>
     </section>
-    ${serviceRow()}
-    ${MODE === 'menu' && !canOrder() ? `<p class="menu-only">${icon('info', 15)} ${esc(t('menuOnly'))}</p>` : ''}`;
+    ${service ? serviceRow() : ''}
+    ${service && MODE === 'menu' && !canOrder() ? `<p class="menu-only">${icon('info', 15)} ${esc(t('menuOnly'))}</p>` : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,8 +363,10 @@ function renderMenu() {
       <h2 class="section-title" id="cat-${c.id}">${esc(tr(c.name))}</h2>
       <div class="dish-list">${items.filter((i) => i.category_id === c.id).map(dishRow).join('')}</div>
     `).join('') : `<div class="empty"><p>${esc(t('noResults'))}</p></div>`}
+    ${canRate() ? '<div class="review-card" id="menuReview"></div>' : ''}
     ${menuNotices(items)}
   `;
+  mountReview($('#menuReview'));
 
   $('#announce')?.addEventListener('click', () => { if (ann.itemId && itemById(ann.itemId)) openItem(ann.itemId); });
   const q = $('#q');
@@ -832,6 +840,145 @@ function openPay() {
 }
 
 // ---------------------------------------------------------------------------
+// Start screen: what guests see first after scanning the QR
+// ---------------------------------------------------------------------------
+const HOME_KEY = `home:${token}`;
+const homeOn = () => S.data.welcome?.enabled !== false && !!S.data.welcome;
+function seenHome() { try { return sessionStorage.getItem(HOME_KEY) === '1'; } catch { return false; } }
+function markHomeSeen() { try { sessionStorage.setItem(HOME_KEY, '1'); } catch { /* private mode */ } }
+const mapsLink = (r) => r.mapsUrl || (r.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.address)}` : '');
+
+function renderHome() {
+  const r = S.data.restaurant;
+  const w = S.data.welcome || {};
+  const show = (k) => !(w.hide || []).includes(k);
+  const tiles = [];
+  const tile = (act, ic, title, sub, extra = '') => tiles.push(`<button class="tile ${extra}" data-act="${act}"><span class="ti">${icon(ic, 21)}</span>
+    <b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`);
+  const link = (href, ic, title, sub, attrs = 'target="_blank" rel="noopener"') => tiles.push(`<a class="tile" href="${esc(href)}" ${attrs}><span class="ti">${icon(ic, 21)}</span>
+    <b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</a>`);
+  if (MODE === 'table' && canCall()) {
+    const waiterOpen = S.state.calls.some((c) => c.type === 'waiter');
+    const billOpen = S.state.calls.some((c) => c.type === 'bill');
+    if (show('call')) tile('call', waiterOpen ? 'check' : 'bell', waiterOpen ? t('waiterOnWay') : (S.data.table.kind === 'table' ? t('tileCall') : t('callService')), waiterOpen ? '' : t('tileCallSub'), waiterOpen ? 'on' : '');
+    const payOnline = S.data.payments?.provider && S.data.payments.provider !== 'off';
+    if (show('bill')) tile('bill', billOpen ? 'check' : 'receipt', t('tileBill'), billOpen ? t('billRequested') : (payOnline ? t('tileBillPay') : t('tileBillAsk')), billOpen ? 'on' : '');
+  }
+  if (show('order') && canOrder() && S.state.orders.length) tile('orders', 'clock', t('tileOrders'), t('tileOrdersSub'));
+  // From a table: the pick-up menu. On the menu link itself the big button already leads to pick-up orders.
+  if (show('takeaway') && MODE === 'table' && S.data.takeawayUrl) link(S.data.takeawayUrl, 'bag', t('tileTakeaway'), t('tileTakeawaySub'), '');
+  if (show('review') && canRate()) tile('review', 'star', t('tileReview'), t('tileReviewSub'));
+  else if (show('review') && r.reviewUrl) link(r.reviewUrl, 'star', t('tileReview'), t('tileReviewSub'));
+  if (show('wifi') && r.wifiName) tile('wifi', 'wifi', t('wifi'), t('tileWifiSub'));
+  if (show('loyalty') && MODE === 'table' && S.data.loyalty) tile('loyalty', 'gift', t('loyaltyCard'), t('tileLoyaltySub'));
+  if (show('booking') && r.bookingUrl) link(r.bookingUrl, 'calendar', t('tileBooking'), t('tileBookingSub'));
+  if (show('delivery') && r.deliveryUrl) link(r.deliveryUrl, 'truck', t('tileDelivery'), t('tileDeliverySub'));
+  if (show('directions') && mapsLink(r)) link(mapsLink(r), 'navigation', t('tileDirections'), t('tileDirectionsSub'));
+  if (show('phone') && r.phone) link(`tel:${r.phone.replace(/[^\d+]/g, '')}`, 'phone', t('phone'), t('tilePhoneSub'), '');
+  if (show('website') && r.website) link(r.website, 'globe', t('tileWebsite'), t('tileWebsiteSub'));
+  for (const l of w.links || []) link(l.url, 'link', l.label, '');
+  if (show('info')) tile('info', 'info', t('info'), t('tileInfoSub'));
+  const socials = show('social') ? [['instagram', r.instagram], ['facebook', r.facebook], ['tiktok', r.tiktok]].filter(([, u]) => u) : [];
+  const langs = S.data.languages;
+  const ann = S.data.announcement;
+  const hh = S.data.happyHour;
+  $('#app').innerHTML = `<div class="home">
+    ${venueHeader({ service: false })}
+    ${tr(w.message) ? `<p class="home-msg">${esc(tr(w.message))}</p>` : ''}
+    ${langs.length > 1 ? `<div class="lang-pick"><div class="lang-pick-title">${icon('languages', 16)} ${esc(t('chooseLanguage'))}</div>
+      <div class="lang-chips">${langs.map((l) => `<button class="lang-chip ${l === S.lang ? 'active' : ''}" data-hl="${l}" lang="${l}">
+        <b>${LANGUAGES[l].short}</b>${esc(LANGUAGES[l].name)}</button>`).join('')}</div></div>` : ''}
+    <button class="start-btn" data-act="menu"><span class="ti">${icon('book', 24)}</span>
+      <span class="grow"><b>${esc(canOrder() ? t('menuAndOrder') : t('viewMenu'))}</b>
+      <small>${esc(canOrder() ? (MODE === 'menu' ? t('orderPickupSub') : t('orderFromPhone')) : t('menuSub'))}</small></span>${icon('right', 22)}</button>
+    ${ann ? `<button class="announce" data-act="announce">${ann.itemId && itemById(ann.itemId)?.image_url ? `<img src="${esc(itemById(ann.itemId).image_url)}" alt="">` : ''}
+      <span>${esc(tr(ann.text) || tr(itemById(ann.itemId)?.name || {}))}</span>${icon('chevron', 16)}</button>` : ''}
+    ${hh ? `<div class="happy-bar">${icon('clock', 15)}<b>${esc(tr(hh.label) || t('happyHour'))}</b>${hh.to ? `<span>${esc(tf('happyUntil', { t: hh.to }))}</span>` : ''}</div>` : ''}
+    ${tiles.length ? `<h2 class="home-title">${esc(t('howHelp'))}</h2><div class="tiles">${tiles.join('')}</div>` : ''}
+    ${socials.length ? `<div class="socials"><span>${esc(t('followUs'))}</span><div>${socials.map(([k, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener" aria-label="${k}">${icon(k, 20)}</a>`).join('')}</div></div>` : ''}
+    ${menuNotices()}
+  </div>`;
+  $$('[data-hl]').forEach((b) => b.onclick = () => {
+    S.lang = b.dataset.hl;
+    try { localStorage.setItem(LANG_KEY, S.lang); } catch { /* ignore */ }
+    renderAll(true);
+  });
+  $$('[data-act]').forEach((b) => b.onclick = () => {
+    const act = b.dataset.act;
+    if (act === 'menu') switchTab('menu');
+    else if (act === 'orders') switchTab('order');
+    else if (act === 'info') switchTab('info');
+    else if (act === 'call') callWaiter();
+    else if (act === 'bill') openBill();
+    else if (act === 'review') openReview();
+    else if (act === 'wifi') openWifi();
+    else if (act === 'loyalty') openLoyalty();
+    else if (act === 'announce') { switchTab('menu'); if (ann?.itemId && itemById(ann.itemId)) openItem(ann.itemId); }
+  });
+}
+
+function openWifi() {
+  const r = S.data.restaurant;
+  const { el } = sheet(`
+    <div class="sheet-head"><h2>${icon('wifi', 22)} Wi-Fi</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+    <p>${esc(t('network'))}: <b>${esc(r.wifiName)}</b></p>
+    ${r.wifiPassword ? `<p>${esc(t('password'))}: <span class="wifi-pass">${esc(r.wifiPassword)}</span>
+      <button class="link-btn" id="copyWifi">${esc(t('copy'))}</button></p>` : ''}
+    <div class="wifi-qr big"><img src="${API}/wifi.svg" alt="Wi-Fi QR"><span class="muted small">${esc(t('wifiScan'))}</span></div>`);
+  $('#copyWifi', el)?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(r.wifiPassword); toast(t('copied'), 'ok'); } catch { /* ignore */ }
+  });
+}
+
+async function openLoyalty() {
+  const html = await loyaltyCard();
+  sheet(`<div class="sheet-head"><h2>${esc(t('loyaltyCard'))}</h2><button class="icon-btn" data-close>${icon('x', 18)}</button></div>
+    ${html || `<p class="muted">${esc(t('tileLoyaltySub'))}</p>`}`);
+}
+
+// Rating the venue from the menu or the start screen: 4-5 stars lead to the Google review, 1-3 stay private with a comment.
+const RATED_KEY = `rated:${token}`;
+const canRate = () => S.data.feedback !== false;
+function openReview() {
+  const { el } = sheet('<div class="sheet-head"><h2>' + esc(t('tileReview')) + '</h2><button class="icon-btn" data-close>' + icon('x', 18) + '</button></div><div class="review-card in-sheet"></div>');
+  mountReview($('.review-card', el));
+}
+function mountReview(box) {
+  if (!box) return;
+  const r = S.data.restaurant;
+  let done = null;
+  try { done = localStorage.getItem(RATED_KEY); } catch { /* ignore */ }
+  const googleBtn = (url) => `<a class="btn block" href="${esc(url)}" target="_blank" rel="noopener">${icon('star', 16)} ${esc(t('writeReview'))}</a>`;
+  if (done) {
+    box.innerHTML = done.startsWith('http') ? `<p>${esc(t('rateGoogle'))}</p>${googleBtn(done)}` : `<p class="muted">${esc(t('rateThanks'))}</p>`;
+    return;
+  }
+  box.innerHTML = `<b>${esc(t('reviewAsk'))}</b>
+    <div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button data-star="${n}" aria-label="${n}">${icon('star', 30)}</button>`).join('')}</div>
+    <div class="more" hidden><textarea class="input" rows="3" maxlength="1000" placeholder="${esc(t('commentPh'))}"></textarea>
+      <button class="btn block send" style="margin-top:.5rem">${esc(t('send'))}</button></div>`;
+  let rating = 0;
+  const send = async () => {
+    let url = '';
+    try {
+      const res = await api(`${API}/feedback`, { method: 'POST', body: { rating, comment: $('textarea', box)?.value || '', lang: S.lang, guestId: guestId() } });
+      url = res.reviewUrl || '';
+    } catch (e) {
+      if (e.code !== 'too_many_requests') { toast(errorText(e), 'err'); return; }
+      url = rating >= 4 ? r.reviewUrl || '' : '';
+    }
+    try { localStorage.setItem(RATED_KEY, url || '1'); } catch { /* ignore */ }
+    box.innerHTML = url ? `<p><b>${esc(t('rateThanks'))}</b><br>${esc(t('rateGoogle'))}</p>${googleBtn(url)}` : `<p><b>${esc(t('rateThanks'))}</b></p>`;
+  };
+  $$('[data-star]', box).forEach((b) => b.onclick = () => {
+    rating = Number(b.dataset.star);
+    $$('[data-star]', box).forEach((x) => x.classList.toggle('on', Number(x.dataset.star) <= rating));
+    if (rating >= 4) send(); else { $('.more', box).hidden = false; $('textarea', box).focus(); }
+  });
+  $('.send', box).onclick = (e) => { e.target.disabled = true; send(); };
+}
+
+// ---------------------------------------------------------------------------
 // Info
 // ---------------------------------------------------------------------------
 function renderInfo() {
@@ -852,8 +999,10 @@ function renderInfo() {
       ${r.reviewUrl ? row('star', t('leaveReview'), `<p><a href="${esc(r.reviewUrl)}" target="_blank" rel="noopener">Google / TripAdvisor</a></p>`) : ''}
       ${row('alert', t('allergens'), `<p class="muted">${esc(t('allergyNotice'))}</p>`)}
     </div>
+    ${canRate() ? '<div class="review-card" id="infoReview"></div>' : ''}
     ${menuNotices()}
   `;
+  mountReview($('#infoReview'));
   showLoyalty('#loyInfo');
   $('#copyWifi')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(r.wifiPassword); toast(t('copied'), 'ok'); } catch { /* ignore */ }

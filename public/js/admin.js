@@ -985,7 +985,7 @@ function renderLook() {
 
 function renderStore() {
   const r = settings.restaurant;
-  $('#app').innerHTML = `<div class="panel narrow">
+  $('#app').innerHTML = `<div class="panel narrow" id="storePanel">
     <p class="muted small" style="margin-top:0">Λογότυπο, εξώφυλλο, χρώματα και γραμματοσειρά: καρτέλα <a href="?tab=look" data-go="look">Εμφάνιση</a>.</p>
     <h3>Στοιχεία</h3>
     <label class="field"><span>Όνομα καταστήματος</span><input class="input" id="name" maxlength="80" value="${esc(r.name)}"></label>
@@ -999,6 +999,11 @@ function renderStore() {
       <label class="field"><span>Wi-Fi · κωδικός</span><input class="input" id="wifiPassword" value="${esc(r.wifiPassword)}"></label>
       <label class="field"><span>Instagram (URL)</span><input class="input" id="instagram" value="${esc(r.instagram)}"></label>
       <label class="field"><span>Σύνδεσμος κριτικών (Google / TripAdvisor)</span><input class="input" id="reviewUrl" value="${esc(r.reviewUrl)}"></label>
+      <label class="field"><span>Facebook (URL)</span><input class="input" id="facebook" value="${esc(r.facebook || '')}"></label>
+      <label class="field"><span>TikTok (URL)</span><input class="input" id="tiktok" value="${esc(r.tiktok || '')}"></label>
+      <label class="field"><span>Ιστοσελίδα</span><input class="input" id="website" value="${esc(r.website || '')}" placeholder="https://"></label>
+      <label class="field"><span>Σύνδεσμος κρατήσεων</span><input class="input" id="bookingUrl" value="${esc(r.bookingUrl || '')}" placeholder="https://"></label>
+      <label class="field"><span>Σύνδεσμος delivery (efood, Wolt, Box…)</span><input class="input" id="deliveryUrl" value="${esc(r.deliveryUrl || '')}" placeholder="https://"></label>
     </div>
     <h3>Στοιχεία απόδειξης</h3>
     <p class="muted small" style="margin-top:0">Τυπώνονται στην κεφαλίδα της απόδειξης λογαριασμού.</p>
@@ -1015,14 +1020,62 @@ function renderStore() {
       <label class="field" style="max-width:380px"><span>Αγορανομικός υπεύθυνος (ονοματεπώνυμο)</span><input class="input" id="responsible" maxlength="80" value="${esc(r.responsible || '')}"></label>
     </div>
     <button class="btn" id="save">Αποθήκευση</button>
-  </div>`;
-  const read = bindI18n($('#app'));
+  </div>
+  ${welcomePanel()}`;
+  const read = bindI18n($('#storePanel'));
+  bindWelcome();
   $('#save').onclick = async () => {
     const fields = ['name', 'address', 'mapsUrl', 'phone', 'email', 'wifiName', 'wifiPassword', 'instagram', 'reviewUrl',
+      'facebook', 'tiktok', 'website', 'bookingUrl', 'deliveryUrl',
       'legalName', 'vatNumber', 'taxOffice', 'receiptFooter', 'responsible'];
     const restaurant = { ...settings.restaurant, ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read() };
     try { await api('/api/admin/settings', { method: 'PUT', body: { restaurant } }); toast('Αποθηκεύτηκε', 'ok'); }
     catch (err) { toast(err.message, 'err'); }
+  };
+}
+
+// The start screen guests see after scanning the QR: on/off, a welcome message, which buttons it shows, extra links.
+const WELCOME_TILES = [['call', 'Κλήση σερβιτόρου'], ['bill', 'Λογαριασμός'], ['order', 'Η παραγγελία μου'], ['takeaway', 'Παραγγελία για πακέτο'],
+  ['review', 'Αξιολόγηση'], ['wifi', 'Wi-Fi'], ['loyalty', 'Κάρτα πιστότητας'], ['directions', 'Οδηγίες στον χάρτη'], ['phone', 'Τηλέφωνο'],
+  ['booking', 'Κράτηση'], ['delivery', 'Delivery'], ['website', 'Ιστοσελίδα'], ['social', 'Instagram, Facebook, TikTok'], ['info', 'Πληροφορίες']];
+function welcomePanel() {
+  const w = settings.welcome || {};
+  const links = [...(w.links || []), {}, {}, {}, {}].slice(0, 4);
+  return `<div class="panel narrow" id="welcomePanel">
+    <h3>Αρχική οθόνη μετά το QR</h3>
+    <p class="muted small" style="margin-top:0">Ο πελάτης βλέπει πρώτα μια σελίδα καλωσορίσματος: διαλέγει γλώσσα, ανοίγει το μενού ή πατά ένα από τα κουμπιά
+      (σερβιτόρος, λογαριασμός, πακέτο, αξιολόγηση, Wi-Fi κ.ά.). Κάθε κουμπί εμφανίζεται μόνο όταν υπάρχει το αντίστοιχο στοιχείο.</p>
+    <label class="switch"><input type="checkbox" id="wOn" ${w.enabled !== false ? 'checked' : ''}> Εμφάνιση αρχικής οθόνης πριν από το μενού</label>
+    ${i18nEditor([{ key: 'message', label: 'Μήνυμα καλωσορίσματος (προαιρετικό)', textarea: true, max: 200 }], w)}
+    <div class="lbl" style="font-weight:700;margin:.4rem 0 .4rem">Κουμπιά</div>
+    <div class="checks">${WELCOME_TILES.map(([k, label]) => `<label><input type="checkbox" data-tile="${k}" ${(w.hide || []).includes(k) ? '' : 'checked'}> ${esc(label)}</label>`).join('')}</div>
+    <div class="lbl" style="font-weight:700;margin:1rem 0 .4rem">Επιπλέον σύνδεσμοι</div>
+    <p class="muted small" style="margin-top:0">Π.χ. «Εκδηλώσεις», «Μενού κρασιών (PDF)», «Δωροκάρτες». Έως 4.</p>
+    ${links.map((l, i) => `<div class="two" data-link="${i}">
+      <label class="field"><span>Τίτλος</span><input class="input" data-k="label" maxlength="40" value="${esc(l.label || '')}"></label>
+      <label class="field"><span>Σύνδεσμος</span><input class="input" data-k="url" value="${esc(l.url || '')}" placeholder="https://"></label></div>`).join('')}
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+      <button class="btn" id="wSave">Αποθήκευση</button>
+      <a class="btn secondary" href="${esc(settings.menuUrl || '#')}" target="_blank" rel="noopener">${icon('external', 16)} Προεπισκόπηση</a>
+    </div>
+  </div>`;
+}
+function bindWelcome() {
+  const box = $('#welcomePanel');
+  const read = bindI18n(box);
+  $('#wSave').onclick = async () => {
+    const welcome = {
+      enabled: $('#wOn').checked,
+      message: read().message || {},
+      hide: $$('[data-tile]', box).filter((c) => !c.checked).map((c) => c.dataset.tile),
+      links: $$('[data-link]', box).map((row) => ({ label: $('[data-k="label"]', row).value.trim(), url: $('[data-k="url"]', row).value.trim() }))
+        .filter((l) => l.label && l.url),
+    };
+    try {
+      await api('/api/admin/settings', { method: 'PUT', body: { welcome } });
+      settings.welcome = welcome;
+      toast('Αποθηκεύτηκε', 'ok');
+    } catch (err) { toast(err.message, 'err'); }
   };
 }
 

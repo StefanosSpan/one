@@ -255,3 +255,55 @@ a { color: var(--brand-text, var(--brand)); }
   .cover { margin: .3rem 0 0; height: 280px; border-radius: 24px; }
   .venue.on-cover { margin: 0; padding: 1.3rem 0 .4rem; border-radius: 0; background: none; }
 }
+
+/* Start screen after scanning the QR: welcome, language, the menu button and one tile per thing the guest can do. */
+.home .cover { height: 270px; }
+.home-msg { margin: .9rem 0 0; padding: .85rem 1rem; border-radius: calc(var(--radius) + 6px); background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line)); font-weight: 600; line-height: 1.45; }
+.lang-pick { margin: 1.1rem 0 0; }
+.lang-pick-title { display: flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .5rem; }
+.lang-chips { display: flex; gap: .45rem; overflow-x: auto; padding: .1rem 0 .3rem; scrollbar-width: none; }
+.lang-chips::-webkit-scrollbar { display: none; }
+.lang-chip { flex: none; display: inline-flex; align-items: center; gap: .45rem; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: .45rem .85rem .45rem .45rem; font-weight: 600; font-size: .88rem; box-shadow: var(--shadow-sm); transition: border-color .15s, background .15s; }
+.lang-chip b { display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 .3rem; border-radius: 999px; background: var(--fill); font-size: .72rem; letter-spacing: .02em; }
+.lang-chip.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--surface)); font-weight: 800; }
+.lang-chip.active b { background: var(--brand); color: var(--brand-ink); }
+.start-btn { display: flex; align-items: center; gap: .9rem; width: 100%; margin: 1.2rem 0 0; padding: 1rem 1.1rem; border: 0; text-align: left;
+  border-radius: calc(var(--radius) + 8px); background: var(--brand); color: var(--brand-ink); font: inherit;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--brand) 32%, transparent), 0 2px 6px rgba(0, 0, 0, .12); transition: transform .1s; }
+.start-btn:active { transform: scale(.985); }
+.start-btn .ti { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--brand-ink) 16%, transparent); }
+.start-btn .grow { flex: 1; min-width: 0; }
+.start-btn b { display: block; font-size: 1.12rem; font-weight: 800; letter-spacing: -.01em; }
+.start-btn small { display: block; opacity: .85; font-size: .85rem; margin-top: .1rem; }
+.home .announce, .home .happy-bar { margin-top: .9rem; }
+.home-title { font-size: 1.05rem; margin: 1.6rem 0 .7rem; letter-spacing: -.01em; color: var(--text); font-family: var(--font); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+@media (min-width: 560px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; min-height: 112px; padding: .9rem .95rem; text-align: left; text-decoration: none;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: calc(var(--radius) + 6px); box-shadow: var(--shadow-sm);
+  font: inherit; transition: transform .1s, border-color .15s; }
+.tile:active { transform: scale(.98); }
+.tile .ti { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; margin-bottom: .35rem;
+  background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand-text, var(--brand)); }
+.tile b { font-size: .95rem; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
+.tile small { color: var(--muted); font-size: .78rem; line-height: 1.3; }
+.tile.on { border-color: color-mix(in srgb, var(--green) 45%, transparent); background: var(--green-bg); }
+.tile.on .ti { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.socials { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin: 1.2rem 0 0; padding: .8rem 1rem;
+  border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); background: var(--surface); }
+.socials span { font-weight: 800; font-size: .92rem; }
+.socials div { display: flex; gap: .5rem; }
+.socials a { width: 42px; height: 42px; border-radius: 999px; display: grid; place-items: center; border: 1px solid var(--border); color: var(--text); background: var(--bg); }
+.wifi-qr.big img { width: 160px; height: 160px; }
+
+/* Rating the venue (end of the menu, Info, start screen): stars, then Google for happy guests or a private comment. */
+.review-card { margin: 2rem 0 0; padding: 1.1rem 1rem; text-align: center; border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px);
+  background: var(--surface); box-shadow: var(--shadow-sm); }
+.review-card.in-sheet { border: 0; box-shadow: none; padding: .2rem 0 .4rem; margin: 0; }
+.review-card > b { display: block; font-size: 1.02rem; }
+.review-card p { margin: 0 0 .8rem; }
+.review-card .stars button { padding: .25rem; }
+.review-card .stars button.on { color: #e0a100; }
+.review-card .stars button.on svg { fill: currentColor; }

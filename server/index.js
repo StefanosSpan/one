@@ -308,6 +308,29 @@ function rateLimit(key, max, windowMs) {
 // ---------------------------------------------------------------------------
 const cleanText = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
 
+// A web link the owner typed ("instagram.com/x" or "https://…"): only http(s), so a menu never carries a script link.
+function cleanUrl(v, max = 500) {
+  let u = cleanText(v, max);
+  if (!u) return '';
+  if (!/^https?:\/\//i.test(u)) {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(u) || !/^[^\s/]+\.[^\s]{2,}/.test(u)) return '';
+    u = `https://${u}`;
+  }
+  try { return /^https?:$/.test(new URL(u).protocol) ? u : ''; } catch { return ''; }
+}
+
+// The start screen guests see after scanning the QR: a short welcome and one button per thing they can do there.
+const WELCOME_TILES = ['call', 'bill', 'order', 'takeaway', 'review', 'wifi', 'loyalty', 'directions', 'phone', 'booking', 'delivery', 'website', 'social', 'info'];
+function cleanWelcome(w = {}) {
+  return {
+    enabled: w.enabled !== false,
+    message: cleanI18n(w.message, 200),
+    hide: WELCOME_TILES.filter((k) => Array.isArray(w.hide) && w.hide.includes(k)),
+    links: (Array.isArray(w.links) ? w.links : []).slice(0, 4).map((l) => ({ label: cleanText(l?.label, 40), url: cleanUrl(l?.url) }))
+      .filter((l) => l.label && l.url),
+  };
+}
+
 function cleanI18n(obj, max = 300) {
   const out = {};
   if (obj && typeof obj === 'object') {
@@ -408,9 +431,11 @@ function publicRestaurant(venue) {
   const r = s.restaurant || {};
   return {
     name: r.name, description: r.description || {}, hours: r.hours || {},
-    address: r.address, phone: r.phone, email: r.email, mapsUrl: r.mapsUrl,
-    wifiName: r.wifiName, wifiPassword: r.wifiPassword, instagram: r.instagram,
-    reviewUrl: r.reviewUrl, logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
+    address: r.address, phone: r.phone, email: r.email, mapsUrl: cleanUrl(r.mapsUrl),
+    wifiName: r.wifiName, wifiPassword: r.wifiPassword, instagram: cleanUrl(r.instagram),
+    reviewUrl: cleanUrl(r.reviewUrl), logoUrl: r.logoUrl || '', coverUrl: r.coverUrl || '',
+    website: cleanUrl(r.website), facebook: cleanUrl(r.facebook), tiktok: cleanUrl(r.tiktok),
+    bookingUrl: cleanUrl(r.bookingUrl), deliveryUrl: cleanUrl(r.deliveryUrl),
     brandColor: s.brandColor || '#1f3a5f',
     theme: cleanTheme(s.theme),
     currency: venue.currency,
@@ -521,6 +546,9 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
     requireApproval: s.requireApproval,
     currency: s.currency,
     features: { ordering: f.ordering, calls: f.calls },
+    welcome: cleanWelcome(s.welcome),
+    // From a table the start screen can also open the pick-up menu (the venue's public menu link).
+    takeawayUrl: takeawayOn(venue) ? `/m/${venue.slug}` : '',
     table: { label: table.label, kind: table.kind, zone: table.zone, allInclusive: table.all_inclusive },
     happyHour: happy ? { label: s.happyHour?.label || {}, to: s.happyHour?.to || '' } : null,
     announcement: ann?.active && (ann.text?.el || ann.text?.en || ann.itemId) ? { text: ann.text || {}, itemId: ann.itemId || null } : null,
@@ -638,6 +666,9 @@ app.get('/api/public/menu/:slug', wrap(async (req, res) => {
     requireApproval: s.requireApproval, currency: s.currency,
     features: { ordering: takeawayOn(venue), calls: false },
     takeaway: takeawayOn(venue) ? { minMinutes: Number(s.takeaway.minMinutes) || 20 } : null,
+    feedback: s.feedback !== false,
+    loyalty: null,
+    welcome: cleanWelcome(s.welcome),
     payments: { provider: 'off', tips: [], roomCharge: false },
     table: { label: '', kind: 'takeaway', zone: '', allInclusive: false },
     happyHour: happy ? { label: s.happyHour?.label || {}, to: s.happyHour?.to || '' } : null,
@@ -1264,6 +1295,26 @@ app.post('/api/public/receipt/:token/feedback', wrap(async (req, res) => {
   res.json({ ok: true, reviewUrl: rating >= 4 ? venue?.settings.restaurant?.reviewUrl || '' : '' });
 }));
 
+// Rating from the start screen, without a bill. Happy guests are invited to review the venue on Google.
+async function startFeedback(req, res, venue, label) {
+  if (venue.settings.feedback === false) fail(403, 'feedback_disabled');
+  const rating = Math.trunc(Number(req.body?.rating));
+  if (!(rating >= 1 && rating <= 5)) fail(400, 'bad_rating');
+  const guest = cleanText(req.body?.guestId, 64) || req.ip || 'x';
+  if (!rateLimit(`fb:${venue.id}:${guest}`, 1, 12 * 3600_000) || !rateLimit(`fbip:${req.ip}`, 5, 3600_000)) fail(429, 'too_many_requests');
+  const lang = LANGS.includes(req.body?.lang) ? req.body.lang : 'el';
+  await db.insert('INSERT INTO feedback (venue_id, receipt_id, table_label, rating, comment, lang, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [venue.id, null, label, rating, cleanText(req.body?.comment, 1000), lang, now()]);
+  res.json({ ok: true, reviewUrl: rating >= 4 ? cleanUrl(venue.settings.restaurant?.reviewUrl) : '' });
+}
+app.post('/api/public/table/:token/feedback', wrap(async (req, res) => {
+  const table = await tableByToken(req);
+  await startFeedback(req, res, req.venue, table.label);
+}));
+app.post('/api/public/menu/:slug/feedback', wrap(async (req, res) => {
+  await startFeedback(req, res, await venueBySlugPublic(req), 'QR');
+}));
+
 // Dish opened on the menu (one count per guest and dish, sent by the menu).
 app.post('/api/public/table/:token/view', wrap(async (req, res) => {
   const table = await tableByToken(req);
@@ -1356,8 +1407,10 @@ admin.put('/settings', wrap(async (req, res) => {
       description: cleanI18n(r.description, 400),
       hours: cleanI18n(r.hours, 200),
       address: cleanText(r.address, 200), phone: cleanText(r.phone, 40), email: cleanText(r.email, 120),
-      mapsUrl: cleanText(r.mapsUrl, 500), wifiName: cleanText(r.wifiName, 60), wifiPassword: cleanText(r.wifiPassword, 60),
-      instagram: cleanText(r.instagram, 200), reviewUrl: cleanText(r.reviewUrl, 500), logoUrl: cleanText(r.logoUrl, 500), coverUrl: cleanText(r.coverUrl, 500),
+      mapsUrl: cleanUrl(r.mapsUrl), wifiName: cleanText(r.wifiName, 60), wifiPassword: cleanText(r.wifiPassword, 60),
+      instagram: cleanUrl(r.instagram, 200), reviewUrl: cleanUrl(r.reviewUrl), logoUrl: cleanText(r.logoUrl, 500), coverUrl: cleanText(r.coverUrl, 500),
+      website: cleanUrl(r.website, 300), facebook: cleanUrl(r.facebook, 300), tiktok: cleanUrl(r.tiktok, 300),
+      bookingUrl: cleanUrl(r.bookingUrl), deliveryUrl: cleanUrl(r.deliveryUrl),
       responsible: cleanText(r.responsible, 80), legalName: cleanText(r.legalName, 120), vatNumber: cleanText(r.vatNumber, 20), taxOffice: cleanText(r.taxOffice, 60),
       receiptFooter: cleanText(r.receiptFooter, 300),
     });
@@ -1396,6 +1449,7 @@ admin.put('/settings', wrap(async (req, res) => {
       reward: cleanI18n(b.loyalty.reward, 80) });
   }
   if (typeof b.feedback === 'boolean') await set('feedback', b.feedback);
+  if (b.welcome && typeof b.welcome === 'object') await set('welcome', cleanWelcome(b.welcome));
   if (b.takeaway && typeof b.takeaway === 'object') {
     await set('takeaway', { enabled: !!b.takeaway.enabled, minMinutes: Math.min(Math.max(Math.trunc(Number(b.takeaway.minMinutes)) || 20, 5), 240) });
   }

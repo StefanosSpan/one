@@ -450,3 +450,39 @@ test('loyalty card, feedback, dish views and Wi-Fi QR', async () => {
   assert.equal(wifi.status, 200);
   assert.match(await wifi.text(), /<svg/);
 });
+
+test('start screen after the QR: settings, safe links, pick-up link and rating from the menu', async () => {
+  const cur = (await call('/api/admin/settings', { as: 'admin' })).data;
+  // On by default, with no message and every button.
+  let menu = (await call(`/api/public/table/${token}`)).data;
+  assert.deepEqual(menu.welcome, { enabled: true, message: {}, hide: [], links: [] });
+  assert.equal(menu.takeawayUrl, '');
+  // Links: only web addresses reach guests ("javascript:" is dropped, a bare domain gets https://).
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { restaurant: { ...cur.restaurant,
+    website: 'example.gr', facebook: 'javascript:alert(1)', bookingUrl: 'https://book.example.gr/x', reviewUrl: 'https://g.page/r/start' } } });
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { takeaway: { enabled: true }, welcome: {
+    enabled: true, message: { el: 'Καλώς ήρθατε!', xx: 'no' }, hide: ['wifi', 'nope'],
+    links: [{ label: 'Εκδηλώσεις', url: 'example.gr/events' }, { label: 'Κακό', url: 'javascript:alert(1)' }, { label: '', url: 'https://x.gr' }] } } });
+  menu = (await call(`/api/public/table/${token}`)).data;
+  assert.equal(menu.restaurant.website, 'https://example.gr');
+  assert.equal(menu.restaurant.facebook, '');
+  assert.equal(menu.restaurant.bookingUrl, 'https://book.example.gr/x');
+  assert.deepEqual(menu.welcome, { enabled: true, message: { el: 'Καλώς ήρθατε!' }, hide: ['wifi'], links: [{ label: 'Εκδηλώσεις', url: 'https://example.gr/events' }] });
+  assert.equal(menu.takeawayUrl, '/m/demo');
+  assert.equal((await call('/api/public/menu/demo')).data.welcome.message.el, 'Καλώς ήρθατε!');
+  // Rating without a bill: happy guests get the review link, unhappy ones stay private; once per phone for a while.
+  const fb = await call(`/api/public/table/${token}/feedback`, { method: 'POST', body: { rating: 5, guestId: 'start-1', lang: 'en' } });
+  assert.equal(fb.data.reviewUrl, 'https://g.page/r/start');
+  assert.equal((await call(`/api/public/table/${token}/feedback`, { method: 'POST', body: { rating: 4, guestId: 'start-1' } })).status, 429);
+  const low = await call('/api/public/menu/demo/feedback', { method: 'POST', body: { rating: 2, comment: 'Αργό σέρβις', guestId: 'start-2' } });
+  assert.equal(low.data.reviewUrl, '');
+  assert.equal((await call('/api/public/menu/demo/feedback', { method: 'POST', body: { rating: 9, guestId: 'start-3' } })).status, 400);
+  const list = (await call('/api/admin/feedback', { as: 'admin' })).data.list;
+  assert.equal(list[0].comment, 'Αργό σέρβις');
+  assert.equal(list[0].table, 'QR');
+  // Turned off: the menu opens directly; ratings can be switched off too.
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { welcome: { enabled: false }, feedback: false, takeaway: { enabled: false } } });
+  assert.equal((await call(`/api/public/table/${token}`)).data.welcome.enabled, false);
+  assert.equal((await call(`/api/public/table/${token}/feedback`, { method: 'POST', body: { rating: 5, guestId: 'start-4' } })).status, 403);
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { welcome: { enabled: true }, feedback: true, restaurant: cur.restaurant } });
+});
