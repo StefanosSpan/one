@@ -132,7 +132,7 @@ test('pages for searches: one per market, with their own title, language links, 
 });
 
 test('Search Console and Bing ownership tags, and the IndexNow key', async () => {
-  process.env.GOOGLE_SITE_VERIFICATION = 'google-code-1, google-code-2';
+  process.env.GOOGLE_SITE_VERIFICATION = 'google-code-1, google-site-verification=google-code-2';
   process.env.US_BING_SITE_VERIFICATION = 'bing-code';
   try {
     const home = (await get(GR, '/')).text;
@@ -146,8 +146,9 @@ test('Search Console and Bing ownership tags, and the IndexNow key', async () =>
     delete process.env.GOOGLE_SITE_VERIFICATION;
     delete process.env.US_BING_SITE_VERIFICATION;
   }
-  // Without codes there are no empty tags.
-  assert.doesNotMatch((await get(GR, '/')).text, /google-site-verification/);
+  // Without codes on the hosting, the codes in seo.js are used; kalimenu.com has none, and no empty tags.
+  assert.match((await get(GR, '/')).text, /<meta name="google-site-verification" content="-vAIS2TvKaHCJ1pI8zX3IzwFAKW82fRVFCJh-30h9nc">/);
+  assert.doesNotMatch((await get(US, '/')).text, /google-site-verification/);
   // IndexNow: the key file of each website is served at /<key>.txt and other .txt addresses are not.
   const { createHash } = await import('node:crypto');
   const key = createHash('sha256').update('kalimenu-indexnow:http://kalimenu.test').digest('hex').slice(0, 32);

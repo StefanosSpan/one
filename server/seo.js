@@ -41,12 +41,14 @@ const SITE_UPDATED = '2026-10-12';
 // set on the hosting (GOOGLE_SITE_VERIFICATION, BING_SITE_VERIFICATION; for kalimenu.com US_GOOGLE_SITE_VERIFICATION…)
 // or here. Several codes, comma-separated, verify several accounts.
 const VERIFY = {
-  gr: { google: '', bing: '' },
+  gr: { google: '-vAIS2TvKaHCJ1pI8zX3IzwFAKW82fRVFCJh-30h9nc', bing: '' },
   us: { google: '', bing: '' },
 };
 const verification = (market) => {
   const prefix = market === 'us' ? 'US_' : '';
-  const codes = (name, key) => String(process.env[`${prefix}${name}`] || VERIFY[market][key] || '').split(',').map((c) => c.trim()).filter(Boolean);
+  // A code copied as the DNS record ("google-site-verification=…") works too.
+  const codes = (name, key) => String(process.env[`${prefix}${name}`] || VERIFY[market][key] || '').split(',')
+    .map((c) => c.trim().replace(/^google-site-verification=/, '')).filter(Boolean);
   return [...codes('GOOGLE_SITE_VERIFICATION', 'google').map((c) => `<meta name="google-site-verification" content="${esc(c)}">`),
     ...codes('BING_SITE_VERIFICATION', 'bing').map((c) => `<meta name="msvalidate.01" content="${esc(c)}">`)];
 };
