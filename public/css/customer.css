@@ -307,3 +307,8 @@ a { color: var(--brand-text, var(--brand)); }
 .review-card .stars button { padding: .25rem; }
 .review-card .stars button.on { color: #e0a100; }
 .review-card .stars button.on svg { fill: currentColor; }
+/* Wide screens: languages wrap instead of scrolling, the tab bar sits under the content column. */
+@media (min-width: 560px) { .lang-chips { flex-wrap: wrap; overflow: visible; } }
+@media (min-width: 760px) {
+  .tabs { max-width: 720px; margin: 0 auto; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; }
+}
