@@ -99,3 +99,61 @@ test('the menu link of a venue has its own title, preview and restaurant data; p
   assert.equal((await get(host, '/staff')).headers['x-robots-tag'], 'noindex, nofollow');
   assert.equal((await get(GR, '/login')).headers['x-robots-tag'], 'noindex, nofollow');
 });
+
+test('pages for searches: one per market, with their own title, language links, questions, and listed in the sitemap', async () => {
+  const { LANDING } = await import('../server/landing.js');
+  const page = await get(GR, '/psifiako-menou');
+  assert.equal(page.status, 200);
+  assert.match(page.text, /<title>Ψηφιακό μενού εστιατορίου σε 8 γλώσσες \| Kalimenu<\/title>/);
+  assert.match(page.text, /<link rel="canonical" href="http:\/\/kalimenu\.test\/psifiako-menou">/);
+  assert.match(page.text, /<h1>Ψηφιακό μενού εστιατορίου/);
+  const data = JSON.parse(page.text.match(/application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  assert.deepEqual(data['@graph'].map((x) => x['@type']), ['WebPage', 'BreadcrumbList', 'FAQPage']);
+  assert.ok(data['@graph'][2].mainEntity.length >= 3);
+  // The same page in the other language is linked both ways.
+  assert.match((await get(GR, '/qr-menu')).text, /hreflang="en-us" href="http:\/\/kalimenu-us\.test\/qr-code-menu"/);
+  assert.match((await get(US, '/qr-code-menu')).text, /hreflang="el" href="http:\/\/kalimenu\.test\/qr-menu"/);
+  // Each website has only its own pages; venue addresses have none.
+  assert.equal((await get(US, '/psifiako-menou')).status, 404);
+  assert.equal((await get(GR, '/qr-code-menu')).status, 404);
+  assert.equal((await get(`${slug}.${GR}`, '/qr-menu')).status, 404);
+  // Unique titles and descriptions, each page in its website's sitemap with the date it changed.
+  for (const [market, host] of [['gr', GR], ['us', US]]) {
+    const pages = LANDING[market];
+    assert.equal(new Set(pages.map((p) => p.title)).size, pages.length);
+    assert.equal(new Set(pages.map((p) => p.description)).size, pages.length);
+    for (const p of pages) assert.ok(p.description.length <= 170, `${p.path}: description of ${p.description.length} characters`);
+    const map = (await get(host, '/sitemap.xml')).text;
+    for (const p of pages) assert.match(map, new RegExp(`<loc>http://${host.replace(/\./g, '\\.')}${p.path}</loc>.*<lastmod>\\d{4}-\\d\\d-\\d\\d</lastmod>`));
+    // The home page links to every page for searches.
+    const home = (await get(host, '/')).text;
+    for (const p of pages) assert.ok(home.includes(`href="${p.path}"`), `the home page links to ${p.path}`);
+  }
+});
+
+test('Search Console and Bing ownership tags, and the IndexNow key', async () => {
+  process.env.GOOGLE_SITE_VERIFICATION = 'google-code-1, google-code-2';
+  process.env.US_BING_SITE_VERIFICATION = 'bing-code';
+  try {
+    const home = (await get(GR, '/')).text;
+    assert.match(home, /<meta name="google-site-verification" content="google-code-1">/);
+    assert.match(home, /<meta name="google-site-verification" content="google-code-2">/);
+    assert.doesNotMatch(home, /msvalidate/);
+    const us = (await get(US, '/')).text;
+    assert.match(us, /<meta name="msvalidate\.01" content="bing-code">/);
+    assert.doesNotMatch(us, /google-code-1/, 'each website has its own codes');
+  } finally {
+    delete process.env.GOOGLE_SITE_VERIFICATION;
+    delete process.env.US_BING_SITE_VERIFICATION;
+  }
+  // Without codes there are no empty tags.
+  assert.doesNotMatch((await get(GR, '/')).text, /google-site-verification/);
+  // IndexNow: the key file of each website is served at /<key>.txt and other .txt addresses are not.
+  const { createHash } = await import('node:crypto');
+  const key = createHash('sha256').update('kalimenu-indexnow:http://kalimenu.test').digest('hex').slice(0, 32);
+  const r = await get(GR, `/${key}.txt`);
+  assert.equal(r.status, 200);
+  assert.equal(r.text, key);
+  assert.equal((await get(US, `/${key}.txt`)).status, 404);
+  assert.equal((await get(GR, '/0123456789abcdef.txt')).status, 404);
+});

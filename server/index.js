@@ -2484,7 +2484,7 @@ const page = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, file));
 // Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one.
 const EN_PAGES = new Set(['index.html', 'signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
 // Search engines: robots.txt, sitemap.xml, tags of the website pages and previews of the venues' menus (see seo.js).
-const { sitePage, menuPage } = installSeo(app, { PUBLIC_DIR, PRODUCTION, EN_PAGES, marketOf, mainOrigin, venueOrigin, MAIN_URLS, BASE_DOMAIN,
+const { sitePage, menuPage, notifySearchEngines } = installSeo(app, { PUBLIC_DIR, PRODUCTION, EN_PAGES, marketOf, mainOrigin, venueOrigin, MAIN_URLS, BASE_DOMAIN,
   db, getVenue, venueBySlug, features, publicRestaurant });
 // With an address per venue, links to the main address (older printed QR codes, the home page demo) move on
 // to the venue's own address.
@@ -2588,6 +2588,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   loadSharedAssets().then(async () => {
     for (const demo of await db.all('SELECT id FROM venues WHERE is_demo = 1')) await addSamplePhotos(demo.id);
   }).catch((e) => console.error('sample photos', e));
+  // Bing and the other IndexNow engines hear about the website pages a minute after each deploy.
+  if (PRODUCTION && process.env.INDEXNOW !== 'off') setTimeout(() => notifySearchEngines(), 60_000).unref();
   app.listen(PORT, '0.0.0.0', () => {
     const lan = Object.values(networkInterfaces()).flat()
       .find((i) => i && i.family === 'IPv4' && !i.internal)?.address;
