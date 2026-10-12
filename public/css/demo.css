@@ -1,0 +1,23 @@
+/* Demo page: one card per screen of the demo, with the PINs. */
+.demo { max-width: 760px; margin: 3rem auto 2rem; padding: 0 16px; }
+.demo h1 { font-size: clamp(1.8rem, 5vw, 2.4rem); margin: 0 0 .5rem; letter-spacing: -.035em; line-height: 1.1; }
+.demo .lead { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.4rem; }
+.demo .ctas { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.8rem; }
+.demo .btn { min-height: 48px; border-radius: 12px; }
+.demo .btn.primary { background: linear-gradient(180deg, #db7046, #d2643c); color: #fff; box-shadow: 0 8px 20px rgba(210, 100, 60, .3); }
+.demo-list { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+@media (max-width: 560px) { .demo-list { grid-template-columns: 1fr; } }
+.demo-list a { display: flex; gap: .9rem; align-items: flex-start; padding: 1.1rem; background: #fff; border: 1px solid rgba(22, 32, 43, .07);
+  border-radius: 18px; color: var(--text); text-decoration: none; box-shadow: 0 1px 2px rgba(22, 32, 43, .05), 0 12px 32px rgba(22, 32, 43, .08);
+  transition: transform .15s, box-shadow .15s; }
+.demo-list a:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(22, 32, 43, .05), 0 18px 40px rgba(22, 32, 43, .12); }
+.demo-list .di { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; flex: none; }
+.demo-list a:nth-child(1) .di { background: #fbe9e0; color: #c9552c; }
+.demo-list a:nth-child(2) .di { background: #e6edf6; color: #1f3a5f; }
+.demo-list a:nth-child(3) .di { background: #e2f2e8; color: #2f8a57; }
+.demo-list a:nth-child(4) .di { background: #fbefd6; color: #a26a00; }
+.demo-list b { display: block; font-size: 1.05rem; margin-bottom: .15rem; }
+.demo-list span { color: var(--muted); font-size: .9rem; line-height: 1.45; }
+.demo-list .pin { display: inline-block; margin-top: .45rem; font-size: .75rem; font-weight: 800; letter-spacing: .04em; color: var(--text);
+  background: #f3f4f6; border-radius: 999px; padding: .15rem .55rem; }
+.demo-note { margin-top: 1.4rem; color: var(--muted); font-size: .9rem; text-align: center; }

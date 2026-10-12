@@ -28,7 +28,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .venue .meta { margin-top: .7rem; font-size: .82rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .4rem; }
 .venue .meta span { display: inline-flex; align-items: center; background: var(--fill); border-radius: 999px; padding: .22rem .7rem; font-weight: 600; }
 .venue .meta b { color: var(--brand-text, var(--brand)); font-weight: 800; }
-.venue .meta span:first-child { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.venue .meta span.spot { background: color-mix(in srgb, var(--brand) 12%, transparent); }
 .service { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin: 1rem 0 1.1rem; }
 .service button { display: flex; align-items: center; justify-content: center; gap: .5rem; border: 1px solid var(--border); background: var(--surface);
   border-radius: calc(var(--radius) + 4px); padding: .72rem .5rem; font-weight: 700; font-size: .9rem; color: var(--text); box-shadow: var(--shadow-sm);

@@ -410,3 +410,4 @@ body.kitchen .bar button.on { color: #fff; }
 /* Sections that exist only in Greece (myDATA, Viva) or only in the United States. */
 html[data-market="us"] [data-gr-only] { display: none !important; }
 html:not([data-market="us"]) [data-us-only] { display: none !important; }
+@media (max-width: 640px) { .bar .station-select { max-width: 120px; } }

@@ -1343,7 +1343,9 @@ app.get('/api/public/receipt/:token', wrap(async (req, res) => {
   const venue = row && !otherVenue(req, row.venue_id) && await getVenue(row.venue_id);
   if (!venue || venue.status === 'suspended') fail(404, 'not_found');
   const { token, orderIds, tableId, ...pub } = mapReceipt(row);
-  res.json({ receipt: pub, restaurant: publicRestaurant(venue) });
+  // The guest can rate the visit once from the digital receipt (when the venue asks for ratings).
+  const rated = !!(await db.get('SELECT id FROM feedback WHERE receipt_id = ?', [row.id]));
+  res.json({ receipt: pub, restaurant: publicRestaurant(venue), feedback: venue.settings.feedback !== false && !rated });
 }));
 
 // Any staff member may mark an item as sold out / available again.
@@ -2563,6 +2565,10 @@ app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d' }));
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
+// Pages that do not exist: a friendly page in the language of the site (English on kalimenu.com).
+app.use((req, res) => {
+  res.status(404).set('X-Robots-Tag', 'noindex').sendFile(join(PUBLIC_DIR, marketOf(req) === 'us' ? 'en/404.html' : '404.html'));
+});
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

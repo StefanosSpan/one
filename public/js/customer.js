@@ -308,13 +308,13 @@ function renderBottom() {
 function venueHeader({ service = true } = {}) {
   const r = S.data.restaurant;
   return `
-    ${r.coverUrl ? `<div class="cover"><img src="${esc(r.coverUrl)}" alt=""></div>` : ''}
+    ${r.coverUrl ? `<div class="cover"><img src="${esc(r.coverUrl)}" alt="" onerror="this.remove()"></div>` : ''}
     <section class="venue ${r.coverUrl ? 'on-cover' : ''} ${r.logoUrl ? 'with-logo' : ''}">
-      ${r.logoUrl ? `<img class="venue-logo" src="${esc(r.logoUrl)}" alt="${esc(r.name)}">` : ''}
+      ${r.logoUrl ? `<img class="venue-logo" src="${esc(r.logoUrl)}" alt="${esc(r.name)}" onerror="this.remove()">` : ''}
       <div class="venue-text">
         <h1>${esc(r.name)}</h1>
         ${tr(r.description) ? `<p>${esc(tr(r.description))}</p>` : ''}
-        <div class="meta"><span><b>${esc(spot())}</b></span>${tr(r.hours) ? `<span>${esc(tr(r.hours))}</span>` : ''}</div>
+        <div class="meta">${spot() ? `<span class="spot"><b>${esc(spot())}</b></span>` : ''}${tr(r.hours) ? `<span>${esc(tr(r.hours))}</span>` : ''}</div>
       </div>
     </section>
     ${service ? serviceRow() : ''}
@@ -348,7 +348,7 @@ function renderMenu() {
   const hh = S.data.happyHour;
   $('#app').innerHTML = `
     ${venueHeader()}
-    ${ann ? `<button class="announce" id="announce">${ann.itemId && itemById(ann.itemId)?.image_url ? `<img src="${esc(itemById(ann.itemId).image_url)}" alt="">` : ''}
+    ${ann ? `<button class="announce" id="announce">${ann.itemId && itemById(ann.itemId)?.image_url ? `<img src="${esc(itemById(ann.itemId).image_url)}" alt="" onerror="this.remove()">` : ''}
       <span>${esc(tr(ann.text) || tr(itemById(ann.itemId)?.name || {}))}</span>${ann.itemId ? icon('chevron', 16) : ''}</button>` : ''}
     ${hh ? `<div class="happy-bar">${icon('clock', 15)}<b>${esc(tr(hh.label) || t('happyHour'))}</b>${hh.to ? `<span>${esc(tf('happyUntil', { t: hh.to }))}</span>` : ''}</div>` : ''}
     <div class="search">${icon('search', 17)}
@@ -891,7 +891,7 @@ function renderHome() {
     <button class="start-btn" data-act="menu"><span class="ti">${icon('book', 24)}</span>
       <span class="grow"><b>${esc(canOrder() ? t('menuAndOrder') : t('viewMenu'))}</b>
       <small>${esc(canOrder() ? (MODE === 'menu' ? t('orderPickupSub') : t('orderFromPhone')) : t('menuSub'))}</small></span>${icon('right', 22)}</button>
-    ${ann ? `<button class="announce" data-act="announce">${ann.itemId && itemById(ann.itemId)?.image_url ? `<img src="${esc(itemById(ann.itemId).image_url)}" alt="">` : ''}
+    ${ann ? `<button class="announce" data-act="announce">${ann.itemId && itemById(ann.itemId)?.image_url ? `<img src="${esc(itemById(ann.itemId).image_url)}" alt="" onerror="this.remove()">` : ''}
       <span>${esc(tr(ann.text) || tr(itemById(ann.itemId)?.name || {}))}</span>${icon('chevron', 16)}</button>` : ''}
     ${hh ? `<div class="happy-bar">${icon('clock', 15)}<b>${esc(tr(hh.label) || t('happyHour'))}</b>${hh.to ? `<span>${esc(tf('happyUntil', { t: hh.to }))}</span>` : ''}</div>` : ''}
     ${tiles.length ? `<h2 class="home-title">${esc(t('howHelp'))}</h2><div class="tiles">${tiles.join('')}</div>` : ''}

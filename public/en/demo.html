@@ -8,43 +8,37 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>Kalimenu · Demo</title>
   <link rel="stylesheet" href="/css/app.css">
-  <style>
-    body { background: #f5f5f5; }
-    .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1rem; }
-    h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
-    .lead { color: var(--muted); margin: 0 0 1.5rem; }
-    .list { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
-    .list a { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
-      color: var(--text); text-decoration: none; }
-    .list a:last-child { border-bottom: 0; }
-    .list a:hover { background: #fafafa; }
-    .list b { display: block; }
-    .list span { color: var(--muted); font-size: .9rem; }
-    .list .go { color: var(--faint); }
-    .pins { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
-  </style>
+  <link rel="stylesheet" href="/css/auth.css">
+  <link rel="stylesheet" href="/css/demo.css">
 </head>
 <body>
-  <div class="wrap">
-    <h1>Kalimenu · Demo</h1>
-    <p class="lead">QR menu and table ordering for restaurants, bars and hotels. <a href="/">Home page and pricing</a></p>
-    <p><a class="btn" href="/signup">Create your own menu for free</a></p>
-    <div class="list" id="links"></div>
-    <p class="pins" id="pins"></p>
-  </div>
+  <header class="auth-top"><div class="in">
+    <a class="wordmark" href="/"><img src="/brand/logo.svg" alt="Kalimenu" width="133" height="26"></a>
+    <a class="link" href="/signup">Create account</a>
+  </div></header>
+  <main class="demo">
+    <h1>Try Kalimenu</h1>
+    <p class="lead">A real demo restaurant: open the menu like a guest, send an order and watch it reach the server and the kitchen.</p>
+    <div class="ctas"><a class="btn primary" href="/signup">Create your own menu for free</a><a class="btn secondary" href="/">Home page and pricing</a></div>
+    <div class="demo-list" id="links"></div>
+    <p class="demo-note">The demo resets itself regularly, so feel free to try anything.</p>
+  </main>
+  <footer class="legal-foot"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/cookies">Cookies</a> · <a class="walkup" href="https://walkupdigital.com" target="_blank" rel="noopener"><img src="/brand/walkup-mark.png" alt="" width="22" height="15">Designed by walkupdigital.com</a></footer>
   <script type="module">
     import { api, esc } from '/js/util.js';
+    import { icon } from '/js/icons.js';
     const d = await api('/api/demo');
     const t = d.tables[0];
+    const pins = d.pins || {};
     const staff = (page) => `/staff?v=${encodeURIComponent(d.venue || '')}&next=${page}`;
     document.getElementById('links').innerHTML = [
-      ['Guest menu', `What guests see after scanning the QR code (Table ${esc(t?.label ?? '')})`, t?.url],
-      ['Server', 'Calls, order approval, taking orders, checks', staff('/staff/waiter')],
-      ['Kitchen', 'Pass screen with orders in real time', staff('/staff/kitchen')],
-      ['Admin', 'Menu, tables and QR codes, history, settings', staff('/staff/admin')],
-    ].map(([h, p, href]) => `<a href="${href}" target="_blank"><div><b>${h}</b><span>${p}</span></div><span class="go">›</span></a>`).join('');
-    if (d.pins) document.getElementById('pins').textContent =
-      `Demo PINs: Admin ${d.pins.admin} · Server ${d.pins.waiter} · Kitchen ${d.pins.kitchen}`;
+      ['qr', 'Guest menu', `What guests see after scanning the QR code (Table ${esc(t?.label ?? '')})`, t?.url, ''],
+      ['users', 'Server', 'Calls, order approval, taking orders, checks', staff('/staff/waiter'), pins.waiter],
+      ['flame', 'Kitchen', 'Pass screen with orders in real time', staff('/staff/kitchen'), pins.kitchen],
+      ['sliders', 'Admin', 'Menu, tables and QR codes, look, history, settings', staff('/staff/admin'), pins.admin],
+    ].map(([ic, h, p, href, pin]) => `<a href="${href}" target="_blank"><span class="di">${icon(ic, 22)}</span>
+      <div><b>${h}</b><span>${p}</span>${pin ? `<br><span class="pin">PIN ${esc(pin)}</span>` : ''}</div></a>`).join('');
   </script>
+  <script type="module" src="/js/cookies.js"></script>
 </body>
 </html>

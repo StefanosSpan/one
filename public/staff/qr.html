@@ -79,6 +79,11 @@
     .qcard .url { color: #6b6b6b; font-size: 7pt; margin-top: 1mm; word-break: break-all; }
     .size-sticker .url { display: none; }
 
+    /* Phones and small tablets: the A4 preview is scaled down to fit; printing is not affected. */
+    @media screen and (max-width: 840px) { .paper { zoom: .86; } }
+    @media screen and (max-width: 700px) { .paper { zoom: .62; } .toolbar .count { margin-left: 0; } }
+    @media screen and (max-width: 520px) { .paper { zoom: .44; } }
+    @media screen and (max-width: 360px) { .paper { zoom: .4; } }
     @media print {
       body { background: #fff; }
       .toolbar, .hint { display: none; }

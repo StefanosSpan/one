@@ -138,7 +138,7 @@ function photoField(root, sel, initial, { wide = false, contain = false, onChang
   const draw = () => {
     onChange?.(url);
     box.innerHTML = `<div class="photo-drop ${wide ? 'wide' : ''} ${contain ? 'contain' : ''} ${url ? 'has' : ''}">
-      ${url ? `<img src="${esc(url)}" alt="">` : `<div class="ph">${icon('image', 26)}<span>Ανέβασμα φωτογραφίας</span><small>JPG, PNG, WEBP · έως 4MB</small></div>`}
+      ${url ? `<img src="${esc(url)}" alt="" onerror="this.style.opacity=0">` : `<div class="ph">${icon('image', 26)}<span>Ανέβασμα φωτογραφίας</span><small>JPG, PNG, WEBP · έως 4MB</small></div>`}
       <input type="file" accept="image/*">
     </div>
     ${url ? `<button type="button" class="btn ghost sm rm">${icon('trash', 14)} Αφαίρεση φωτογραφίας</button>` : ''}`;
@@ -936,7 +936,7 @@ function renderLook() {
     const logoUrl = logo?.() ?? r.logoUrl;
     const coverUrl = cover?.() ?? r.coverUrl;
     pv.innerHTML = `
-      ${coverUrl ? `<div class="pv-cover"><img src="${esc(coverUrl)}" alt=""></div>` : ''}
+      ${coverUrl ? `<div class="pv-cover"><img src="${esc(coverUrl)}" alt="" onerror="this.remove()"></div>` : ''}
       <div class="pv-head">${logoUrl ? `<img class="pv-logo" src="${esc(logoUrl)}" alt="">` : ''}
         <div><h1>${esc(r.name)}</h1><p>Τραπέζι 4 · ${esc((L10N.market === 'us' ? r.hours?.en : r.hours?.el) || 'Κάθε μέρα 12:00 – 00:00')}</p></div></div>
       <div class="pv-service"><span>Σερβιτόρος</span><span>Λογαριασμός</span></div>
