@@ -8,14 +8,14 @@ const CDN = 'https://d2ol7oe51mr4n9.cloudfront.net/user_3FfN8uy1PiKtwJpaWKaArcUW
 export const BUNDLES = [
   // Photos of the example menu dishes, served as /assets/dish-<key>.jpg.
   { prefix: 'dish-', count: 21, url: process.env.DISH_PHOTOS_URL || `${CDN}/a20ff3fe-d8f6-4068-9c6a-0ebb24831d44.json` },
-  // App screenshots of the home page in the current design (menu with photos, themes, payment, kitchen, waiter),
-  // served as /assets/app-<key>.jpg. The home page falls back to the older screenshots in public/img until these are loaded.
-  // A new design gets a new prefix, because stored images are never replaced.
-  { prefix: 'app-', count: 9, url: process.env.SITE_SHOTS_URL || `${CDN}/b1974e68-d561-428d-a6ee-1d797f98ceb2.json` },
-  // The same screenshots in English (New York demo) for kalimenu.com, served as /assets/app-us-<key>.jpg.
-  { prefix: 'app-us-', count: 7, url: process.env.SITE_US_SHOTS_URL || `${CDN}/662a8f22-9bcf-4ce3-9038-c77a04d1be18.json` },
+  // App screenshots of the home page in the current design (menu with photos, themes, payment, kitchen, waiter), with the
+  // example venue's own logo and cover, served as /assets/app2-<key>.jpg. The home page falls back to the older
+  // screenshots in public/img until these are loaded. A new design gets a new prefix, because stored images are never replaced.
+  { prefix: 'app2-', count: 9, url: process.env.SITE_SHOTS_URL || `${CDN}/ee64024e-966c-4a6d-9305-e3a3bec0e65f.json` },
+  // The same screenshots in English (New York demo) for kalimenu.com, served as /assets/app2-us-<key>.jpg.
+  { prefix: 'app2-us-', count: 8, url: process.env.SITE_US_SHOTS_URL || `${CDN}/9b08fc2d-89c1-44c5-8bcd-7d747802beb2.json` },
 ];
-// A name belongs to the bundle with the longest matching prefix ("app-us-menu" is English, not "app-").
+// A name belongs to the bundle with the longest matching prefix ("app2-us-menu" is English, not "app2-").
 const bundleOf = (name) => BUNDLES.filter((b) => name.startsWith(b.prefix)).sort((a, b) => b.prefix.length - a.prefix.length)[0];
 const RETRY_MS = 10 * 60_000;
 const state = new Map(); // prefix -> { loading, failedAt }

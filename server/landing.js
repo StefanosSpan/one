@@ -43,7 +43,7 @@ const SHIPPED = ['menu', 'menu-aegean', 'menu-cream', 'menu-lounge', 'pay', 'wai
 const SIZE = { kitchen: [1600, 685], pay: [390, 745] };
 function shot(market, key, alt, lazy = true) {
   const local = `/img/shot-${SHIPPED.includes(key) ? key : 'menu'}.jpg`;
-  const sources = market === 'us' ? [`/assets/app-us-${key}.jpg`, `/assets/app-${key}.jpg`, local] : [`/assets/app-${key}.jpg`, local];
+  const sources = market === 'us' ? [`/assets/app2-us-${key}.jpg`, `/assets/app2-${key}.jpg`, local] : [`/assets/app2-${key}.jpg`, local];
   const [w, h] = SIZE[key] || [390, 844];
   return `<img src="${sources[0]}" data-fb="${sources.slice(1).join(',')}" onerror="fb(this)" alt="${esc(alt)}" width="${w}" height="${h}"${lazy ? ' loading="lazy"' : ''}>`;
 }
