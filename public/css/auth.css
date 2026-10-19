@@ -1,6 +1,6 @@
 /* Sign-up, login, demo, legal and super admin pages, in the look of the websites (see site.css): paper and ink,
    Ysabeau for the titles, round buttons. */
-:root { --paper: #f3f1ec; --ink: #0e1a2b; --card-bg: #fbfaf7; --brand: #0e1a2b; --display: Ysabeau, 'Segoe UI', Roboto, sans-serif; }
+:root { --paper: #ffffff; --ink: #0e1a2b; --card-bg: #ffffff; --brand: #0e1a2b; --display: Ysabeau, 'Segoe UI', Roboto, sans-serif; }
 body { background: var(--paper); color: var(--ink); min-height: 100vh; }
 .auth-top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(14, 26, 43, .12); background: var(--paper); }
 .auth-top .in { max-width: 1320px; margin: 0 auto; padding: .95rem clamp(20px, 4vw, 56px); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }

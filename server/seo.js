@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { PLANS } from './plans.js';
-import { sitePages, pageFor, pairOfPage, updatedOf, allSitePaths, homeFaq, allFaq, renderPage, siteFooter } from './site.js';
+import { sitePages, pageFor, pairOfPage, updatedOf, allSitePaths, homeFaq, allFaq, renderPage, siteHeader, siteFooter } from './site.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // JSON inside <script>: "<" is escaped so the text can never close the tag.
@@ -164,11 +164,13 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       const market = marketOf(req);
       const localFile = market === 'us' && ctx.EN_PAGES.has(file) ? `en/${file}` : file;
       let html = await load(localFile);
-      // The same footer as the main pages, in place of the page's own short line.
-      if (html.includes('<footer class="legal-foot">')) {
-        html = html.replace(/<footer class="legal-foot">[\s\S]*?<\/footer>/, siteFooter(market))
-          .replace('</head>', '  <link rel="stylesheet" href="/css/footer.css">\n</head>')
-          .replace('</body>', '  <script type="module" src="/js/footer.js"></script>\n</body>');
+      // The same header and footer as the main pages, in place of the page's own bar and line.
+      // (Not on a venue's own address, where the website's links do not exist.)
+      if (!req.hostVenue && html.includes('<header class="auth-top">')) {
+        html = html.replace(/<header class="auth-top">[\s\S]*?<\/header>/, siteHeader(market))
+          .replace(/<footer class="legal-foot">[\s\S]*?<\/footer>/, siteFooter(market))
+          .replace('</head>', '  <link rel="stylesheet" href="/css/header.css">\n  <link rel="stylesheet" href="/css/footer.css">\n</head>')
+          .replace('</body>', '  <script type="module" src="/js/chrome.js"></script>\n</body>');
       }
       const path = SITE_PAGES[file];
       if (!path) return res.type('html').send(html);

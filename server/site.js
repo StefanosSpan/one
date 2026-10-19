@@ -349,7 +349,11 @@ const BODY = { home, features, pricing, how, faq, contact };
 // ---------------------------------------------------------------------------
 // Layout
 // ---------------------------------------------------------------------------
-function header(market, page) {
+/**
+ * The header of every page of the websites: the main pages here, and sign-up, login, demo and the legal pages, where
+ * seo.js puts it in place of their own short bar (with no page of the menu marked).
+ */
+export function siteHeader(market, page = { id: '', kind: 'page' }) {
   const t = W[market];
   const active = (id) => (page.id === id && page.kind !== 'solution' ? ' class="active" aria-current="page"' : '');
   const link = (id) => `<a href="${pathOf(market, id)}"${active(id)}>${CONTENT[market].pages[id].name}</a>`;
@@ -415,11 +419,12 @@ export function renderPage(market, page, head) {
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <meta name="theme-color" content="#f3f1ec">
+  <meta name="theme-color" content="#ffffff">
   ${head}
   <link rel="preload" href="/fonts/ysabeau-${script}-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/header.css">
   <link rel="stylesheet" href="/css/footer.css">
   <script>
     document.documentElement.classList.add('js');
@@ -429,7 +434,7 @@ export function renderPage(market, page, head) {
 </head>
 <body class="site page-${page.kind}">
   <a class="skip" href="#main">${t.skip}</a>
-  ${header(market, page)}
+  ${siteHeader(market, page)}
   <main id="main">${main}</main>
   ${siteFooter(market)}
   <script type="module" src="/js/site-page.js"></script>

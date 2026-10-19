@@ -7,7 +7,7 @@
 .demo-list a { display: flex; gap: 1.1rem; align-items: flex-start; padding: 1.3rem .4rem; border-bottom: 1px solid rgba(14, 26, 43, .2); color: var(--ink); text-decoration: none;
   transition: background .3s, color .3s, padding .4s; }
 .demo-list a:hover { background: var(--ink); color: var(--paper); padding-left: 1.2rem; }
-.demo-list a:hover span { color: rgba(243, 241, 236, .75); }
+.demo-list a:hover span { color: rgba(255, 255, 255, .75); }
 .demo-list .di { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; border: 1px solid currentColor; }
 .demo-list b { display: block; font-family: var(--display); font-weight: 600; font-size: 1.6rem; line-height: 1.15; margin-bottom: .2rem; }
 .demo-list span { color: var(--muted); font-size: .92rem; line-height: 1.45; }

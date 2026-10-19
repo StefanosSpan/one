@@ -2682,7 +2682,7 @@ app.use('/api/super', superApi);
 const page = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, file));
 // Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one. The main
 // pages (home, features, pricing…) are built by site.js and added by seo.js.
-const EN_PAGES = new Set(['signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
+const EN_PAGES = new Set(['404.html', 'signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
 // Search engines: robots.txt, sitemap.xml, tags of the website pages and previews of the venues' menus (see seo.js).
 const { sitePage, menuPage, notifySearchEngines } = installSeo(app, { PUBLIC_DIR, PRODUCTION, EN_PAGES, marketOf, mainOrigin, venueOrigin, MAIN_URLS, BASE_DOMAIN,
   db, getVenue, venueBySlug, features, publicRestaurant });
@@ -2790,8 +2790,10 @@ app.use(express.static(PUBLIC_DIR, { extensions: ['html'], setHeaders: (res, fil
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
 // Pages that do not exist: a friendly page in the language of the site (English on kalimenu.com).
-app.use((req, res) => {
-  res.status(404).set('X-Robots-Tag', 'noindex').sendFile(join(PUBLIC_DIR, marketOf(req) === 'us' ? 'en/404.html' : '404.html'));
+const notFound = sitePage('404.html');
+app.use((req, res, next) => {
+  res.status(404).set('X-Robots-Tag', 'noindex');
+  notFound(req, res, next);
 });
 
 // eslint-disable-next-line no-unused-vars

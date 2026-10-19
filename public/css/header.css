@@ -1,0 +1,77 @@
+/* The header of every page of the websites (server/site.js → siteHeader): the logo, the main menu with the Solutions
+   list, sign-in and the free trial; on phones the menu opens over the whole screen. It brings its own colours, so it
+   looks the same on the main pages and on sign-up, login, demo and the legal pages. */
+.sh { --paper: #ffffff; --ink: #0e1a2b; --navy: #1f3a5f; --card: #ffffff; --muted: #586271; --line: rgba(14, 26, 43, .12);
+  --display: Ysabeau, 'Segoe UI', Roboto, sans-serif; --ease: cubic-bezier(.16, .84, .3, 1); --gutter: clamp(20px, 4vw, 56px); color: var(--ink); }
+.sh-in { max-width: 1320px; margin: 0 auto; padding: 0 var(--gutter); }
+.sh a { color: inherit; }
+.sh .btn { position: relative; isolation: isolate; overflow: hidden; border-radius: 999px; min-height: 42px; padding: .45rem 1rem .45rem 1.15rem; gap: .7rem;
+  font-weight: 600; font-size: .92rem; white-space: nowrap; box-shadow: none; border: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+  transition: color .35s var(--ease); }
+.sh .btn::before { content: ''; position: absolute; inset: -1px; z-index: -1; border-radius: inherit; background: var(--navy); transform: translateY(101%);
+  transition: transform .5s var(--ease); }
+.sh .btn:hover { filter: none; }
+.sh .btn:hover::before { transform: none; }
+.sh .btn:active { transform: none; }
+.sh .btn .arr { flex: none; width: 16px; height: 16px; transition: transform .45s var(--ease); }
+.sh .btn:hover .arr { transform: translateX(4px); }
+
+.sh { position: sticky; top: 0; z-index: 30; background: var(--paper); border-bottom: 1px solid transparent; transition: transform .45s var(--ease), border-color .3s;
+  view-transition-name: site-header; }
+.sh.scrolled { border-bottom-color: var(--line); }
+.sh.away { transform: translateY(-101%); }
+.sh-in { display: flex; align-items: center; gap: 1.2rem; min-height: 74px; }
+.sh-logo { display: inline-flex; flex: none; }
+.sh-logo img { display: block; height: 27px; width: auto; }
+.sh-nav { display: flex; align-items: center; gap: .1rem; margin-left: auto; }
+.sh-nav > a, .sh-drop-btn { color: var(--ink); text-decoration: none; font-size: .95rem; font-weight: 500; padding: .5rem .7rem; background: none; border: 0; line-height: 1.4;
+  background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: .7rem calc(100% - .3rem); background-size: 0 1px;
+  transition: background-size .4s var(--ease); }
+.sh-nav > a:hover, .sh-drop-btn:hover, .sh-nav > a.active, .sh-drop.active > .sh-drop-btn { background-size: calc(100% - 1.4rem) 1px; }
+.sh-drop { position: relative; }
+.sh-drop-btn::after { content: ''; display: inline-block; width: .38em; height: .38em; margin: 0 0 .2em .5em; border: solid currentColor; border-width: 0 1.3px 1.3px 0;
+  transform: rotate(45deg); transition: transform .3s; }
+.sh-drop.open .sh-drop-btn::after { transform: rotate(-135deg) translate(-.15em, -.1em); }
+.sh-menu { display: none; position: absolute; top: calc(100% + 12px); left: -1rem; width: 600px; grid-template-columns: 1fr 1fr; gap: 0 1rem;
+  background: var(--card); border: 1px solid var(--ink); padding: .8rem; box-shadow: 0 30px 60px -30px rgba(14, 26, 43, .35); }
+.sh-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -14px; height: 14px; }
+.sh-menu a { display: block; padding: .7rem .8rem; text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); transition: background .2s; }
+.sh-menu a:hover, .sh-menu a[aria-current] { background: var(--paper); }
+.sh-menu b { display: block; font-family: var(--display); font-weight: 600; font-size: 1.25rem; line-height: 1.2; }
+.sh-menu span { display: block; font-size: .82rem; color: var(--muted); line-height: 1.4; margin-top: .2rem; }
+.sh-drop.open .sh-menu { display: grid; }
+@media (hover: hover) and (min-width: 1081px) { .sh-drop:hover .sh-menu { display: grid; } }
+.sh-end { display: flex; align-items: center; gap: .8rem; margin-left: 1rem; }
+.sh-login { font-weight: 500; font-size: .95rem; text-decoration: none; }
+.sh-login:hover { text-decoration: underline; text-underline-offset: .25em; }
+.sh-burger { display: none; margin-left: auto; align-items: center; gap: .6rem; background: transparent; border: 1px solid var(--ink); border-radius: 999px;
+  padding: .5rem 1rem; font-weight: 600; font-size: .92rem; color: var(--ink); }
+.sh-burger .bars, .sh-burger .bars::before, .sh-burger .bars::after { display: block; width: 16px; height: 1.5px; background: currentColor; transition: transform .3s, background .3s; }
+.sh-burger .bars { position: relative; }
+.sh-burger .bars::before, .sh-burger .bars::after { content: ''; position: absolute; left: 0; }
+.sh-burger .bars::before { top: -5px; }
+.sh-burger .bars::after { top: 5px; }
+.nav-open .sh-burger .bars { background: transparent; }
+.nav-open .sh-burger .bars::before { top: 0; transform: rotate(45deg); }
+.nav-open .sh-burger .bars::after { top: 0; transform: rotate(-45deg); }
+
+@media (max-width: 1080px) {
+  .sh-burger { display: inline-flex; }
+  .sh-nav { display: none; position: fixed; left: 0; right: 0; top: 74px; bottom: 0; flex-direction: column; align-items: stretch; gap: 0; margin: 0;
+    background: var(--paper); padding: .6rem var(--gutter) 2rem; overflow-y: auto; border-top: 1px solid var(--line); }
+  .nav-open { overflow: hidden; }
+  .nav-open .sh-nav { display: flex; }
+  .sh-nav > a, .sh-drop-btn { font-family: var(--display); font-weight: 500; font-size: 2rem; letter-spacing: -.01em; padding: .7rem 0; border-bottom: 1px solid var(--line);
+    width: 100%; text-align: left; background-image: none; }
+  .sh-nav > a.active { font-style: italic; }
+  .sh-drop-btn { display: flex; align-items: center; justify-content: space-between; }
+  .sh-drop-btn::after { width: .3em; height: .3em; }
+  .sh-menu { position: static; width: auto; grid-template-columns: 1fr; box-shadow: none; border: 0; background: none; padding: .2rem 0 .8rem; }
+  .sh-menu::before { display: none; }
+  .sh-menu a { border: 0; padding: .45rem 0; }
+  .sh-menu b { font-family: var(--font); font-size: 1.02rem; font-weight: 600; }
+  .sh-menu span { display: none; }
+  .sh-end { margin: 1.6rem 0 0; justify-content: space-between; }
+  .sh-end .btn { flex: 1; justify-content: space-between; }
+  .sh.away { transform: none; }
+}

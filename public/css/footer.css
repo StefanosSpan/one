@@ -1,6 +1,6 @@
 /* The footer of every page of the websites (server/site.js → siteFooter): on ink, the logo with a line about the
    service, the company's contact details, the other website, four columns of links and the legal line. */
-.sf { --sf-paper: #f3f1ec; --sf-soft: rgba(243, 241, 236, .7); --sf-line: rgba(243, 241, 236, .14);
+.sf { --sf-paper: #ffffff; --sf-soft: rgba(255, 255, 255, .7); --sf-line: rgba(255, 255, 255, .14);
   background: #0e1a2b; color: var(--sf-soft); font-size: .93rem; line-height: 1.55; border-top: 1px solid var(--sf-line); }
 .sf-in { max-width: 1320px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 56px); }
 .sf a { color: inherit; text-decoration: none; }
@@ -12,7 +12,7 @@
 .sf-brand .sf-contact { margin: 0 0 .25rem; }
 .sf-contact a { color: var(--sf-paper); font-weight: 600; }
 .sf-contact a:hover { text-decoration: underline; text-underline-offset: .25em; }
-.sf-lang { display: inline-flex; align-items: center; gap: .5rem; margin-top: .9rem; padding: .5rem 1rem; border: 1px solid rgba(243, 241, 236, .3); border-radius: 999px;
+.sf-lang { display: inline-flex; align-items: center; gap: .5rem; margin-top: .9rem; padding: .5rem 1rem; border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px;
   color: var(--sf-paper) !important; font-weight: 600; font-size: .9rem; transition: background .25s, color .25s, border-color .25s; }
 .sf-lang:hover { background: var(--sf-paper); color: #0e1a2b !important; border-color: var(--sf-paper); }
 .sf nav { display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
