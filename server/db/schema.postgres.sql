@@ -260,3 +260,17 @@ CREATE TABLE IF NOT EXISTS service_settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Requests from venue owners to the service (help, menu set-up, suggestions), answered from the super admin.
+CREATE TABLE IF NOT EXISTS venue_requests (
+  id         SERIAL PRIMARY KEY,
+  venue_id   INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL,                 -- setup | help | feature | billing | other
+  message    TEXT NOT NULL,
+  contact    TEXT DEFAULT '',
+  status     TEXT NOT NULL DEFAULT 'new',   -- new | open | done
+  reply      TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_requests_venue ON venue_requests(venue_id, created_at);

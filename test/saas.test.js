@@ -386,3 +386,32 @@ test('the example menu has a photo for every dish, served from this domain', asy
   assert.equal((await fetch(base + photos[0])).status, 404);
   assert.equal((await fetch(`${base}/assets/..%2Fsecret.jpg`)).status, 404);
 });
+
+test('owners send requests and the super admin answers them in one inbox', async () => {
+  assert.equal((await owner('/api/admin/requests', { method: 'POST', body: { kind: 'setup', message: 'x' } })).status, 400);
+  const sent = await owner('/api/admin/requests', { method: 'POST', body: { kind: 'setup', message: 'Θέλουμε να περάσετε εσείς το μενού μας.', contact: '6900000000' } });
+  assert.equal(sent.status, 201);
+  assert.deepEqual([sent.data.kind, sent.data.status], ['setup', 'new']);
+  assert.equal((await owner('/api/admin/requests', { method: 'POST', body: { kind: 'nope', message: 'Μια ερώτηση για τις χρεώσεις.' } })).data.kind, 'other');
+  assert.equal((await owner('/api/admin/requests')).data.length, 2);
+
+  await ensureSuperAdmin('boss@example.com', 'super-secret-123');
+  const boss = browser();
+  assert.equal((await boss('/api/super/requests')).status, 401);
+  assert.equal((await owner('/api/super/requests')).status, 401);
+  await boss('/api/super/login', { method: 'POST', body: { email: 'boss@example.com', password: 'super-secret-123' } });
+  const got = await boss('/api/super/requests');
+  assert.equal(got.status, 200, JSON.stringify(got.data));
+  const inbox = got.data;
+  const req = inbox.find((r) => r.id === sent.data.id);
+  assert.equal(req.email, 'owner@example.com');
+  assert.equal(req.market, 'gr');
+  assert.equal(req.label, 'Στήσιμο του μενού από εμάς');
+  assert.ok((await boss('/api/super/overview')).data.totals.newRequests >= 2);
+  const answered = await boss(`/api/super/requests/${req.id}`, { method: 'PUT', body: { status: 'open', reply: 'Στείλτε μας φωτογραφίες του μενού.' } });
+  assert.equal(answered.data.status, 'open');
+  // The owner sees the answer in Admin → Help.
+  const mine = (await owner('/api/admin/requests')).data.find((r) => r.id === req.id);
+  assert.deepEqual([mine.status, mine.reply], ['open', 'Στείλτε μας φωτογραφίες του μενού.']);
+  assert.equal((await boss('/api/super/requests/999999', { method: 'PUT', body: { status: 'done' } })).status, 404);
+});

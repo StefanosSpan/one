@@ -141,6 +141,12 @@ test('pages for searches: one per market, with their own title, language links, 
   }
 });
 
+test('one super admin for both websites: kalimenu.com/super opens the one of kalimenu.gr', async () => {
+  const r = await get(US, '/super');
+  assert.deepEqual([r.status, r.headers.location], [302, 'http://kalimenu.test/super']);
+  assert.equal((await get(GR, '/super')).status, 200);
+});
+
 test('Search Console and Bing ownership tags, and the IndexNow key', async () => {
   process.env.GOOGLE_SITE_VERIFICATION = 'google-code-1, google-site-verification=google-code-2';
   process.env.US_BING_SITE_VERIFICATION = 'bing-code';

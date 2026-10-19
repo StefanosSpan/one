@@ -5,7 +5,7 @@ import { LANGUAGES, STRINGS } from './i18n.js';
 import { applyTheme, applyBrand, THEME_PRESETS } from './theme.js';
 
 let settings = null;
-const TAB_KEYS = ['dash', 'history', 'receipts', 'menu', 'tables', 'look', 'store', 'settings', 'billing'];
+const TAB_KEYS = ['dash', 'history', 'receipts', 'menu', 'tables', 'look', 'store', 'settings', 'billing', 'help'];
 let tab = TAB_KEYS.includes(new URLSearchParams(location.search).get('tab')) ? new URLSearchParams(location.search).get('tab') : 'dash';
 
 const me = await requireLogin(['admin']);
@@ -39,7 +39,7 @@ const describeWindow = (w) => {
 function start() {
   topBar(me, 'admin', 'Διαχείριση');
   if (me.owner) venueSwitcher();
-  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['look', 'Εμφάνιση'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή']];
+  const tabs = [['dash', 'Επισκόπηση'], ['history', 'Ιστορικό παραγγελιών'], ['receipts', 'Αποδείξεις'], ['menu', 'Μενού'], ['tables', 'Θέσεις & QR'], ['look', 'Εμφάνιση'], ['store', 'Κατάστημα'], ['settings', 'Ρυθμίσεις'], ['billing', 'Συνδρομή'], ['help', 'Βοήθεια']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${l}</button>`).join('');
   $$('#tabs button').forEach((b) => b.onclick = () => go(b.dataset.tab));
   $('#tabs .active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -69,7 +69,7 @@ function go(next) {
 
 async function render() {
   settings = await api('/api/admin/settings');
-  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, look: renderLook, store: renderStore, settings: renderSettings, billing: renderBilling };
+  const views = { dash: renderDash, history: renderHistory, receipts: renderReceipts, menu: renderMenu, tables: renderTables, look: renderLook, store: renderStore, settings: renderSettings, billing: renderBilling, help: renderHelp };
   await views[tab]();
   $$('[data-go]').forEach((b) => b.onclick = (e) => { e.preventDefault(); go(b.dataset.go); });
 }
@@ -983,6 +983,45 @@ function renderLook() {
       } });
       toast('Η εμφάνιση αποθηκεύτηκε. Ανανεώστε το μενού στο κινητό για να τη δείτε.', 'ok');
       settings = await api('/api/admin/settings');
+    } catch (err) { toast(err.message, 'err'); }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Help: requests to the Kalimenu team (help, menu set-up by us, suggestions, billing) and their answers.
+// ---------------------------------------------------------------------------
+const REQUEST_KINDS = [['help', 'Βοήθεια ή πρόβλημα'], ['setup', 'Στήσιμο του μενού από εμάς'], ['feature', 'Πρόταση'],
+  ['billing', 'Συνδρομή και χρεώσεις'], ['other', 'Άλλο']];
+const REQUEST_STATUS = { new: ['Στάλθηκε', 'amber'], open: ['Σε εξέλιξη', ''], done: ['Ολοκληρώθηκε', 'green'] };
+async function renderHelp() {
+  const [list, site] = await Promise.all([api('/api/admin/requests'), api('/api/site').catch(() => ({}))]);
+  const co = site.company || {};
+  const kindLabel = (k) => (REQUEST_KINDS.find(([x]) => x === k) || [k, k])[1];
+  $('#app').innerHTML = `<div class="panel narrow">
+      <h3>Στείλτε μας αίτημα</h3>
+      <p class="muted small" style="margin-top:0">Για βοήθεια, για να περάσουμε εμείς το μενού σας, ή για ό,τι θα θέλατε να κάνει το Kalimenu.
+        Απαντάμε συνήθως την ίδια μέρα, εδώ και με e-mail.</p>
+      <label class="field"><span>Θέμα</span><select class="input" id="rqKind">${REQUEST_KINDS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      <label class="field"><span>Μήνυμα</span><textarea class="input" id="rqMsg" rows="5" maxlength="2000"></textarea></label>
+      <label class="field"><span>Τηλέφωνο επικοινωνίας (προαιρετικό)</span><input class="input" id="rqContact" maxlength="120" value="${esc(settings.restaurant.phone || '')}"></label>
+      <button class="btn" id="rqSend">Αποστολή</button>
+      ${co.email || co.phone ? `<p class="muted small">Ή επικοινωνήστε μαζί μας απευθείας:
+        ${co.email ? `<a href="mailto:${esc(co.email)}">${esc(co.email)}</a>` : ''}${co.email && co.phone ? ' · ' : ''}${co.phone ? `<a href="tel:${esc(co.phone.replace(/\s/g, ''))}">${esc(co.phone)}</a>` : ''}</p>` : ''}
+    </div>
+    <div class="panel narrow">
+      <h3>Τα αιτήματά σας</h3>
+      ${list.length ? list.map((r) => `<div class="request">
+        <div class="rq-head"><b>${esc(kindLabel(r.kind))}</b><span class="badge ${REQUEST_STATUS[r.status]?.[1] || ''}">${REQUEST_STATUS[r.status]?.[0] || r.status}</span>
+          <span class="muted small">${new Date(r.createdAt).toLocaleDateString(L10N.locale)}</span></div>
+        <p class="rq-msg">${esc(r.message)}</p>
+        ${r.reply ? `<div class="rq-reply"><span class="muted small">Απάντηση Kalimenu</span><p>${esc(r.reply)}</p></div>` : ''}
+      </div>`).join('') : '<p class="muted">Δεν έχετε στείλει αιτήματα.</p>'}
+    </div>`;
+  $('#rqSend').onclick = async () => {
+    try {
+      await api('/api/admin/requests', { method: 'POST', body: { kind: $('#rqKind').value, message: $('#rqMsg').value, contact: $('#rqContact').value } });
+      toast('Το αίτημα στάλθηκε. Θα σας απαντήσουμε σύντομα.', 'ok');
+      renderHelp();
     } catch (err) { toast(err.message, 'err'); }
   };
 }

@@ -26,6 +26,17 @@
     .st.past_due, .st.paused { background: var(--amber-bg); color: var(--amber); }
     .st.canceled, .st.suspended { background: var(--red-bg); color: var(--red); }
     .sa .acts { display: flex; gap: .3rem; flex-wrap: wrap; }
+    .sa-tabs { margin-bottom: 1rem; }
+    .sa-tabs .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--red); color: #fff;
+      font-size: .72rem; font-weight: 800; margin-left: .35rem; }
+    .rq { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.1rem; margin-bottom: .8rem; }
+    .rq.new { border-color: color-mix(in srgb, var(--red) 45%, var(--line)); box-shadow: 0 6px 18px rgba(0,0,0,.05); }
+    .rq-top { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .rq-top .when { margin-left: auto; }
+    .rq-msg { white-space: pre-wrap; margin: .6rem 0; }
+    .rq-form { display: grid; grid-template-columns: 1fr 180px auto; gap: .5rem; align-items: end; }
+    .rq-form textarea { min-height: 70px; }
+    @media (max-width: 720px) { .rq-form { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -58,6 +69,11 @@
     const left = (iso) => Math.ceil((new Date(iso) - Date.now()) / 86400_000);
     let data;
     let filter = { q: '', status: '' };
+    // "venues": every venue of both websites; "requests": what owners of kalimenu.gr and kalimenu.com asked for.
+    let view = new URLSearchParams(location.search).get('view') === 'requests' ? 'requests' : 'venues';
+    let requests = [];
+    let rqFilter = 'open';
+    const RQ_STATUS = { new: 'Νέο', open: 'Σε εξέλιξη', done: 'Ολοκληρώθηκε' };
 
     async function boot() {
       try {
@@ -78,16 +94,28 @@
     });
 
     async function load() {
-      data = await api('/api/super/overview');
+      [data, requests] = await Promise.all([api('/api/super/overview'), api('/api/super/requests')]);
       render();
     }
 
+    const tabsBar = () => `<div class="seg sa-tabs">
+      <button data-view="venues" class="${view === 'venues' ? 'active' : ''}">Καταστήματα</button>
+      <button data-view="requests" class="${view === 'requests' ? 'active' : ''}">Αιτήματα${data.totals.newRequests ? `<span class="count">${data.totals.newRequests}</span>` : ''}</button></div>`;
+    function bindTabs() {
+      $$('[data-view]').forEach((b) => b.onclick = () => {
+        view = b.dataset.view;
+        history.replaceState(null, '', view === 'requests' ? '?view=requests' : location.pathname);
+        render();
+      });
+    }
+
     function render() {
+      if (view === 'requests') return renderRequests();
       const t = data.totals;
       const q = filter.q.trim().toLowerCase();
       const rows = data.venues.filter((v) => (!q || `${v.name} ${v.slug} ${v.email}`.toLowerCase().includes(q))
         && (!filter.status || v.status === filter.status));
-      $('#app').innerHTML = `
+      $('#app').innerHTML = `${tabsBar()}
         <div class="stats">
           <div class="stat"><div class="l">Μηνιαία έσοδα (MRR)</div><div class="v">${euro(t.mrr)}${t.mrrUsd ? ` <small>+ ${usd(t.mrrUsd)}</small>` : ''}</div></div>
           <div class="stat"><div class="l">Καταστήματα</div><div class="v">${t.venues}</div></div>
@@ -133,6 +161,41 @@
         catch (err) { toast(err.message, 'err'); }
       });
       $$('[data-open]').forEach((b) => b.onclick = () => manage(data.venues.find((v) => v.id === Number(b.dataset.open))));
+      bindTabs();
+    }
+
+    // Requests of the owners of both websites, newest and unanswered first; the answer goes to the owner by e-mail.
+    function renderRequests() {
+      const rows = requests.filter((r) => rqFilter === 'all' || r.status !== 'done');
+      $('#app').innerHTML = `${tabsBar()}
+        <div class="sa-tools"><div class="seg">
+          <button data-rf="open" class="${rqFilter === 'open' ? 'active' : ''}">Ανοιχτά</button>
+          <button data-rf="all" class="${rqFilter === 'all' ? 'active' : ''}">Όλα</button></div></div>
+        ${rows.map((r) => `<div class="rq ${r.status}" data-rq="${r.id}">
+          <div class="rq-top"><b>${esc(r.venueName)}</b>${r.market === 'us' ? ' <span class="badge amber">ΗΠΑ · kalimenu.com</span>' : ' <span class="badge gray">kalimenu.gr</span>'}
+            <span class="muted small">${esc(r.venueSlug)} · ${esc(r.email || '—')}${r.contact ? ` · ${esc(r.contact)}` : ''}</span>
+            <span class="when muted small">${new Date(r.createdAt).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' })}</span></div>
+          <div style="margin-top:.4rem"><span class="st ${r.status === 'new' ? 'past_due' : r.status === 'done' ? 'active' : 'trialing'}">${RQ_STATUS[r.status]}</span>
+            <b style="margin-left:.4rem">${esc(r.label)}</b></div>
+          <p class="rq-msg">${esc(r.message)}</p>
+          <div class="rq-form">
+            <label class="field" style="margin:0"><span>Απάντηση (στέλνεται με e-mail στον ιδιοκτήτη)</span><textarea class="input" data-reply>${esc(r.reply)}</textarea></label>
+            <label class="field" style="margin:0"><span>Κατάσταση</span><select class="input" data-status>
+              ${Object.entries(RQ_STATUS).map(([k, l]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+            <button class="btn sm" data-save>Αποθήκευση</button>
+          </div>
+        </div>`).join('') || '<p class="muted">Δεν υπάρχουν αιτήματα.</p>'}`;
+      bindTabs();
+      $$('[data-rf]').forEach((b) => b.onclick = () => { rqFilter = b.dataset.rf; render(); });
+      $$('[data-rq]').forEach((box) => $('[data-save]', box).onclick = async () => {
+        const reply = $('[data-reply]', box).value;
+        const status = $('[data-status]', box).value;
+        try {
+          await api(`/api/super/requests/${box.dataset.rq}`, { method: 'PUT', body: { reply, status: status === 'new' && reply.trim() ? 'open' : status } });
+          toast(reply.trim() ? 'Αποθηκεύτηκε· ο ιδιοκτήτης ειδοποιήθηκε με e-mail' : 'Αποθηκεύτηκε', 'ok');
+          load();
+        } catch (err) { toast(err.message, 'err'); }
+      });
     }
 
     function manage(v) {

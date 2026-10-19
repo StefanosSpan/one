@@ -1460,6 +1460,42 @@ const demoGuard = (req) => { if (PRODUCTION && req.venue.isDemo) fail(403, 'Δε
 
 admin.get('/settings', wrap(async (req, res) => res.json(await adminSettings(req))));
 
+// ---------------------------------------------------------------------------
+// Requests from owners to the service (help, menu set-up by us, suggestions, billing). Venues of both websites
+// (kalimenu.gr and kalimenu.com) land in the one super admin, which answers them; the owner sees the answer here
+// and by e-mail.
+// ---------------------------------------------------------------------------
+const REQUEST_KINDS = ['setup', 'help', 'feature', 'billing', 'other'];
+const REQUEST_LABELS = {
+  el: { setup: 'Στήσιμο του μενού από εμάς', help: 'Βοήθεια ή πρόβλημα', feature: 'Πρόταση', billing: 'Συνδρομή και χρεώσεις', other: 'Άλλο' },
+  en: { setup: 'Menu set-up by us', help: 'Help or a problem', feature: 'Suggestion', billing: 'Subscription and billing', other: 'Other' },
+};
+const mapRequest = (r) => ({ id: r.id, kind: r.kind, message: r.message, contact: r.contact || '', status: r.status, reply: r.reply || '',
+  createdAt: r.created_at, updatedAt: r.updated_at });
+const ownerEmailOf = async (venueId) => (await db.get(`SELECT MIN(email) AS email FROM (SELECT email FROM accounts WHERE venue_id = ?
+  UNION ALL SELECT a.email FROM account_venues av JOIN accounts a ON a.id = av.account_id WHERE av.venue_id = ?) x`, [venueId, venueId]))?.email || '';
+
+admin.get('/requests', wrap(async (req, res) => {
+  res.json((await db.all('SELECT * FROM venue_requests WHERE venue_id = ? ORDER BY id DESC LIMIT 50', [req.venue.id])).map(mapRequest));
+}));
+admin.post('/requests', wrap(async (req, res) => {
+  demoGuard(req);
+  const kind = REQUEST_KINDS.includes(req.body?.kind) ? req.body.kind : 'other';
+  const message = cleanText(req.body?.message, 2000);
+  if (message.length < 5) fail(400, 'Γράψτε λίγα λόγια για το αίτημά σας');
+  if (!rateLimit(`request:${req.venue.id}`, 10, 24 * 3600_000)) fail(429, 'Πολλά αιτήματα σήμερα. Δοκιμάστε αύριο ή γράψτε μας e-mail.');
+  const contact = cleanText(req.body?.contact, 120);
+  const ts = now();
+  const id = await db.insert('INSERT INTO venue_requests (venue_id, kind, message, contact, status, reply, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [req.venue.id, kind, message, contact, 'new', '', ts, ts]);
+  if (process.env.NOTIFY_EMAIL) {
+    sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Νέο αίτημα${req.venue.market === 'us' ? ' (ΗΠΑ)' : ''}: ${req.venue.name} · ${REQUEST_LABELS.el[kind]}`,
+      text: `${message}\n\nΚατάστημα: ${req.venue.name} (${req.venue.slug})\nΕπικοινωνία: ${contact || await ownerEmailOf(req.venue.id) || '—'}\n`
+        + `Απάντηση: ${MAIN_URLS.gr || APP_URL || ''}/super\n` });
+  }
+  res.status(201).json(mapRequest(await db.get('SELECT * FROM venue_requests WHERE id = ?', [id])));
+}));
+
 admin.put('/settings', wrap(async (req, res) => {
   const b = req.body || {};
   const v = req.venue.id;
@@ -2476,6 +2512,7 @@ superApi.get('/overview', wrap(async (req, res) => {
       mrrUsd: real.filter((v) => v.currency === 'USD').reduce((s, v) => s + v.mrr, 0),
       usVenues: real.filter((v) => v.market === 'us').length,
       signups30: real.filter((v) => v.createdAt >= since).length,
+      newRequests: Number((await db.get("SELECT COUNT(*) AS n FROM venue_requests WHERE status = 'new'")).n),
       trialsEnding7: real.filter((v) => trialActive(v) && new Date(v.trialEndsAt) - Date.now() < 7 * 86400_000).length,
       cardPayments: real.filter((v) => v.payments === 'viva' || v.payments === 'viva-connect').length,
       fees30: real.reduce((s, v) => s + v.fees30, 0),
@@ -2538,6 +2575,38 @@ superApi.post('/venues/:id/reset-link', wrap(async (req, res) => {
     || (await db.get('SELECT a.id, a.email FROM account_venues av JOIN accounts a ON a.id = av.account_id WHERE av.venue_id = ? LIMIT 1', [venue.id]));
   if (!account) fail(400, 'Το κατάστημα δεν έχει λογαριασμό ιδιοκτήτη');
   res.json({ link: await sendResetLink(req, account, 24), email: account.email });
+}));
+
+// The requests of all venues, from both websites, newest first.
+superApi.get('/requests', wrap(async (req, res) => {
+  const rows = await db.all(`SELECT * FROM venue_requests ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'open' THEN 1 ELSE 2 END, id DESC LIMIT 300`);
+  const out = [];
+  for (const r of rows) {
+    const v = await getVenue(r.venue_id);
+    if (!v) continue;
+    out.push({ ...mapRequest(r), venueId: v.id, venueName: v.name, venueSlug: v.slug, market: v.market,
+      email: await ownerEmailOf(v.id), label: REQUEST_LABELS.el[r.kind] || r.kind });
+  }
+  res.json(out);
+}));
+// Status and answer; a new answer is also e-mailed to the owner, in the language of their website.
+superApi.put('/requests/:id', wrap(async (req, res) => {
+  const r = await db.get('SELECT * FROM venue_requests WHERE id = ?', [Number(req.params.id) || 0]);
+  const v = r && await getVenue(r.venue_id);
+  if (!v) fail(404, 'Το αίτημα δεν βρέθηκε');
+  const status = ['new', 'open', 'done'].includes(req.body?.status) ? req.body.status : r.status;
+  const reply = typeof req.body?.reply === 'string' ? cleanText(req.body.reply, 4000) : r.reply;
+  await db.run('UPDATE venue_requests SET status = ?, reply = ?, updated_at = ? WHERE id = ?', [status, reply, now(), r.id]);
+  const to = await ownerEmailOf(v.id);
+  if (reply && reply !== r.reply && to) {
+    const us = v.market === 'us';
+    const link = `${BASE_DOMAIN ? venueOrigin(v, req) : MAIN_URLS[us ? 'us' : 'gr'] || ''}/staff/admin?tab=help`;
+    sendMail(us ? { to, subject: `Kalimenu: answer to your request – ${REQUEST_LABELS.en[r.kind]}`,
+      text: `${reply}\n\nYour request:\n${r.message}\n\nAll your requests: ${link}\n` }
+      : { to, subject: `Kalimenu: απάντηση στο αίτημά σας – ${REQUEST_LABELS.el[r.kind]}`,
+        text: `${reply}\n\nΤο αίτημά σας:\n${r.message}\n\nΌλα τα αιτήματά σας: ${link}\n` });
+  }
+  res.json(mapRequest(await db.get('SELECT * FROM venue_requests WHERE id = ?', [r.id])));
 }));
 
 superApi.delete('/venues/:id', wrap(async (req, res) => {
@@ -2605,7 +2674,9 @@ const tracking = (market) => {
 };
 app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS, market: marketOf(req),
   tracking: tracking(marketOf(req)) }));
-app.get('/super', page('super.html'));
+// One super admin for both websites: kalimenu.com/super opens the one on kalimenu.gr, where every venue's requests arrive.
+app.get('/super', (req, res, next) => (marketOf(req) === 'us' && MAIN_URLS.gr && MAIN_URLS.us ? res.redirect(302, `${MAIN_URLS.gr}/super`) : next()),
+  page('super.html'));
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.get('/api/plans', (req, res) => res.json({ plans: plansIn(marketOf(req) === 'us' ? 'USD' : 'EUR'), trialDays: TRIAL_DAYS }));
 
