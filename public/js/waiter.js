@@ -1,6 +1,7 @@
 import { $, $$, esc, api, toast, sheet, beep, timeAgo, euro, L10N, hm } from './util.js';
 import { icon } from './icons.js';
 import { requireLogin, topBar, liveStaff, LANG_CODES, itemName, optionNames, spotName, KIND } from './staff.js';
+import { pushState, enablePush, renewPush, disablePush } from './push.js';
 
 const me = await requireLogin(['waiter']);
 if (me) start();
@@ -33,6 +34,7 @@ function start() {
     document.querySelector('#soundBtn').before(zb);
   }
   const inZone = (zone) => !onlyMine || myZones.includes(zone || '');
+  setupPush();
 
   async function load(evt) {
     try { data = await api('/api/staff/overview'); } catch { return; }
@@ -373,6 +375,47 @@ function start() {
         toast(c.checked ? 'Διαθέσιμο ξανά' : 'Σημειώθηκε ως εξαντλημένο', 'ok');
       } catch (e) { toast(errText(e), 'err'); c.checked = !c.checked; }
     });
+  }
+
+  // Notifications with the phone locked (Web Push): a button in the bar, and a hint above the screen until they are on.
+  async function setupPush() {
+    const btn = document.createElement('button');
+    btn.id = 'pushBtn';
+    btn.title = 'Ειδοποιήσεις στο κινητό';
+    document.querySelector('#soundBtn').before(btn);
+    const tip = document.createElement('div');
+    tip.className = 'push-tip';
+    tip.hidden = true;
+    $('#app').before(tip);
+    const TIPS = {
+      off: ['Ειδοποιήσεις και με κλειδωμένο κινητό', 'Κλήσεις και παραγγελίες έρχονται ως ειδοποίηση, ακόμη κι όταν η οθόνη είναι σβηστή.', 'Ενεργοποίηση'],
+      install: ['Ειδοποιήσεις στο iPhone', 'Πατήστε Κοινοποίηση και «Προσθήκη στην οθόνη Αφετηρίας». Ανοίξτε το Kalimenu από το εικονίδιο και ενεργοποιήστε τις ειδοποιήσεις.', ''],
+      denied: ['Οι ειδοποιήσεις είναι μπλοκαρισμένες', 'Επιτρέψτε τις ειδοποιήσεις για αυτή τη σελίδα από τις ρυθμίσεις του browser.', ''],
+    };
+    const draw = (state) => {
+      btn.hidden = state === 'unsupported' || state === 'install';
+      btn.classList.toggle('on', state === 'on');
+      btn.innerHTML = `${icon('bell', 16)}<span>${state === 'on' ? 'Ειδοποιήσεις: ναι' : 'Ειδοποιήσεις: όχι'}</span>`;
+      const t = TIPS[state];
+      let dismissed = false;
+      try { dismissed = sessionStorage.getItem('pushTip') === state; } catch { /* private mode */ }
+      tip.hidden = !t || dismissed;
+      if (!t) return;
+      tip.innerHTML = `<span class="push-ic">${icon('bell', 20)}</span><div class="push-text"><b>${t[0]}</b><p>${t[1]}</p></div>
+        ${t[2] ? `<button class="btn sm" data-push>${t[2]}</button>` : ''}<button class="icon-btn" data-hide title="Κλείσιμο">${icon('x', 16)}</button>`;
+      tip.querySelector('[data-push]')?.addEventListener('click', toggle);
+      tip.querySelector('[data-hide]').onclick = () => { tip.hidden = true; try { sessionStorage.setItem('pushTip', state); } catch { /* private mode */ } };
+    };
+    async function toggle() {
+      try {
+        const state = await pushState() === 'on' ? (await disablePush(), 'off') : await enablePush();
+        draw(state);
+        if (state === 'on') toast('Οι ειδοποιήσεις ενεργοποιήθηκαν', 'ok');
+      } catch { toast('Οι ειδοποιήσεις δεν ενεργοποιήθηκαν σε αυτή τη συσκευή', 'err'); }
+    }
+    btn.onclick = toggle;
+    draw(await pushState().catch(() => 'unsupported'));
+    renewPush().catch(() => {});
   }
 
   liveStaff(load);

@@ -1,0 +1,16 @@
+{
+  "name": "Kalimenu",
+  "short_name": "Kalimenu",
+  "id": "/staff/waiter",
+  "start_url": "/staff/waiter",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f1ec",
+  "theme_color": "#1f3a5f",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

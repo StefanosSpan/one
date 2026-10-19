@@ -17,6 +17,7 @@ import { vivaCreateOrder, vivaVerify, vivaCheck, isvConfig, isvCreateAccount, is
 import { sendMail } from './mail.js';
 import { loadSharedAssets, sharedAsset, addSamplePhotos } from './assets.js';
 import { installSeo } from './seo.js';
+import { pushEndpointAllowed, validSubscriptionKeys, loadVapidKeys, sendPush, staffMessage } from './push.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -506,6 +507,36 @@ const staffLink = (venue, req) => (BASE_DOMAIN ? `${venueOrigin(venue, req)}/sta
 
 const staffChannel = (venue) => `staff:${venue.id}`;
 
+// Notifications on the waiters' phones, also with the screen locked (see push.js): new calls, orders waiting for
+// approval and orders ready to serve, as the waiter screen beeps for them. A waiter with zones gets only their tables.
+let vapid = null;
+const pushKeys = async () => (vapid ||= await loadVapidKeys(db));
+const pushed = new Map(); // what was already sent, so an event repeated by the screens is not sent twice
+function pushStaff(venue, event, data) {
+  const message = staffMessage(venue, event, data);
+  const key = `${venue.id}:${message?.tag}:${event}:${data.paymentMethod || ''}`;
+  if (!message || pushed.has(key)) return;
+  pushed.set(key, Date.now());
+  for (const [k, at] of pushed) if (Date.now() - at > 3600_000) pushed.delete(k);
+  (async () => {
+    // A subscription lasts as long as a staff login; the waiter screen renews it whenever it opens.
+    const since = new Date(Date.now() - SESSION_HOURS * 3600_000).toISOString();
+    const subs = await db.all('SELECT * FROM push_subscriptions WHERE venue_id = ? AND updated_at > ?', [venue.id, since]);
+    if (!subs.length) return;
+    const staff = venue.settings.staff || [];
+    const subject = APP_URL || MAIN_URLS[venue.market] || 'https://kalimenu.gr';
+    const body = { ...message, url: '/staff/waiter', at: Date.now() };
+    await Promise.all(subs.map(async (sub) => {
+      const member = sub.member_id ? staff.find((m) => m.id === sub.member_id && m.role === sub.role) : null;
+      if (sub.member_id && !member) return db.run('DELETE FROM push_subscriptions WHERE id = ?', [sub.id]);
+      if (member?.zones?.length && !member.zones.includes(data.tableZone || '')) return null;
+      const status = await sendPush(sub, body, { vapid: await pushKeys(), subject }).catch((e) => { console.error('push', e.message); return 0; });
+      if (status === 404 || status === 410) await db.run('DELETE FROM push_subscriptions WHERE id = ?', [sub.id]);
+      return null;
+    }));
+  })().catch((e) => console.error('push', e.message));
+}
+
 // Address used in QR codes and links: the venue's own setting, the service address, or the address of this request.
 function baseUrl(req) {
   const configured = req.venue?.settings.publicBaseUrl || (BASE_DOMAIN && req.venue ? venueOrigin(req.venue, req) : APP_URL);
@@ -630,6 +661,7 @@ async function placeOrder(venue, table, body, extra = null, { staff = '' } = {})
   if (status === 'accepted') await startClock(venue, orderId);
   const order = await loadOrder(venue.id, orderId);
   emit(staffChannel(venue), 'order:new', order);
+  if (order.status === 'pending') pushStaff(venue, 'pending', order);
   if (!extra) await notifyTable(table.id);
   return order;
 }
@@ -742,6 +774,7 @@ app.post('/api/public/table/:token/calls', wrap(async (req, res) => {
   }
   const call = (await loadCalls(venue.id, 'c.id = ?', [id]))[0];
   emit(staffChannel(venue), existing ? 'call:update' : 'call:new', call);
+  pushStaff(venue, 'call', call);
   await notifyTable(table.id);
   res.status(201).json(call);
 }));
@@ -964,6 +997,27 @@ app.get('/api/staff/me', wrap(async (req, res) => {
 
 app.get('/api/staff/stream', requireStaff(), (req, res) => subscribe(staffChannel(req.venue), req, res));
 
+// The waiter's phone subscribes to notifications (and renews it each time the screen opens), or stops them.
+app.get('/api/staff/push', requireStaff('waiter'), wrap(async (req, res) => res.json({ publicKey: (await pushKeys()).publicKey })));
+app.post('/api/staff/push', requireStaff('waiter'), wrap(async (req, res) => {
+  const { endpoint, keys } = req.body || {};
+  if (!pushEndpointAllowed(endpoint, { allowLocal: !PRODUCTION }) || !validSubscriptionKeys(keys)) fail(400, 'bad_subscription');
+  if (!rateLimit(`push:${req.venue.id}`, 60, 60_000)) fail(429, 'too_many_requests');
+  await db.tx(async (t) => {
+    await t.run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
+    await t.insert('INSERT INTO push_subscriptions (venue_id, role, member_id, endpoint, p256dh, auth, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.venue.id, req.role, req.member?.id || '', endpoint, keys.p256dh, keys.auth, now()]);
+    // At most 100 phones per venue: the oldest go.
+    const extra = await t.all('SELECT id FROM push_subscriptions WHERE venue_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1000 OFFSET 100', [req.venue.id]);
+    for (const { id } of extra) await t.run('DELETE FROM push_subscriptions WHERE id = ?', [id]);
+  });
+  res.status(201).json({ ok: true });
+}));
+app.post('/api/staff/push/off', requireStaff('waiter'), wrap(async (req, res) => {
+  await db.run('DELETE FROM push_subscriptions WHERE endpoint = ? AND venue_id = ?', [String(req.body?.endpoint || ''), req.venue.id]);
+  res.json({ ok: true });
+}));
+
 app.get('/api/staff/overview', requireStaff(), wrap(async (req, res) => {
   const v = req.venue.id;
   const tables = (await db.all("SELECT * FROM tables WHERE venue_id = ? AND kind != 'takeaway' ORDER BY id", [v])).map(mapTable);
@@ -1014,6 +1068,7 @@ app.post('/api/staff/orders/:id/status', requireStaff(), wrap(async (req, res) =
 async function orderChanged(venue, orderId) {
   const updated = await loadOrder(venue.id, orderId);
   emit(staffChannel(venue), 'order:update', updated);
+  if (updated.status === 'ready') pushStaff(venue, 'ready', updated);
   await notifyTable(updated.tableId);
   return updated;
 }
@@ -1492,6 +1547,8 @@ admin.put('/settings', wrap(async (req, res) => {
 admin.post('/devices/reset', wrap(async (req, res) => {
   const epoch = (Number(req.venue.settings.deviceEpoch) || 0) + 1;
   await setSetting(req.venue.id, 'deviceEpoch', epoch);
+  // The phones stop getting notifications too, until their waiters sign in again.
+  await db.run('DELETE FROM push_subscriptions WHERE venue_id = ?', [req.venue.id]);
   const venue = await getVenue(req.venue.id);
   if (req.accountId) approveDevice(req, res, venue);
   res.json({ ok: true });
@@ -2562,7 +2619,13 @@ app.get('/uploads/:name', wrap(async (req, res, next) => {
   res.type(file.mime).send(Buffer.from(file.data));
 }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d' }));
-app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
+// Fonts never change and pictures rarely: phones keep them, so a guest's menu opens faster on a slow connection.
+// Pages, styles and scripts are checked on every visit, so a new version reaches everyone at once.
+const STATIC_CACHE = [[/[\\/]fonts[\\/]/, 'public, max-age=31536000, immutable'], [/\.(png|jpe?g|webp|svg|ico)$/, 'public, max-age=604800']];
+app.use(express.static(PUBLIC_DIR, { extensions: ['html'], setHeaders: (res, file) => {
+  const rule = STATIC_CACHE.find(([re]) => re.test(file));
+  if (rule) res.setHeader('Cache-Control', rule[1]);
+} }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
 // Pages that do not exist: a friendly page in the language of the site (English on kalimenu.com).

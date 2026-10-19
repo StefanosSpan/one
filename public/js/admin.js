@@ -1231,6 +1231,8 @@ function renderSettings() {
     <p class="muted small" style="margin-top:0">Στείλτε αυτόν τον σύνδεσμο στους σερβιτόρους και στην κουζίνα. Ανοίγει από κινητό, tablet ή υπολογιστή· συνδέονται με το PIN τους.</p>
     <div class="copy-row"><input class="input" id="staffUrl" readonly value="${esc(s.staffUrl)}"><button class="btn secondary sm" id="copyStaff" type="button">Αντιγραφή</button></div>
     <p class="muted small">Κωδικός καταστήματος: <b>${esc(s.venue.slug)}</b></p>
+    <p class="muted small">Ειδοποιήσεις με κλειδωμένη οθόνη: ο σερβιτόρος πατά «Ενεργοποίηση» στην οθόνη σερβιτόρου του κινητού του.</p>
+    <p class="muted small">Στο iPhone: πρώτα «Προσθήκη στην οθόνη Αφετηρίας» και άνοιγμα από το εικονίδιο.</p>
     <div class="note-box small" style="margin-top:.6rem">Για ασφάλεια, τα PIN δουλεύουν μόνο σε συσκευές που έχετε εγκρίνει: την πρώτη φορά σε κάθε
       κινητό ή tablet βάζετε εσείς το e-mail και τον κωδικό σας στη σελίδα σύνδεσης προσωπικού. Αν χαθεί μια συσκευή ή φύγει κάποιος υπάλληλος,
       πατήστε «Αποσύνδεση όλων των συσκευών» και αλλάξτε το PIN του.

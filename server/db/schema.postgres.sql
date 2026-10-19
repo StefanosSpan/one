@@ -241,3 +241,22 @@ CREATE TABLE IF NOT EXISTS account_venues (
   venue_id   INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
   PRIMARY KEY (account_id, venue_id)
 );
+
+-- Phones of the staff that get notifications when the screen is locked (Web Push, see push.js).
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id         SERIAL PRIMARY KEY,
+  venue_id   INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL,
+  member_id  TEXT DEFAULT '',
+  endpoint   TEXT NOT NULL UNIQUE,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_venue ON push_subscriptions(venue_id);
+
+-- Settings of the whole service, such as the key pair of the notifications.
+CREATE TABLE IF NOT EXISTS service_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

@@ -43,6 +43,8 @@ export function topBar(me, current, title) {
   // Browsers only allow sound after a user gesture: enable on first tap anywhere.
   document.addEventListener('pointerdown', () => { if (!soundOn) setSound(true); }, { once: true });
   bar.querySelector('#logout').onclick = async () => {
+    // This phone stops getting the notifications of the person signing out.
+    if (current === 'waiter') await import('./push.js').then((m) => m.disablePush()).catch(() => {});
     await api('/api/staff/logout', { method: 'POST' });
     location.href = me.owner ? '/login' : `/staff?v=${encodeURIComponent(me.venue?.slug || '')}`;
   };

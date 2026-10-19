@@ -411,3 +411,21 @@ body.kitchen .bar button.on { color: #fff; }
 html[data-market="us"] [data-gr-only] { display: none !important; }
 html:not([data-market="us"]) [data-us-only] { display: none !important; }
 @media (max-width: 640px) { .bar .station-select { max-width: 120px; } }
+
+/* Notifications with the phone locked: the hint above the waiter screen and the button in the bar. */
+.push-tip { display: flex; align-items: center; gap: .8rem; max-width: 1440px; margin: .8rem auto 0; padding: .8rem 1rem; width: calc(100% - 2rem);
+  background: color-mix(in srgb, var(--brand) 8%, #fff); border: 1px solid color-mix(in srgb, var(--brand) 22%, #fff); border-radius: 14px; }
+.push-tip[hidden] { display: none; }
+.push-tip .push-ic { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--brand); color: #fff; }
+.push-tip .push-text { flex: 1; min-width: 0; }
+.push-tip b { display: block; font-size: .95rem; }
+.push-tip p { margin: .1rem 0 0; color: var(--muted); font-size: .86rem; line-height: 1.4; }
+.push-tip { position: relative; padding-right: 2.8rem; }
+.push-tip .btn { flex: none; }
+.push-tip [data-hide] { position: absolute; top: .45rem; right: .45rem; width: 32px; height: 32px; min-height: 0; }
+@media (max-width: 560px) {
+  .push-tip { flex-wrap: wrap; width: calc(100% - 1rem); margin-top: .5rem; }
+  .push-tip .push-text { flex: 1 1 calc(100% - 60px); }
+  .push-tip [data-push] { width: 100%; }
+}
+.bar #pushBtn.on { color: var(--brand); }

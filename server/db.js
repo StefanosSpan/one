@@ -123,7 +123,7 @@ export async function createDemoVenue(market = 'gr') {
 export async function deleteVenue(id) {
   await db.tx(async (t) => {
     // order_items go with their orders; everything else is removed per venue.
-    for (const table of ['account_venues', 'loyalty_redemptions', 'item_views', 'feedback', 'payments', 'uploads', 'receipts', 'calls', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts']) {
+    for (const table of ['push_subscriptions', 'account_venues', 'loyalty_redemptions', 'item_views', 'feedback', 'payments', 'uploads', 'receipts', 'calls', 'orders', 'items', 'categories', 'tables', 'settings', 'accounts']) {
       await t.run(`DELETE FROM ${table} WHERE venue_id = ?`, [id]);
     }
     await t.run('DELETE FROM venues WHERE id = ?', [id]);
