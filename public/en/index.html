@@ -10,14 +10,14 @@
   <meta name="theme-color" content="#1f3a5f">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://kalimenu.com/">
-  <meta property="og:title" content="Kalimenu · QR menus and table ordering for New York restaurants">
+  <meta property="og:title" content="Kalimenu · QR code menu in 8 languages with ordering from the table">
   <meta property="og:description" content="Guests scan the QR code, read your menu in their language, order and call the server from their phone. $29/month, 14-day free trial, nothing to install.">
   <meta property="og:image" content="https://kalimenu.com/assets/og-us.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="alternate" hreflang="en-us" href="https://kalimenu.com/">
   <link rel="alternate" hreflang="el" href="https://kalimenu.gr/">
   <title>QR Code Menu & Table Ordering for Restaurants | Kalimenu</title>
-  <meta name="description" content="QR menu in 8 languages, ordering from the table, server calls, kitchen and bar screens. For restaurants, bars, cafés and hotels in New York. $29/month, 14-day free trial.">
+  <meta name="description" content="QR menu in 8 languages, ordering from the table, server calls, kitchen and bar screens. For restaurants, bars, cafés and hotels. $29/month, 14-day free trial.">
   <link rel="preload" href="/fonts/manrope-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/manrope-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/app.css">
@@ -291,7 +291,7 @@
       document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
     } else document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
 
-    // Prices come from the server (New York pricing, in dollars).
+    // Prices come from the server (United States pricing, in dollars).
     let prices = { pro: 2900, plus: 5900 };
     try { const { plans } = await (await fetch('/api/plans')).json(); if (plans.pro.currency === 'USD') prices = { pro: plans.pro.month, plus: plans.plus.month }; } catch { /* keep defaults */ }
     const PLANS = [
