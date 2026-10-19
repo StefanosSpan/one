@@ -2618,8 +2618,11 @@ app.get('/api/demo', wrap(async (req, res) => {
 }));
 
 // Shared images: example menu photos and home page screenshots.
+// The link previews of the websites, until their shared pictures are loaded: the plain ones shipped with the site.
+const PREVIEW_FALLBACK = { 'og-gr.jpg': 'brand/og-image.png', 'og-us.jpg': 'brand/og-image-en.png' };
 app.get('/assets/:name', wrap(async (req, res, next) => {
   const file = await sharedAsset(req.params.name);
+  if (!file && PREVIEW_FALLBACK[req.params.name]) return res.set('Cache-Control', 'public, max-age=3600').sendFile(join(PUBLIC_DIR, PREVIEW_FALLBACK[req.params.name]));
   if (!file) return next();
   res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
   res.type(file.mime).send(Buffer.from(file.data));

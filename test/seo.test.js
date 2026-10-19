@@ -78,6 +78,16 @@ test('website pages: canonical address, both languages, description and structur
   const us = (await get(US, '/')).text;
   assert.deepEqual(JSON.parse(us.match(/application\/ld\+json">([\s\S]*?)<\/script>/)[1])['@graph'][2].offers.map((o) => o.price), ['29.00', '59.00']);
   assert.match(us, /<meta property="og:url" content="http:\/\/kalimenu-us\.test\/">/);
+  // The picture of shared links is in the language of each website, and is there even before the shared pictures load.
+  assert.match(home, /<meta property="og:image" content="http:\/\/kalimenu\.test\/assets\/og-gr\.jpg">/);
+  assert.match(us, /<meta property="og:image" content="http:\/\/kalimenu-us\.test\/assets\/og-us\.jpg">/);
+  assert.match(us, /<meta property="og:image:width" content="1200">/);
+  assert.match((await get(US, '/qr-code-menu')).text, /og:image" content="http:\/\/kalimenu-us\.test\/assets\/og-us\.jpg"/);
+  for (const [host, name] of [[GR, 'og-gr.jpg'], [US, 'og-us.jpg']]) {
+    const img = await get(host, `/assets/${name}`);
+    assert.equal(img.status, 200);
+    assert.match(img.headers['content-type'], /^image\//);
+  }
   const terms = (await get(US, '/terms')).text;
   assert.match(terms, /<link rel="canonical" href="http:\/\/kalimenu-us\.test\/terms">/);
   assert.match(terms, /hreflang="el" href="http:\/\/kalimenu\.test\/terms"/);

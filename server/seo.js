@@ -53,6 +53,15 @@ const verification = (market) => {
     ...codes('BING_SITE_VERIFICATION', 'bing').map((c) => `<meta name="msvalidate.01" content="${esc(c)}">`)];
 };
 const LOCALE = { gr: 'el_GR', us: 'en_US' };
+// The picture shown when a link to the websites is shared, in the language of each website (see assets.js), and its size.
+const previewImage = (origin, market) => `${origin}/assets/og-${market === 'us' ? 'us' : 'gr'}.jpg`;
+const PREVIEW_ALT = { gr: 'Kalimenu: QR menu σε 8 γλώσσες με παραγγελία από το τραπέζι', us: 'Kalimenu: a QR code menu in 8 languages with ordering from the table' };
+const previewTags = (origin, market, html = '') => [
+  !html.includes('og:image"') ? `<meta property="og:image" content="${esc(previewImage(origin, market))}">` : '',
+  '<meta property="og:image:width" content="1200">', '<meta property="og:image:height" content="630">',
+  `<meta property="og:image:alt" content="${esc(PREVIEW_ALT[market])}">`,
+  `<meta name="twitter:image" content="${esc(previewImage(origin, market))}">`,
+];
 const LANG = { gr: 'el', us: 'en-US' };
 // Private pages: never in search results. Tables and receipts have secret links; staff and administration need a login.
 const PRIVATE = /^\/(t|r|staff|super|auth|pay|reset|login)(\/|$)/;
@@ -172,7 +181,7 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
         !has(html, 'og:url') ? `<meta property="og:url" content="${esc(url)}">` : '',
         !has(html, 'og:title') ? `<meta property="og:title" content="${esc(title)}">` : '',
         !has(html, 'og:description') && description ? `<meta property="og:description" content="${esc(description)}">` : '',
-        !has(html, 'og:image') ? `<meta property="og:image" content="${esc(origin)}/brand/og-image.png">` : '',
+        ...previewTags(origin, market, html),
         !has(html, 'og:type') ? '<meta property="og:type" content="website">' : '',
         '<meta property="og:site_name" content="Kalimenu">',
         `<meta property="og:locale" content="${LOCALE[market]}">`,
@@ -197,7 +206,7 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       { '@type': 'WebSite', '@id': `${origin}/#site`, url: `${origin}/`, name: 'Kalimenu', inLanguage: LANG[market], publisher: { '@id': `${origin}/#org` } },
       {
         '@type': 'SoftwareApplication', name: 'Kalimenu', applicationCategory: 'BusinessApplication', operatingSystem: 'Web',
-        url: `${origin}/`, image: `${origin}/brand/og-image.png`, publisher: { '@id': `${origin}/#org` },
+        url: `${origin}/`, image: previewImage(origin, market), publisher: { '@id': `${origin}/#org` },
         offers: Object.values(PLANS).map((p) => ({ '@type': 'Offer', name: p.name, price: ((p.prices[currency] ?? p.month) / 100).toFixed(2), priceCurrency: currency,
           url: `${origin}/signup` })),
       },
@@ -220,7 +229,7 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       const title = `${r.name} · ${MENU_WORD[lang] || 'Menu'}`;
       const description = [pick(r.description), r.address].filter(Boolean).join(' · ').slice(0, 300)
         || `${MENU_WORD[lang] || 'Menu'} ${r.name}`;
-      const image = absolute(origin, r.coverUrl || r.logoUrl) || `${mainOrigin(req, venue.market)}/brand/og-image.png`;
+      const image = absolute(origin, r.coverUrl || r.logoUrl) || previewImage(mainOrigin(req, venue.market), venue.market);
       const restaurant = {
         '@context': 'https://schema.org', '@type': 'Restaurant', name: r.name, url, hasMenu: url, image,
         ...(r.address ? { address: r.address } : {}), ...(r.phone ? { telephone: r.phone } : {}),
@@ -252,7 +261,7 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
     const graph = [
       { '@type': 'WebPage', '@id': url, url, name: page.title, description: page.description, inLanguage: LANG[market],
         isPartOf: { '@type': 'WebSite', '@id': `${origin}/#site`, url: `${origin}/`, name: 'Kalimenu' }, breadcrumb: { '@id': `${url}#crumbs` },
-        primaryImageOfPage: `${origin}/brand/og-image.png` },
+        primaryImageOfPage: previewImage(origin, market) },
       { '@type': 'BreadcrumbList', '@id': `${url}#crumbs`, itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Kalimenu', item: `${origin}/` },
         { '@type': 'ListItem', position: 2, name: page.name, item: url }] },
@@ -266,7 +275,7 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       `<meta property="og:url" content="${esc(url)}">`,
       `<meta property="og:title" content="${esc(page.title)}">`,
       `<meta property="og:description" content="${esc(page.description)}">`,
-      `<meta property="og:image" content="${esc(origin)}/brand/og-image.png">`,
+      ...previewTags(origin, market),
       '<meta property="og:site_name" content="Kalimenu">',
       `<meta property="og:locale" content="${LOCALE[market]}">`,
       '<meta name="twitter:card" content="summary_large_image">',

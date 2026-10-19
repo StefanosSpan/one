@@ -14,6 +14,9 @@ export const BUNDLES = [
   { prefix: 'app2-', count: 9, url: process.env.SITE_SHOTS_URL || `${CDN}/ee64024e-966c-4a6d-9305-e3a3bec0e65f.json` },
   // The same screenshots in English (New York demo) for kalimenu.com, served as /assets/app2-us-<key>.jpg.
   { prefix: 'app2-us-', count: 8, url: process.env.SITE_US_SHOTS_URL || `${CDN}/9b08fc2d-89c1-44c5-8bcd-7d747802beb2.json` },
+  // The picture shown when a link to the websites is shared (Facebook, WhatsApp, Viber, LinkedIn…): /assets/og-gr.jpg
+  // for kalimenu.gr and /assets/og-us.jpg for kalimenu.com. Until it is loaded, the plain ones in public/brand are sent.
+  { prefix: 'og-', count: 2, url: process.env.LINK_PREVIEWS_URL || `${CDN}/bc7faaee-d49b-4ccc-bebe-4afb64c22d11.json` },
 ];
 // A name belongs to the bundle with the longest matching prefix ("app2-us-menu" is English, not "app2-").
 const bundleOf = (name) => BUNDLES.filter((b) => name.startsWith(b.prefix)).sort((a, b) => b.prefix.length - a.prefix.length)[0];
