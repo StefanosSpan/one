@@ -266,9 +266,9 @@ details.advanced summary { cursor: pointer; font-weight: 600; }
 .font-opt input { position: absolute; opacity: 0; pointer-events: none; }
 .font-opt span { font-size: 1.15rem; font-weight: 700; }
 .font-opt small { color: var(--muted); }
-.f-classic, .f-traditional { font-family: Georgia, 'Times New Roman', serif; }
-.f-elegant { font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif; }
-.f-rounded { font-family: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', sans-serif; }
+.f-classic, .f-traditional { font-family: Literata, Georgia, 'Times New Roman', serif; font-weight: 600; }
+.f-elegant { font-family: 'Noto Serif Display', 'Palatino Linotype', Palatino, Georgia, serif; font-weight: 500; }
+.f-rounded { font-family: Comfortaa, ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', sans-serif; }
 .look-preview { position: sticky; top: 1rem; }
 .look-preview .pv-label { font-size: .8rem; color: var(--muted); margin-bottom: .4rem; }
 .phone-pv { border: 9px solid #12161c; border-radius: 36px; box-shadow: var(--shadow-lg); overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font);

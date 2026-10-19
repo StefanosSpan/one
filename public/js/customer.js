@@ -246,6 +246,7 @@ function bindChrome() {
 
 function switchTab(tab) {
   S.tab = tab;
+  enterNext = true;
   if (tab !== 'home') markHomeSeen();
   $$('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   if (tab === 'order') S.seenOrders = S.state.orders.length;
@@ -339,7 +340,13 @@ function visibleItems() {
   });
 }
 
+// The dishes rise into place when the menu is opened (not when it is drawn again after adding a dish or searching).
+let enterNext = true;
+
 function renderMenu() {
+  const enter = enterNext;
+  enterNext = false;
+  $('#app').classList.remove('enter');
   const items = visibleItems();
   const usedFilters = FILTERS.filter((f) => f === 'all' || S.data.items.some((i) => i.tags.includes(f)));
   const cats = S.data.categories.filter((c) => items.some((i) => i.category_id === c.id));
@@ -357,16 +364,22 @@ function renderMenu() {
       ${usedFilters.map((f) => `<button class="chip ${S.filter === f ? 'active' : ''}" data-f="${f}">${esc(t(f))}</button>`).join('')}
     </div>
     <div class="catnav" id="catnav"><div class="chips">
-      ${cats.map((c) => `<button class="chip" data-cat="${c.id}">${esc(tr(c.name))}</button>`).join('')}
+      ${cats.map((c) => `<button class="chip" data-cat="${c.id}">${esc(tr(c.name))}</button>`).join('')}<i class="ink" aria-hidden="true"></i>
     </div></div>
-    ${cats.length ? cats.map((c) => `
-      <h2 class="section-title" id="cat-${c.id}">${esc(tr(c.name))}</h2>
-      <div class="dish-list">${items.filter((i) => i.category_id === c.id).map(dishRow).join('')}</div>
-    `).join('') : `<div class="empty"><p>${esc(t('noResults'))}</p></div>`}
+    ${cats.length ? cats.map((c) => {
+    const list = items.filter((i) => i.category_id === c.id);
+    return `
+      <h2 class="section-title" id="cat-${c.id}"><span>${esc(tr(c.name))}</span><small>${list.length}</small></h2>
+      <div class="dish-list">${list.map(dishRow).join('')}</div>`;
+  }).join('') : `<div class="empty"><p>${esc(t('noResults'))}</p></div>`}
     ${canRate() ? '<div class="review-card" id="menuReview"></div>' : ''}
     ${menuNotices(items)}
   `;
   mountReview($('#menuReview'));
+  if (enter) {
+    $$('#app .section-title, #app .dish').slice(0, 14).forEach((el, n) => el.style.setProperty('--n', n));
+    $('#app').classList.add('enter');
+  }
 
   $('#announce')?.addEventListener('click', () => { if (ann.itemId && itemById(ann.itemId)) openItem(ann.itemId); });
   const q = $('#q');
@@ -394,11 +407,20 @@ function setupScrollSpy() {
   const titles = $$('.section-title');
   if (!chips.length) return;
   let current;
+  const ink = $('#catnav .ink');
+  // The line under the categories slides to the one in view, and follows it when the menu's fonts arrive.
+  const placeInk = () => {
+    const active = chips.find((c) => c.classList.contains('active'));
+    if (active && ink) { ink.style.setProperty('--x', `${active.offsetLeft}px`); ink.style.setProperty('--w', `${active.offsetWidth}px`); }
+  };
+  if ('ResizeObserver' in window) { const ro = new ResizeObserver(placeInk); chips.forEach((c) => ro.observe(c)); }
+  document.fonts?.ready.then(placeInk);
   const activate = (id) => {
     if (id === current) return;
     current = id;
     chips.forEach((c) => c.classList.toggle('active', c.dataset.cat === id));
     const active = chips.find((c) => c.dataset.cat === id);
+    placeInk();
     if (active) active.parentElement.scrollTo({ left: Math.max(0, active.offsetLeft - active.parentElement.offsetLeft - 16), behavior: 'smooth' });
   };
   let ticking = false;
@@ -462,18 +484,36 @@ function dishMeta(i, withPrice = true) {
   return parts.length ? `<div class="dish-meta">${parts.join('')}</div>` : '';
 }
 
+// Dish photos fade in once loaded; a photo already shown appears at once when the list is drawn again.
+const shownPhotos = new Set();
+window.kmPhoto = (img) => { img.classList.add('ready'); shownPhotos.add(img.getAttribute('src')); };
+
 function dishRow(i) {
   const inCart = S.cart.filter((l) => l.id === i.id).reduce((s, l) => s + l.qty, 0);
-  const add = i.available && canOrder() ? `<span class="add" role="button" aria-label="${esc(t('add'))}">${icon('plus', 16)}</span>` : '';
+  // The add button shows how many are already in the cart.
+  const add = i.available && canOrder()
+    ? `<span class="add${inCart ? ' has' : ''}" role="button" aria-label="${esc(t('add'))}">${inCart ? `<b>${inCart}</b>` : icon('plus', 16)}</span>` : '';
+  const name = `${esc(tr(i.name))}${i.tags.includes('frozen') ? ' *' : ''}`;
+  const desc = tr(i.description) ? `<div class="dish-desc">${esc(tr(i.description))}</div>` : '';
+  // Without a photo the dish reads like a printed menu: the name, a dotted line and the price on one line.
+  if (!i.image_url) {
+    return `
+    <button class="dish plain ${i.available ? '' : 'off'}" data-id="${i.id}">
+      <div class="dish-text">
+        <div class="dish-line"><span class="dish-name">${name}</span><i class="lead" aria-hidden="true"></i>${priceHtml(i)}</div>
+        ${desc}${dishMeta(i, false)}
+      </div>
+      ${add ? `<div class="dish-side">${add}</div>` : ''}
+    </button>`;
+  }
   return `
     <button class="dish ${i.available ? '' : 'off'}" data-id="${i.id}">
       <div class="dish-text">
-        <div class="dish-name">${inCart ? `<span class="incart">${inCart}×</span>` : ''}${esc(tr(i.name))}${i.tags.includes('frozen') ? ' *' : ''}</div>
-        ${tr(i.description) ? `<div class="dish-desc">${esc(tr(i.description))}</div>` : ''}
-        ${dishMeta(i)}
+        <div class="dish-name">${name}</div>
+        ${desc}${dishMeta(i)}
       </div>
       <div class="dish-side">
-        ${i.image_url ? `<img class="dish-photo" src="${esc(i.image_url)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+        <img class="dish-photo${shownPhotos.has(i.image_url) ? ' ready' : ''}" src="${esc(i.image_url)}" alt="" loading="lazy" onload="kmPhoto(this)" onerror="this.remove()">
         ${add}
       </div>
     </button>`;
@@ -489,6 +529,12 @@ function addToCart(id, qty, note = '', options = []) {
   saveCart();
   renderBottom();
   if (S.tab === 'menu') { const y = window.scrollY; renderMenu(); window.scrollTo({ top: y }); }
+  // A small sign that the dish went in: its button pops and the cart bar nods.
+  $(`.dish[data-id="${id}"] .add`)?.classList.add('pop');
+  const bar = $('#cartBar');
+  bar.classList.remove('bump');
+  void bar.offsetWidth;
+  bar.classList.add('bump');
 }
 
 function quickAdd(id) {

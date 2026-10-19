@@ -1,4 +1,6 @@
 body { padding-bottom: 150px; }
+/* Titles in the face the venue chose (theme.js sets --font-display and its weight). */
+h1, h2, h3 { font-weight: var(--display-weight, 800); }
 
 /* Top bar */
 /* Over the cover photo the bar is transparent; once the header scrolls away it turns into frosted glass. */
@@ -23,7 +25,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .28), transparent 34%, transparent 62%, rgba(0, 0, 0, .18)); }
 .venue { padding: 1.2rem 0 .4rem; }
 .venue.on-cover { position: relative; margin: -26px -1rem 0; padding: 1.3rem 1rem .4rem; background: var(--bg); border-radius: 26px 26px 0 0; }
-.venue h1 { font-size: 1.75rem; margin: 0 0 .3rem; line-height: 1.15; letter-spacing: -.025em; }
+.venue h1 { font-size: 1.95rem; margin: 0 0 .35rem; line-height: 1.1; letter-spacing: -.025em; text-wrap: balance; }
 .venue p { margin: 0; color: var(--muted); }
 .venue .meta { margin-top: .7rem; font-size: .82rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .4rem; }
 .venue .meta span { display: inline-flex; align-items: center; background: var(--fill); border-radius: 999px; padding: .22rem .7rem; font-weight: 600; }
@@ -44,16 +46,21 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .chips { display: flex; gap: .4rem; overflow-x: auto; padding: .25rem 0; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 
-/* Category tabs */
-.catnav { position: sticky; top: 54px; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); margin: .4rem -1rem 0; padding: 0 1rem;
+/* Category tabs: the one in view is underlined, and the line slides from one to the next. */
+.catnav { position: sticky; top: 54px; z-index: 10; background: color-mix(in srgb, var(--bg) 90%, transparent); margin: .4rem -1rem 0; padding: 0 1rem;
   border-bottom: 1px solid var(--line); -webkit-backdrop-filter: saturate(1.6) blur(14px); backdrop-filter: saturate(1.6) blur(14px); }
-.catnav .chips { gap: .4rem; padding: .6rem 0; }
-.catnav .chip { border: 1px solid transparent; background: none; padding: .42rem .95rem; font-size: .9rem; font-weight: 700; color: var(--muted); }
-.catnav .chip.active { color: var(--brand-ink); background: var(--brand); border-color: var(--brand); box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 28%, transparent); }
+.catnav .chips { position: relative; gap: .2rem; padding: .35rem 0 0; }
+.catnav .chip { border: 0; border-radius: 0; background: none; padding: .55rem .7rem .75rem; font-size: .92rem; font-weight: 700; color: var(--muted);
+  transition: color .25s; }
+.catnav .chip.active { color: var(--text); background: none; }
+.catnav .ink { position: absolute; left: 0; bottom: 0; height: 2.5px; border-radius: 2px 2px 0 0; background: var(--brand); width: var(--w, 0);
+  transform: translateX(var(--x, 0)); transition: transform .4s cubic-bezier(.2, .8, .2, 1), width .4s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
 
-.section-title { color: var(--cat); font-size: 1.4rem; margin: 2rem 0 .3rem; scroll-margin-top: 120px; display: flex; align-items: center; gap: .8rem;
+/* Category titles: the name, a fine line and how many dishes there are, like the page of a printed menu. */
+.section-title { color: var(--cat); font-size: 1.6rem; line-height: 1.15; margin: 2.3rem 0 .2rem; scroll-margin-top: 120px; display: flex; align-items: baseline; gap: .8rem;
   letter-spacing: -.02em; }
-.section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); order: 2; align-self: center; }
+.section-title small { order: 3; font-family: var(--font); font-size: .78rem; font-weight: 700; color: var(--faint); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 
 /* Dishes */
 .dish { display: flex; gap: 1rem; width: 100%; text-align: left; border: 0; background: none; padding: 1.05rem 0;
@@ -74,11 +81,25 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .dish-meta .soldout { color: var(--red); font-weight: 600; }
 .dish-side { position: relative; flex: none; display: flex; flex-direction: column; align-items: flex-end; }
 .dish-photo { width: 108px; height: 108px; border-radius: calc(var(--radius) + 4px); object-fit: cover; background: var(--fill); display: block;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .08); }
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .08); opacity: 0; transition: opacity .45s ease; }
+.dish-photo.ready { opacity: 1; }
+.dish-side:has(.dish-photo) { background: var(--fill); border-radius: calc(var(--radius) + 4px); }
 .add { width: 34px; height: 34px; border-radius: 999px; border: 0; background: var(--brand); color: var(--brand-ink);
   display: grid; place-items: center; box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 32%, transparent); transition: transform .1s; }
 .add:active { transform: scale(.9); }
-.dish-photo + .add { position: absolute; right: -6px; bottom: -6px; box-shadow: 0 0 0 3px var(--bg), 0 4px 12px rgba(0, 0, 0, .18); }
+.add b { font-size: .9rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.add.pop { animation: add-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
+.dish-photo + .add, .dish-side:has(.dish-photo) .add { position: absolute; right: -6px; bottom: -6px; box-shadow: 0 0 0 3px var(--bg), 0 4px 12px rgba(0, 0, 0, .18); }
+
+/* Dishes without a photo read like a printed menu: name, dotted line, price. */
+.dish.plain { padding: .95rem 0; align-items: center; }
+.dish-line { display: flex; align-items: baseline; gap: .5rem; }
+.dish-line .dish-name { flex: 0 1 auto; }
+.dish-line .lead { flex: 1 1 1.2rem; min-width: .8rem; border-bottom: 1.5px dotted color-mix(in srgb, var(--text) 32%, transparent); transform: translateY(-.28em); }
+.dish-line .price { flex: none; font-weight: 800; font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dish.plain .dish-meta:empty { display: none; }
+.dish.plain .dish-side { align-self: center; }
+.dish.plain .add:not(.has) { background: transparent; color: var(--brand-text, var(--brand)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 70%, var(--border)); }
 
 .footnote { color: var(--muted); font-size: .8rem; margin: 1.8rem 0 .5rem; line-height: 1.6; }
 
@@ -90,6 +111,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 1rem; }
 .cartbar .count { background: color-mix(in srgb, var(--brand-ink) 22%, transparent); border-radius: 999px; min-width: 26px; height: 26px; padding: 0 .4rem;
   font-weight: 800; text-align: center; display: grid; place-items: center; font-size: .85rem; }
 .cartbar b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.cartbar.bump { animation: cart-bump .5s cubic-bezier(.3, 1.5, .5, 1); }
 .tabs { display: flex; background: color-mix(in srgb, var(--bg) 88%, transparent); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
   -webkit-backdrop-filter: saturate(1.6) blur(14px); backdrop-filter: saturate(1.6) blur(14px); }
 .tabs button { flex: 1; border: 0; background: none; padding: .45rem 0 .5rem; display: flex; flex-direction: column; align-items: center;
@@ -311,4 +333,16 @@ a { color: var(--brand-text, var(--brand)); }
 @media (min-width: 560px) { .lang-chips { flex-wrap: wrap; overflow: visible; } }
 @media (min-width: 760px) {
   .tabs { max-width: 720px; margin: 0 auto; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; }
+}
+
+/* Small movements: the dishes rise into place when the menu opens; the add button pops; the cart bar nods. */
+@keyframes add-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.18); } 100% { transform: none; } }
+@keyframes cart-bump { 0% { transform: none; } 35% { transform: translateY(-5px) scale(1.015); } 100% { transform: none; } }
+@keyframes dish-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .enter .section-title, .enter .dish { animation: dish-in .55s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--n, 14) * 45ms); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .add.pop, .cartbar.bump { animation: none; }
+  .catnav .ink, .dish-photo { transition: none; }
 }

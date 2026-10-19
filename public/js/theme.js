@@ -1,12 +1,14 @@
 // Guest menu theme, shared by the menu (customer.js) and the live preview in the administration.
 // Look chosen by the venue: background, text and category colours, fonts and corners. Secondary colours
 // (muted text, lines, fields) are mixed from the background and text so any combination stays readable.
+// Each face: [titles, text, weight of the titles]. The faces are self-hosted with Greek (see app.css), so the menu looks the
+// same on every phone; a page downloads only the face it uses.
 const FONTS = {
-  modern: [null, null],
-  classic: ["Georgia, 'Times New Roman', serif", null],
-  elegant: ["'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif", "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif"],
-  rounded: ["ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", "ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"],
-  traditional: ["Georgia, 'Times New Roman', serif", "Georgia, 'Times New Roman', serif"],
+  modern: [null, null, null],
+  classic: ["Literata, Georgia, 'Times New Roman', serif", null, '600'],
+  elegant: ["'Noto Serif Display', 'Palatino Linotype', Palatino, Georgia, serif", "Literata, 'Palatino Linotype', Palatino, Georgia, serif", '500'],
+  rounded: ["Comfortaa, ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', sans-serif", null, '700'],
+  traditional: ["Literata, Georgia, 'Times New Roman', serif", "Literata, Georgia, 'Times New Roman', serif", '650'],
 };
 const RADIUS = { square: '3px', soft: '10px', round: '18px' };
 const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
@@ -36,8 +38,9 @@ export function applyTheme(theme = {}, root = document.documentElement) {
   set('--border', mix(text, bg, 0.8));
   set('--fill', mix(text, bg, 0.94));
   set('--cat', theme.category || text);
-  const [display, body] = FONTS[theme.font] || FONTS.modern;
+  const [display, body, weight] = FONTS[theme.font] || FONTS.modern;
   set('--font-display', display);
+  set('--display-weight', weight);
   if (body) root.style.setProperty('--font', body); else root.style.removeProperty('--font');
   set('--radius', RADIUS[theme.corners] || null);
   // Dark backgrounds: native controls (check boxes, fields, scroll bars) and status colours follow.
