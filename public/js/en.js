@@ -908,6 +908,10 @@ export const EN = {
   'Τα αιτήματά σας': 'Your requests',
   'Τηλέφωνο επικοινωνίας': 'Contact phone',
   'Το αίτημα δεν βρέθηκε': 'Request not found',
+  'Το μήνυμα δεν βρέθηκε': 'Message not found',
+  'Φόρμα επικοινωνίας': 'Contact form',
+  'Μήνυμα από τη φόρμα': 'Message from the form',
+  'απάντηση στο μήνυμά σας': 'answer to your message',
   'Το αίτημα στάλθηκε. Θα σας απαντήσουμε σύντομα': 'Your request was sent. We will answer you soon',
   'απάντηση στο αίτημά σας': 'answer to your request',
   // Admin → Look: how the menu link looks when it is shared.

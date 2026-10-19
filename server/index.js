@@ -17,6 +17,7 @@ import { vivaCreateOrder, vivaVerify, vivaCheck, isvConfig, isvCreateAccount, is
 import { sendMail } from './mail.js';
 import { loadSharedAssets, sharedAsset, addSamplePhotos } from './assets.js';
 import { installSeo } from './seo.js';
+import { CONTENT } from './site-content.js';
 import { pushEndpointAllowed, validSubscriptionKeys, loadVapidKeys, sendPush, staffMessage } from './push.js';
 import { DEFAULT_TZ, venueClock, inWindow, cleanWindow, cleanZones, categoryVisible, happyHourActive, dishPrice } from './menu-rules.js';
 
@@ -2079,6 +2080,35 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const appBase = (req, market = marketOf(req)) => (BASE_DOMAIN || MAIN_URLS[market] ? mainOrigin(req, market) : APP_URL || `${req.protocol}://${req.get('host')}`);
 const isUnique = (e) => /unique|duplicate/i.test(e?.message || '');
 
+// The contact form of the websites: the message lands in the super admin (with the requests of the owners) and in
+// NOTIFY_EMAIL. The answer is e-mailed from the super admin.
+app.post('/api/contact', wrap(async (req, res) => {
+  const market = marketOf(req);
+  const t = CONTENT[market].contact.errors;
+  const b = req.body || {};
+  // Forms filled in by bots fill the hidden field too: they get the same answer, and nothing is kept.
+  if (cleanText(b.website, 200)) return res.status(201).json({ ok: true });
+  const name = cleanText(b.name, 80);
+  const message = String(b.message ?? '').replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').trim().slice(0, 3000);
+  const email = cleanEmail(b.email);
+  const phone = cleanText(b.phone, 40);
+  if (name.length < 2) fail(400, t.name);
+  if (message.length < 5) fail(400, t.message);
+  if (!email && !phone) fail(400, t.reach);
+  if (email && !EMAIL_RE.test(email)) fail(400, t.email);
+  if (!rateLimit(`contact:${req.ip}`, 5, 3600_000)) fail(429, t.many);
+  const business = cleanText(b.business, 120);
+  const ts = now();
+  await db.insert('INSERT INTO site_messages (market, name, business, email, phone, message, status, reply, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [market, name, business, email, phone, message, 'new', '', ts, ts]);
+  if (process.env.NOTIFY_EMAIL) {
+    sendMail({ to: process.env.NOTIFY_EMAIL, subject: `Μήνυμα από τη φόρμα${market === 'us' ? ' (kalimenu.com)' : ''}: ${name}${business ? ` · ${business}` : ''}`,
+      text: `${message}\n\nΑπό: ${name}${business ? `, ${business}` : ''}\nE-mail: ${email || '—'}\nΤηλέφωνο: ${phone || '—'}\n`
+        + `Απάντηση: ${MAIN_URLS.gr || APP_URL || ''}/super?view=requests\n` });
+  }
+  res.status(201).json({ ok: true });
+}));
+
 app.post('/api/account/signup', wrap(async (req, res) => {
   if (!rateLimit(`signup:${req.ip}`, 10, 3600_000)) fail(429, 'Πολλές εγγραφές από αυτή τη σύνδεση. Δοκιμάστε αργότερα.');
   const b = req.body || {};
@@ -2512,7 +2542,8 @@ superApi.get('/overview', wrap(async (req, res) => {
       mrrUsd: real.filter((v) => v.currency === 'USD').reduce((s, v) => s + v.mrr, 0),
       usVenues: real.filter((v) => v.market === 'us').length,
       signups30: real.filter((v) => v.createdAt >= since).length,
-      newRequests: Number((await db.get("SELECT COUNT(*) AS n FROM venue_requests WHERE status = 'new'")).n),
+      newRequests: Number((await db.get("SELECT COUNT(*) AS n FROM venue_requests WHERE status = 'new'")).n)
+        + Number((await db.get("SELECT COUNT(*) AS n FROM site_messages WHERE status = 'new'")).n),
       trialsEnding7: real.filter((v) => trialActive(v) && new Date(v.trialEndsAt) - Date.now() < 7 * 86400_000).length,
       cardPayments: real.filter((v) => v.payments === 'viva' || v.payments === 'viva-connect').length,
       fees30: real.reduce((s, v) => s + v.fees30, 0),
@@ -2577,17 +2608,37 @@ superApi.post('/venues/:id/reset-link', wrap(async (req, res) => {
   res.json({ link: await sendResetLink(req, account, 24), email: account.email });
 }));
 
-// The requests of all venues, from both websites, newest first.
+// The requests of all venues and the messages of the contact form, from both websites: new first, then newest first.
+const STATUS_ORDER = `CASE status WHEN 'new' THEN 0 WHEN 'open' THEN 1 ELSE 2 END, id DESC`;
 superApi.get('/requests', wrap(async (req, res) => {
-  const rows = await db.all(`SELECT * FROM venue_requests ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'open' THEN 1 ELSE 2 END, id DESC LIMIT 300`);
   const out = [];
-  for (const r of rows) {
+  for (const r of await db.all(`SELECT * FROM venue_requests ORDER BY ${STATUS_ORDER} LIMIT 300`)) {
     const v = await getVenue(r.venue_id);
     if (!v) continue;
-    out.push({ ...mapRequest(r), venueId: v.id, venueName: v.name, venueSlug: v.slug, market: v.market,
+    out.push({ ...mapRequest(r), source: 'venue', venueId: v.id, venueName: v.name, venueSlug: v.slug, market: v.market,
       email: await ownerEmailOf(v.id), label: REQUEST_LABELS.el[r.kind] || r.kind });
   }
+  for (const m of await db.all(`SELECT * FROM site_messages ORDER BY ${STATUS_ORDER} LIMIT 300`)) {
+    out.push({ id: m.id, source: 'site', kind: 'contact', label: 'Φόρμα επικοινωνίας', message: m.message, status: m.status, reply: m.reply || '',
+      createdAt: m.created_at, updatedAt: m.updated_at, venueName: m.business ? `${m.name} · ${m.business}` : m.name, venueSlug: '',
+      market: m.market, email: m.email || '', contact: m.phone || '' });
+  }
+  const rank = { new: 0, open: 1, done: 2 };
+  out.sort((a, b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3) || String(b.createdAt).localeCompare(String(a.createdAt)));
   res.json(out);
+}));
+// A message of the contact form: status and answer; a new answer is e-mailed to the sender, in the language of the website.
+superApi.put('/messages/:id', wrap(async (req, res) => {
+  const m = await db.get('SELECT * FROM site_messages WHERE id = ?', [Number(req.params.id) || 0]);
+  if (!m) fail(404, 'Το μήνυμα δεν βρέθηκε');
+  const status = ['new', 'open', 'done'].includes(req.body?.status) ? req.body.status : m.status;
+  const reply = typeof req.body?.reply === 'string' ? cleanText(req.body.reply, 4000) : m.reply;
+  await db.run('UPDATE site_messages SET status = ?, reply = ?, updated_at = ? WHERE id = ?', [status, reply, now(), m.id]);
+  if (reply && reply !== m.reply && m.email) {
+    sendMail(m.market === 'us' ? { to: m.email, subject: 'Kalimenu: answer to your message', text: `${reply}\n\nYour message:\n${m.message}\n\n${MAIN_URLS.us || ''}\n` }
+      : { to: m.email, subject: 'Kalimenu: απάντηση στο μήνυμά σας', text: `${reply}\n\nΤο μήνυμά σας:\n${m.message}\n\n${MAIN_URLS.gr || APP_URL || ''}\n` });
+  }
+  res.json({ ok: true });
 }));
 // Status and answer; a new answer is also e-mailed to the owner, in the language of their website.
 superApi.put('/requests/:id', wrap(async (req, res) => {
@@ -2625,8 +2676,9 @@ app.use('/api/super', superApi);
 // Pages & static files
 // ---------------------------------------------------------------------------
 const page = (file) => (req, res) => res.sendFile(join(PUBLIC_DIR, file));
-// Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one.
-const EN_PAGES = new Set(['index.html', 'signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
+// Pages of the websites: kalimenu.com shows the English version (public/en/…), kalimenu.gr the Greek one. The main
+// pages (home, features, pricing…) are built by site.js and added by seo.js.
+const EN_PAGES = new Set(['signup.html', 'login.html', 'terms.html', 'privacy.html', 'dpa.html', 'cookies.html', 'demo.html']);
 // Search engines: robots.txt, sitemap.xml, tags of the website pages and previews of the venues' menus (see seo.js).
 const { sitePage, menuPage, notifySearchEngines } = installSeo(app, { PUBLIC_DIR, PRODUCTION, EN_PAGES, marketOf, mainOrigin, venueOrigin, MAIN_URLS, BASE_DOMAIN,
   db, getVenue, venueBySlug, features, publicRestaurant });
@@ -2654,7 +2706,6 @@ app.get('/staff/admin', page('staff/admin.html'));
 app.get('/staff/qr', page('staff/qr.html'));
 app.get('/staff/print/order/:id', page('staff/print.html'));
 app.get('/staff/print/receipt/:id', page('staff/print.html'));
-app.get('/', sitePage('index.html'));
 app.get('/demo', sitePage('demo.html'));
 app.get('/signup', sitePage('signup.html'));
 app.get('/login', sitePage('login.html'));

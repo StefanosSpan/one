@@ -13,6 +13,13 @@ export async function fillCompany(root = document) {
     el.textContent = value || FALLBACK[key] || '';
     if (value && key === 'email') el.innerHTML = `<a href="mailto:${value}">${value}</a>`;
   }
+  // Links: <a data-company-link="email"> or "phone".
+  for (const el of root.querySelectorAll('[data-company-link]')) {
+    const value = company[el.dataset.companyLink];
+    if (!value) continue;
+    el.textContent = value;
+    el.href = el.dataset.companyLink === 'email' ? `mailto:${value}` : `tel:${String(value).replace(/[^\d+]/g, '')}`;
+  }
   // A line of " · "-separated details starts with its first shown detail, not with a separator.
   for (const line of root.querySelectorAll('.co-line')) {
     const first = [...line.children].find((el) => !el.hidden);
@@ -22,4 +29,5 @@ export async function fillCompany(root = document) {
   return company;
 }
 
-fillCompany();
+/** The details of the page, once they are filled in. */
+export const ready = fillCompany();

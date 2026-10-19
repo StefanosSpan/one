@@ -65,12 +65,12 @@ function apply(c) {
   if (c?.marketing && !GPC && tracking.metaPixel) startPixel(tracking.metaPixel);
 }
 
-const css = `.ck{position:fixed;left:16px;right:16px;bottom:16px;z-index:1000;max-width:560px;margin-left:auto;background:#fff;color:#16202b;border:1px solid #e6e0d6;
+const css = `.ck{position:fixed;left:16px;right:16px;bottom:16px;z-index:1000;max-width:560px;margin-left:auto;background:#fff;color:#16202b;border:1px solid #e3e6ea;
   border-radius:14px;box-shadow:0 18px 48px rgba(22,32,43,.18);padding:18px 18px 16px;font:15px/1.5 Manrope,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
   .ck b.t{display:block;font-size:1rem;margin-bottom:.25rem}.ck p{margin:0 0 .8rem;color:#5d6673}.ck p a{color:#16202b}
-  .ck .acts{display:flex;flex-wrap:wrap;gap:.5rem}.ck button{border:1px solid #d9d2c6;background:#fff;color:#16202b;border-radius:10px;padding:.55rem .9rem;font:inherit;font-weight:700;cursor:pointer}
-  .ck button.pri{background:#d2643c;border-color:#d2643c;color:#fff}.ck label{display:flex;gap:.6rem;align-items:flex-start;padding:.5rem 0;border-top:1px solid #efe8dc}
-  .ck label input{margin-top:.3rem;accent-color:#d2643c}.ck label small{display:block;color:#5d6673}
+  .ck .acts{display:flex;flex-wrap:wrap;gap:.5rem}.ck button{border:1px solid #c9ced5;background:#fff;color:#16202b;border-radius:10px;padding:.55rem .9rem;font:inherit;font-weight:700;cursor:pointer}
+  .ck button.pri{background:#1f3a5f;border-color:#1f3a5f;color:#fff}.ck label{display:flex;gap:.6rem;align-items:flex-start;padding:.5rem 0;border-top:1px solid #e3e6ea}
+  .ck label input{margin-top:.3rem;accent-color:#1f3a5f}.ck label small{display:block;color:#5d6673}
   @media (max-width:560px){.ck{left:10px;right:10px;bottom:10px}.ck .acts button{flex:1}}`;
 
 let box;

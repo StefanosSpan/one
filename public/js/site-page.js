@@ -1,20 +1,64 @@
-// Behaviour of the website pages built on the server (the pages for searches, see server/landing.js):
-// icons, the header border on scroll, the soft fade-in of sections, the year and the company details in the footer.
-import { icon } from '/js/icons.js';
-import '/js/legal.js';
+// Behaviour of the website pages (built on the server, see server/site.js): the menu on phones, the Solutions menu,
+// monthly or yearly prices, the contact form, the company details and the year in the footer.
+import { ready } from '/js/legal.js';
 import '/js/cookies.js';
 
-document.querySelectorAll('[data-i]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.i, el.classList.contains('fi') ? 20 : 18)));
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-const header = document.getElementById('top');
-const onScroll = () => header.classList.toggle('scrolled', scrollY > 8);
-addEventListener('scroll', onScroll, { passive: true }); onScroll();
+// The menu on phones.
+const burger = $('.sh-burger');
+const setNav = (open) => { burger?.setAttribute('aria-expanded', String(open)); document.body.classList.toggle('nav-open', open); };
+burger?.addEventListener('click', () => setNav(burger.getAttribute('aria-expanded') !== 'true'));
 
-if ('IntersectionObserver' in window) {
-  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
-    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
-  }), { rootMargin: '0px 0px -8% 0px' });
-  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
-} else document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
+// Solutions: opens on a click (with a mouse also on hover, see site.css) and closes on a click elsewhere or Escape.
+const drop = $('.sh-drop');
+const dropBtn = $('.sh-drop-btn');
+const setDrop = (open) => { drop?.classList.toggle('open', open); dropBtn?.setAttribute('aria-expanded', String(open)); };
+dropBtn?.addEventListener('click', (e) => { e.stopPropagation(); setDrop(!drop.classList.contains('open')); });
+document.addEventListener('click', (e) => { if (drop && !drop.contains(e.target)) setDrop(false); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  setDrop(false);
+  if (document.body.classList.contains('nav-open')) { setNav(false); burger.focus(); }
+});
+addEventListener('resize', () => { if (innerWidth > 960) setNav(false); });
 
-document.getElementById('year').textContent = new Date().getFullYear();
+// Pricing: monthly or yearly, and the sign-up links follow.
+const plans = $('.plans');
+const choices = $$('.billing [data-b]');
+choices.forEach((b) => b.addEventListener('click', () => {
+  plans.dataset.billing = b.dataset.b;
+  choices.forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+  $$('[data-plan]', plans).forEach((a) => { a.href = `/signup?plan=${a.dataset.plan}&interval=${b.dataset.b}`; });
+}));
+
+// The contact form.
+const form = $('#contactForm');
+form?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const status = $('.form-status', form);
+  const button = $('button', form);
+  button.disabled = true;
+  status.className = 'form-status';
+  status.textContent = '';
+  try {
+    const r = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status < 500 && data.error ? data.error : form.dataset.error);
+    form.reset();
+    status.textContent = form.dataset.sent;
+    status.classList.add('ok');
+  } catch (err) {
+    status.textContent = err.message || form.dataset.error;
+    status.classList.add('err');
+  } finally { button.disabled = false; }
+});
+
+// Contact details: the box shows only when there is something in it.
+ready.then(() => {
+  for (const box of $$('[data-details]')) box.hidden = !$$('[data-if]', box).some((el) => !el.hidden);
+});
+
+$('#year').textContent = new Date().getFullYear();

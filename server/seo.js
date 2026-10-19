@@ -1,11 +1,12 @@
 // Search engines and link previews: robots.txt, sitemap.xml, canonical and language links, structured data (JSON-LD),
 // previews of each venue's menu (title, description, image) and "noindex" on private pages (tables, staff, receipts).
-// The website pages are plain HTML files; the tags that depend on the address are added here when a page is sent.
+// The main website pages are built by site.js; the others are plain HTML files. The tags that depend on the address
+// are added here when a page is sent.
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { PLANS } from './plans.js';
-import { LANDING, LANDING_UPDATED, landingFor, pairOf, renderLanding } from './landing.js';
+import { sitePages, pageFor, pairOfPage, updatedOf, allSitePaths, homeFaq, allFaq, renderPage } from './site.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // JSON inside <script>: "<" is escaped so the text can never close the tag.
@@ -13,8 +14,8 @@ const ldJson = (data) => `<script type="application/ld+json">${JSON.stringify(da
 const absolute = (origin, url) => (!url ? '' : /^https?:\/\//.test(url) ? url : `${origin}${url.startsWith('/') ? '' : '/'}${url}`);
 const plain = (html) => String(html).replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
-// Pages of the websites that search engines should find, with their address.
-export const SITE_PAGES = { 'index.html': '/', 'demo.html': '/demo', 'signup.html': '/signup', 'terms.html': '/terms',
+// The other pages of the websites (plain HTML files), with their address.
+export const SITE_PAGES = { 'demo.html': '/demo', 'signup.html': '/signup', 'terms.html': '/terms',
   'privacy.html': '/privacy', 'dpa.html': '/dpa', 'cookies.html': '/cookies', 'login.html': '/login' };
 // Descriptions for pages that have none of their own.
 const DESCRIPTIONS = {
@@ -35,8 +36,8 @@ const DESCRIPTIONS = {
     'cookies.html': 'Which cookies Kalimenu uses and how to change your choice.',
   },
 };
-// The date the website pages last changed, for <lastmod> in the sitemap.
-const SITE_UPDATED = '2026-10-12';
+// The date the HTML pages last changed, for <lastmod> in the sitemap.
+const PAGES_UPDATED = '2026-10-12';
 // Ownership checks of Google Search Console and Bing Webmaster Tools (the "HTML tag" method): the codes they give,
 // set on the hosting (GOOGLE_SITE_VERIFICATION, BING_SITE_VERIFICATION; for kalimenu.com US_GOOGLE_SITE_VERIFICATION…)
 // or here. Several codes, comma-separated, verify several accounts.
@@ -86,9 +87,9 @@ export function installSeo(app, ctx) {
   const menuUrl = (venue, req) => `${BASE_DOMAIN ? venueOrigin(venue, req) : mainOrigin(req, venue.market)}/m/${venue.slug}`;
   // Venues whose menu is public: a running trial or subscription, not the demos.
   const listed = (venue) => venue && !venue.isDemo && venue.status !== 'suspended' && !features(venue).inactive;
-  // A page for searches and the same page in the other language, when both websites have an address.
-  const landingAlternates = (market, page) => {
-    const pair = pairOf(market, page);
+  // A page and the same page in the other language, when both websites have an address.
+  const alternates = (market, page) => {
+    const pair = pairOfPage(market, page);
     if (!pair || !bothMarkets()) return [];
     const [gr, us] = market === 'us' ? [pair, page] : [page, pair];
     return [['el', `${MAIN_URLS.gr}${gr.path}`], ['en-US', `${MAIN_URLS.us}${us.path}`]];
@@ -135,11 +136,11 @@ export function installSeo(app, ctx) {
         for (const [file, path] of Object.entries(SITE_PAGES)) {
           if (file === 'login.html') continue;
           const alt = bothMarkets() ? [['el', `${MAIN_URLS.gr}${path}`], ['en-US', `${MAIN_URLS.us}${path}`]] : [];
-          urls.push({ loc: `${origin}${path}`, alt, priority: path === '/' ? '1.0' : '0.6', lastmod: SITE_UPDATED });
+          urls.push({ loc: `${origin}${path}`, alt, priority: '0.5', lastmod: PAGES_UPDATED });
         }
-        // The pages for searches, with the same page of the other language where there is one.
-        for (const page of LANDING[market] || []) {
-          urls.push({ loc: `${origin}${page.path}`, alt: landingAlternates(market, page), priority: '0.8', lastmod: LANDING_UPDATED });
+        // The main pages and the pages for searches, with the same page of the other language.
+        for (const page of sitePages(market)) {
+          urls.push({ loc: `${origin}${page.path}`, alt: alternates(market, page), priority: page.kind === 'home' ? '1.0' : '0.8', lastmod: updatedOf(page) });
         }
         // The menus of the venues of this market (each on its own address).
         for (const { id } of await db.all('SELECT id FROM venues ORDER BY id')) {
@@ -186,33 +187,41 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
         '<meta property="og:site_name" content="Kalimenu">',
         `<meta property="og:locale" content="${LOCALE[market]}">`,
         !has(html, 'twitter:card') ? '<meta name="twitter:card" content="summary_large_image">' : '',
-        file === 'index.html' ? homeData(html, market, origin) : '',
-        ...(file === 'index.html' ? verification(market) : []),
       ];
-      // The hard-coded address of the home page follows the address the page is served on.
-      html = html.replace(/<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="${esc(url)}">`)
-        .replace(/(<meta property="og:image" content=")https:\/\/kalimenu\.(gr|com)/, `$1${origin}`);
       res.type('html').send(inHead(html, tags));
     } catch (e) { next(e); }
   };
 
-  // Structured data of the home page: the company, the product with its prices, and the questions and answers.
-  function homeData(html, market, origin) {
+  const faqData = (list) => ({ '@type': 'FAQPage', mainEntity: list.map(([q, a]) => ({ '@type': 'Question', name: plain(q), acceptedAnswer: { '@type': 'Answer', text: plain(a) } })) });
+  // Structured data of a website page: on the home page the company, the product with its prices and the questions;
+  // on the others the page and where it is on the website, with its questions and answers.
+  function pageData(market, page, origin) {
     const currency = market === 'us' ? 'USD' : 'EUR';
-    const faq = [...html.matchAll(/<details><summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g)]
-      .map(([, q, a]) => ({ '@type': 'Question', name: plain(q), acceptedAnswer: { '@type': 'Answer', text: plain(a) } }));
-    const graph = [
-      { '@type': 'Organization', '@id': `${origin}/#org`, name: 'Kalimenu', url: `${origin}/`, logo: `${origin}/brand/icon-512.png` },
-      { '@type': 'WebSite', '@id': `${origin}/#site`, url: `${origin}/`, name: 'Kalimenu', inLanguage: LANG[market], publisher: { '@id': `${origin}/#org` } },
-      {
-        '@type': 'SoftwareApplication', name: 'Kalimenu', applicationCategory: 'BusinessApplication', operatingSystem: 'Web',
-        url: `${origin}/`, image: previewImage(origin, market), publisher: { '@id': `${origin}/#org` },
-        offers: Object.values(PLANS).map((p) => ({ '@type': 'Offer', name: p.name, price: ((p.prices[currency] ?? p.month) / 100).toFixed(2), priceCurrency: currency,
-          url: `${origin}/signup` })),
-      },
-      ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq }] : []),
+    const url = `${origin}${page.path}`;
+    const product = {
+      '@type': 'SoftwareApplication', name: 'Kalimenu', applicationCategory: 'BusinessApplication', operatingSystem: 'Web',
+      url: `${origin}/`, image: previewImage(origin, market), publisher: { '@id': `${origin}/#org` },
+      offers: Object.values(PLANS).map((p) => ({ '@type': 'Offer', name: p.name, price: ((p.prices[currency] ?? p.month) / 100).toFixed(2), priceCurrency: currency,
+        url: `${origin}/signup` })),
+    };
+    if (page.kind === 'home') {
+      return [
+        { '@type': 'Organization', '@id': `${origin}/#org`, name: 'Kalimenu', url: `${origin}/`, logo: `${origin}/brand/icon-512.png` },
+        { '@type': 'WebSite', '@id': `${origin}/#site`, url: `${origin}/`, name: 'Kalimenu', inLanguage: LANG[market], publisher: { '@id': `${origin}/#org` } },
+        product, faqData(homeFaq(market)),
+      ];
+    }
+    const questions = page.kind === 'solution' ? page.faq : page.kind === 'faq' ? allFaq(market) : null;
+    return [
+      { '@type': 'WebPage', '@id': url, url, name: page.title, description: page.description, inLanguage: LANG[market],
+        isPartOf: { '@type': 'WebSite', '@id': `${origin}/#site`, url: `${origin}/`, name: 'Kalimenu' }, breadcrumb: { '@id': `${url}#crumbs` },
+        primaryImageOfPage: previewImage(origin, market) },
+      { '@type': 'BreadcrumbList', '@id': `${url}#crumbs`, itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Kalimenu', item: `${origin}/` },
+        { '@type': 'ListItem', position: 2, name: page.name, item: url }] },
+      ...(page.kind === 'pricing' ? [product] : []),
+      ...(questions ? [faqData(questions)] : []),
     ];
-    return ldJson({ '@context': 'https://schema.org', '@graph': graph });
   }
 
   /** The menu of a venue without a table (/m/<code>): title, description and image for search results and shared links. */
@@ -256,23 +265,14 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
     } catch (e) { next(e); }
   };
 
-  /** The pages for searches (/qr-menu, /psifiako-menou… on kalimenu.gr, /qr-code-menu… on kalimenu.com), see landing.js. */
-  const landingPage = (req, res, next) => {
+  /** The main pages of the websites and the pages for searches (/qr-menu… on kalimenu.gr, /qr-code-menu… on kalimenu.com). */
+  const websitePage = (req, res, next) => {
     const market = marketOf(req);
-    const page = !req.hostVenue && landingFor(market, req.path);
+    const page = !req.hostVenue && pageFor(market, req.path);
     if (!page) return next();
     const origin = mainOrigin(req, market);
     const url = `${origin}${page.path}`;
-    const alt = landingAlternates(market, page);
-    const graph = [
-      { '@type': 'WebPage', '@id': url, url, name: page.title, description: page.description, inLanguage: LANG[market],
-        isPartOf: { '@type': 'WebSite', '@id': `${origin}/#site`, url: `${origin}/`, name: 'Kalimenu' }, breadcrumb: { '@id': `${url}#crumbs` },
-        primaryImageOfPage: previewImage(origin, market) },
-      { '@type': 'BreadcrumbList', '@id': `${url}#crumbs`, itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Kalimenu', item: `${origin}/` },
-        { '@type': 'ListItem', position: 2, name: page.name, item: url }] },
-      { '@type': 'FAQPage', mainEntity: page.faq.map(([q, a]) => ({ '@type': 'Question', name: plain(q), acceptedAnswer: { '@type': 'Answer', text: plain(a) } })) },
-    ];
+    const alt = alternates(market, page);
     const head = [
       `<link rel="canonical" href="${esc(url)}">`,
       ...(alt.length ? [...alt.map(([l, h]) => `<link rel="alternate" hreflang="${l.toLowerCase()}" href="${esc(h)}">`),
@@ -285,11 +285,12 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       '<meta property="og:site_name" content="Kalimenu">',
       `<meta property="og:locale" content="${LOCALE[market]}">`,
       '<meta name="twitter:card" content="summary_large_image">',
-      ldJson({ '@context': 'https://schema.org', '@graph': graph }),
+      ldJson({ '@context': 'https://schema.org', '@graph': pageData(market, page, origin) }),
+      ...(page.kind === 'home' ? verification(market) : []),
     ].join('\n  ');
-    res.type('html').send(renderLanding(market, page, head));
+    res.type('html').send(renderPage(market, page, head));
   };
-  for (const path of new Set(Object.values(LANDING).flat().map((p) => p.path))) app.get(path, landingPage);
+  for (const path of allSitePaths()) app.get(path, websitePage);
 
   /**
    * Tells the search engines that support IndexNow (Bing, Yandex…) about the pages of the websites, so new and changed
@@ -299,8 +300,8 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
     for (const market of ['gr', 'us']) {
       const origin = MAIN_URLS[market];
       if (!origin) continue;
-      const urlList = [...Object.entries(SITE_PAGES).filter(([f]) => f !== 'login.html').map(([, path]) => `${origin}${path}`),
-        ...(LANDING[market] || []).map((p) => `${origin}${p.path}`)];
+      const urlList = [...sitePages(market).map((p) => `${origin}${p.path}`),
+        ...Object.entries(SITE_PAGES).filter(([f]) => f !== 'login.html').map(([, path]) => `${origin}${path}`)];
       const key = indexNowKey(market);
       try {
         const r = await fetch('https://api.indexnow.org/indexnow', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },

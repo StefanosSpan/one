@@ -171,15 +171,15 @@
         <div class="sa-tools"><div class="seg">
           <button data-rf="open" class="${rqFilter === 'open' ? 'active' : ''}">Ανοιχτά</button>
           <button data-rf="all" class="${rqFilter === 'all' ? 'active' : ''}">Όλα</button></div></div>
-        ${rows.map((r) => `<div class="rq ${r.status}" data-rq="${r.id}">
+        ${rows.map((r) => `<div class="rq ${r.status}" data-rq="${r.id}" data-source="${r.source}">
           <div class="rq-top"><b>${esc(r.venueName)}</b>${r.market === 'us' ? ' <span class="badge amber">ΗΠΑ · kalimenu.com</span>' : ' <span class="badge gray">kalimenu.gr</span>'}
-            <span class="muted small">${esc(r.venueSlug)} · ${esc(r.email || '—')}${r.contact ? ` · ${esc(r.contact)}` : ''}</span>
+            <span class="muted small">${[r.venueSlug, r.email || (r.source === 'site' ? '' : '—'), r.contact].filter(Boolean).map(esc).join(' · ')}</span>
             <span class="when muted small">${new Date(r.createdAt).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' })}</span></div>
           <div style="margin-top:.4rem"><span class="st ${r.status === 'new' ? 'past_due' : r.status === 'done' ? 'active' : 'trialing'}">${RQ_STATUS[r.status]}</span>
             <b style="margin-left:.4rem">${esc(r.label)}</b></div>
           <p class="rq-msg">${esc(r.message)}</p>
           <div class="rq-form">
-            <label class="field" style="margin:0"><span>Απάντηση (στέλνεται με e-mail στον ιδιοκτήτη)</span><textarea class="input" data-reply>${esc(r.reply)}</textarea></label>
+            <label class="field" style="margin:0"><span>Απάντηση (στέλνεται με e-mail ${r.source === 'site' ? (r.email ? 'στον αποστολέα' : ': δεν έδωσε e-mail, απαντήστε τηλεφωνικά') : 'στον ιδιοκτήτη'})</span><textarea class="input" data-reply>${esc(r.reply)}</textarea></label>
             <label class="field" style="margin:0"><span>Κατάσταση</span><select class="input" data-status>
               ${Object.entries(RQ_STATUS).map(([k, l]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
             <button class="btn sm" data-save>Αποθήκευση</button>
@@ -191,8 +191,8 @@
         const reply = $('[data-reply]', box).value;
         const status = $('[data-status]', box).value;
         try {
-          await api(`/api/super/requests/${box.dataset.rq}`, { method: 'PUT', body: { reply, status: status === 'new' && reply.trim() ? 'open' : status } });
-          toast(reply.trim() ? 'Αποθηκεύτηκε· ο ιδιοκτήτης ειδοποιήθηκε με e-mail' : 'Αποθηκεύτηκε', 'ok');
+          await api(`/api/super/${box.dataset.source === 'site' ? 'messages' : 'requests'}/${box.dataset.rq}`, { method: 'PUT', body: { reply, status: status === 'new' && reply.trim() ? 'open' : status } });
+          toast(reply.trim() ? `Αποθηκεύτηκε· ${box.dataset.source === 'site' ? 'ο αποστολέας' : 'ο ιδιοκτήτης'} ειδοποιήθηκε με e-mail` : 'Αποθηκεύτηκε', 'ok');
           load();
         } catch (err) { toast(err.message, 'err'); }
       });

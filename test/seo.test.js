@@ -141,6 +141,54 @@ test('pages for searches: one per market, with their own title, language links, 
   }
 });
 
+test('each website has separate pages with one menu: features, pricing, how it works, questions, contact', async () => {
+  const { sitePages } = await import('../server/site.js');
+  const pairs = [['/leitourgies', '/features'], ['/times', '/pricing'], ['/pos-leitourgei', '/how-it-works'], ['/syxnes-erotiseis', '/faq'], ['/epikoinonia', '/contact']];
+  for (const [gr, us] of pairs) {
+    const g = await get(GR, gr);
+    const u = await get(US, us);
+    assert.equal(g.status, 200, gr);
+    assert.equal(u.status, 200, us);
+    assert.match(g.text, /<html lang="el">/);
+    assert.match(u.text, /<html lang="en">/);
+    assert.match(g.text, new RegExp(`<link rel="canonical" href="http://kalimenu\\.test${gr}">`));
+    assert.match(g.text, new RegExp(`hreflang="en-us" href="http://kalimenu-us\\.test${us}"`));
+    assert.match(u.text, new RegExp(`hreflang="el" href="http://kalimenu\\.test${gr}"`));
+    // The menu marks the page that is open.
+    assert.match(g.text, new RegExp(`<a href="${gr}" class="active" aria-current="page">`));
+    // Each website answers only its own addresses.
+    assert.equal((await get(US, gr)).status, 404);
+    assert.equal((await get(GR, us)).status, 404);
+  }
+  for (const [market, host] of [['gr', GR], ['us', US]]) {
+    const pages = sitePages(market);
+    assert.equal(new Set(pages.map((p) => p.title)).size, pages.length, 'every page has its own title');
+    assert.equal(new Set(pages.map((p) => p.description)).size, pages.length, 'every page has its own description');
+    const home = (await get(host, '/')).text;
+    // The menu and the footer link to every page of the website.
+    for (const p of pages.filter((x) => x.path !== '/')) assert.ok(home.includes(`href="${p.path}"`), `${host}: the home page links to ${p.path}`);
+    const map = (await get(host, '/sitemap.xml')).text;
+    assert.match(map, new RegExp(`<loc>http://${host.replace(/\./g, '\\.')}/</loc>.*<priority>1\\.0</priority>`));
+    for (const p of pages) assert.match(map, new RegExp(`<loc>http://${host.replace(/\./g, '\\.')}${p.path === '/' ? '/' : p.path}</loc>`));
+    // No effects from the old one-page site.
+    assert.doesNotMatch(home, /class="[^"]*\breveal\b|eyebrow|blob/);
+  }
+  // Prices come from the plans, monthly and yearly.
+  const pricing = (await get(GR, '/times')).text;
+  assert.match(pricing, /<span class="m">14,90\s€<\/span>/);
+  assert.match(pricing, /href="\/signup\?plan=pro&amp;interval=month"/);
+  assert.match((await get(US, '/pricing')).text, /<span class="m">\$29<\/span>/);
+  const pricingData = JSON.parse(pricing.match(/application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  assert.deepEqual(pricingData['@graph'].map((x) => x['@type']), ['WebPage', 'BreadcrumbList', 'SoftwareApplication']);
+  // The questions page lists every question, also as structured data.
+  const faq = (await get(US, '/faq')).text;
+  const faqData = JSON.parse(faq.match(/application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(faqData['@graph'].at(-1)['@type'], 'FAQPage');
+  assert.equal(faqData['@graph'].at(-1).mainEntity.length, (faq.match(/<details>/g) || []).length);
+  // The contact page has the form.
+  assert.match((await get(GR, '/epikoinonia')).text, /<form class="contact-form" id="contactForm"/);
+});
+
 test('one super admin for both websites: kalimenu.com/super opens the one of kalimenu.gr', async () => {
   const r = await get(US, '/super');
   assert.deepEqual([r.status, r.headers.location], [302, 'http://kalimenu.test/super']);

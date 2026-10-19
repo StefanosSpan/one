@@ -403,7 +403,7 @@ test('owners send requests and the super admin answers them in one inbox', async
   const got = await boss('/api/super/requests');
   assert.equal(got.status, 200, JSON.stringify(got.data));
   const inbox = got.data;
-  const req = inbox.find((r) => r.id === sent.data.id);
+  const req = inbox.find((r) => r.source === 'venue' && r.id === sent.data.id);
   assert.equal(req.email, 'owner@example.com');
   assert.equal(req.market, 'gr');
   assert.equal(req.label, 'Στήσιμο του μενού από εμάς');
@@ -414,4 +414,32 @@ test('owners send requests and the super admin answers them in one inbox', async
   const mine = (await owner('/api/admin/requests')).data.find((r) => r.id === req.id);
   assert.deepEqual([mine.status, mine.reply], ['open', 'Στείλτε μας φωτογραφίες του μενού.']);
   assert.equal((await boss('/api/super/requests/999999', { method: 'PUT', body: { status: 'done' } })).status, 404);
+});
+
+test('the contact form of the website lands in the same inbox of the super admin', async () => {
+  const guest = browser();
+  const bad = await guest('/api/contact', { method: 'POST', body: { name: 'Μαρία', message: 'Θέλω μια παρουσίαση.' } });
+  assert.deepEqual([bad.status, bad.data.error], [400, 'Γράψτε ένα e-mail ή ένα τηλέφωνο για να σας απαντήσουμε']);
+  assert.equal((await guest('/api/contact', { method: 'POST', body: { name: 'Μαρία', email: 'όχι-email', message: 'Θέλω μια παρουσίαση.' } })).status, 400);
+  // A bot that fills in the hidden field gets the same answer, and nothing is kept.
+  assert.equal((await guest('/api/contact', { method: 'POST', body: { name: 'Bot', email: 'bot@spam.example', message: 'Buy now buy now', website: 'http://spam.example' } })).status, 201);
+  const sent = await guest('/api/contact', { method: 'POST', body: {
+    name: 'Μαρία Παπαδάκη', business: 'Καφέ Λιμάνι', email: 'Maria@Example.com', phone: '6911111111', message: 'Θέλω μια παρουσίαση.\nΕίμαστε στα Χανιά.' } });
+  assert.equal(sent.status, 201);
+  const boss = browser();
+  await boss('/api/super/login', { method: 'POST', body: { email: 'boss@example.com', password: 'super-secret-123' } });
+  const inbox = (await boss('/api/super/requests')).data;
+  const site = inbox.filter((r) => r.source === 'site');
+  assert.equal(site.length, 1, 'the bot message is not kept');
+  assert.deepEqual([site[0].venueName, site[0].email, site[0].contact, site[0].status, site[0].label, site[0].market],
+    ['Μαρία Παπαδάκη · Καφέ Λιμάνι', 'maria@example.com', '6911111111', 'new', 'Φόρμα επικοινωνίας', 'gr']);
+  assert.equal(site[0].message, 'Θέλω μια παρουσίαση.\nΕίμαστε στα Χανιά.');
+  assert.equal(inbox[0].status, 'new');
+  const before = (await boss('/api/super/overview')).data.totals.newRequests;
+  const answered = await boss(`/api/super/messages/${site[0].id}`, { method: 'PUT', body: { status: 'done', reply: 'Σας πήραμε τηλέφωνο.' } });
+  assert.equal(answered.status, 200);
+  assert.equal((await boss('/api/super/overview')).data.totals.newRequests, before - 1);
+  assert.deepEqual((({ status, reply }) => [status, reply])((await boss('/api/super/requests')).data.find((r) => r.source === 'site')), ['done', 'Σας πήραμε τηλέφωνο.']);
+  assert.equal((await guest(`/api/super/messages/${site[0].id}`, { method: 'PUT', body: { status: 'new' } })).status, 401);
+  assert.equal((await boss('/api/super/messages/999999', { method: 'PUT', body: { status: 'done' } })).status, 404);
 });
