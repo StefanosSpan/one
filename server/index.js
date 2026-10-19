@@ -2746,6 +2746,18 @@ app.get('/api/demo', wrap(async (req, res) => {
   res.json({ venue: venue.slug, tables: t.map((x) => ({ label: x.label, kind: x.kind, url: `/t/${x.token}` })), pins: shown ? pins : null });
 }));
 
+// The QR code on the home page opens the demo as a guest at its first table: /demo/table always leads to the current
+// table (the demo is set up again every day, with new table links), so the picture never goes stale.
+app.get('/demo/table', wrap(async (req, res) => {
+  const row = await db.get('SELECT id FROM venues WHERE is_demo = 1 AND slug = ?', [DEMO_SLUGS[marketOf(req)]]);
+  const t = row && await db.get("SELECT token FROM tables WHERE venue_id = ? AND active = 1 AND kind = 'table' ORDER BY id LIMIT 1", [row.id]);
+  res.redirect(302, t ? `/t/${t.token}` : '/demo');
+}));
+app.get('/demo-qr.svg', wrap(async (req, res) => {
+  const svg = await QRCode.toString(`${mainOrigin(req)}/demo/table`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#0e1a2bff', light: '#0000' } });
+  res.set('Cache-Control', 'public, max-age=86400').type('image/svg+xml').send(svg);
+}));
+
 // Shared images: example menu photos and home page screenshots.
 // The link previews of the websites, until their shared pictures are loaded: the plain ones shipped with the site.
 const PREVIEW_FALLBACK = { 'og-gr.jpg': 'brand/og-image.png', 'og-us.jpg': 'brand/og-image-en.png' };

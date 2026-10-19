@@ -116,7 +116,9 @@ test('pages for searches: one per market, with their own title, language links, 
   assert.equal(page.status, 200);
   assert.match(page.text, /<title>Ψηφιακό μενού εστιατορίου σε 8 γλώσσες \| Kalimenu<\/title>/);
   assert.match(page.text, /<link rel="canonical" href="http:\/\/kalimenu\.test\/psifiako-menou">/);
-  assert.match(page.text, /<h1>Ψηφιακό μενού εστιατορίου/);
+  // The big titles have every word in its own box (they rise into place): the text is the same.
+  const h1 = page.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1].replace(/<[^>]+>/g, '');
+  assert.match(h1, /^Ψηφιακό μενού εστιατορίου/);
   const data = JSON.parse(page.text.match(/application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
   assert.deepEqual(data['@graph'].map((x) => x['@type']), ['WebPage', 'BreadcrumbList', 'FAQPage']);
   assert.ok(data['@graph'][2].mainEntity.length >= 3);
@@ -187,6 +189,15 @@ test('each website has separate pages with one menu: features, pricing, how it w
   assert.equal(faqData['@graph'].at(-1).mainEntity.length, (faq.match(/<details>/g) || []).length);
   // The contact page has the form.
   assert.match((await get(GR, '/epikoinonia')).text, /<form class="contact-form" id="contactForm"/);
+  // The QR code of the home page opens the demo as a guest, at its current first table.
+  assert.match((await get(GR, '/')).text, /<img src="\/demo-qr\.svg"/);
+  const qr = await get(GR, '/demo-qr.svg');
+  assert.equal(qr.status, 200);
+  assert.match(qr.headers['content-type'], /^image\/svg\+xml/);
+  const table = await get(GR, '/demo/table');
+  assert.equal(table.status, 302);
+  const { token } = await db.get("SELECT t.token FROM tables t JOIN venues v ON v.id = t.venue_id WHERE v.slug = 'demo' AND t.kind = 'table' ORDER BY t.id LIMIT 1");
+  assert.equal(table.headers.location, `/t/${token}`);
 });
 
 test('one super admin for both websites: kalimenu.com/super opens the one of kalimenu.gr', async () => {

@@ -1,35 +1,40 @@
-/* Sign-up, login and super admin pages */
-body { background: radial-gradient(900px 420px at 88% -6%, #f3d6c4 0%, transparent 62%), radial-gradient(800px 480px at -8% 108%, #e6edf6 0%, transparent 60%), #f7f3ec;
-  background-attachment: fixed; min-height: 100vh; }
-.auth-top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(22, 32, 43, .07); background: rgba(255, 255, 255, .75);
-  -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); }
-.auth-top .in { max-width: 1080px; margin: 0 auto; padding: .9rem 20px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+/* Sign-up, login, demo, legal and super admin pages, in the look of the websites (see site.css): paper and ink,
+   the display serif for the titles, round buttons. */
+:root { --paper: #f3f1ec; --ink: #0e1a2b; --card-bg: #fbfaf7; --brand: #0e1a2b; --serif: 'Noto Serif Display', 'Times New Roman', Georgia, serif; }
+body { background: var(--paper); color: var(--ink); min-height: 100vh; }
+.auth-top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(14, 26, 43, .12); background: var(--paper); }
+.auth-top .in { max-width: 1320px; margin: 0 auto; padding: .95rem clamp(20px, 4vw, 56px); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .wordmark { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; }
-.wordmark img { display: block; height: 28px; width: auto; }
-.auth-top a.link { color: #16202b; font-size: .9rem; font-weight: 700; text-decoration: none; padding: .5rem .95rem; border-radius: 999px; border: 1px solid rgba(22, 32, 43, .14);
-  background: #fff; transition: border-color .15s; }
-.auth-top a.link:hover { border-color: #16202b; }
-.auth { max-width: 520px; margin: 3rem auto 3rem; padding: 0 16px; }
-.auth.wide { max-width: 720px; }
-.auth .card { background: #fff; border: 1px solid rgba(22, 32, 43, .06); border-radius: 22px; padding: 2rem 1.8rem; box-shadow: 0 1px 2px rgba(22, 32, 43, .05), 0 24px 60px rgba(22, 32, 43, .12); }
-@media (max-width: 520px) { .auth { margin-top: 1.5rem; } .auth .card { padding: 1.5rem 1.2rem; border-radius: 18px; } }
-.auth h1 { font-size: 1.75rem; margin: 0 0 .35rem; letter-spacing: -.03em; line-height: 1.15; }
-.auth .lead { color: var(--muted); margin: 0 0 1.5rem; }
-.auth .btn { min-height: 48px; border-radius: 12px; }
-.auth .field { margin-bottom: .85rem; }
+.wordmark img { display: block; height: 27px; width: auto; }
+.auth-top a.link { color: var(--ink); font-size: .9rem; font-weight: 600; text-decoration: none; padding: .5rem 1rem; border-radius: 999px; border: 1px solid var(--ink);
+  transition: background .2s, color .2s; }
+.auth-top a.link:hover { background: var(--ink); color: var(--paper); }
+.auth { max-width: 540px; margin: 3.5rem auto 3rem; padding: 0 16px; }
+.auth.wide { max-width: 760px; }
+.auth .card { background: var(--card-bg); border: 1px solid rgba(14, 26, 43, .2); border-radius: 0; padding: 2.4rem 2rem; box-shadow: 0 40px 80px -50px rgba(14, 26, 43, .4); }
+@media (max-width: 520px) { .auth { margin-top: 1.5rem; } .auth .card { padding: 1.6rem 1.2rem; } }
+.auth h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(2rem, 6vw, 2.6rem); margin: 0 0 .5rem; letter-spacing: -.03em; line-height: 1.05; }
+.auth .lead { color: var(--muted); margin: 0 0 1.6rem; }
+.auth .btn, .demo .btn, .nf .btn { min-height: 50px; border-radius: 999px; box-shadow: none; }
+.auth .btn:not(.secondary), .demo .btn.primary, .nf .btn:not(.secondary) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.auth .btn.secondary, .demo .btn.secondary, .nf .btn.secondary { background: transparent; color: var(--ink); border-color: var(--ink); }
+.auth .btn:hover, .demo .btn:hover, .nf .btn:hover { filter: none; background: #1f3a5f; color: var(--paper); border-color: #1f3a5f; }
+.auth .field { margin-bottom: .9rem; }
+.auth .input { border-radius: 6px; box-shadow: none; background: #fff; }
 .auth .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
 .auth .hint { color: var(--muted); font-size: .82rem; margin: .25rem 0 0; }
-.auth .foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 1rem; }
+.auth .foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 1.1rem; }
+.auth .foot a, .auth .card a { color: var(--ink); }
 .plan-pick { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin-bottom: .9rem; }
-.plan-pick label { border: 1px solid #d8dce1; border-radius: 14px; padding: .75rem .85rem; cursor: pointer; display: block; transition: border-color .15s, box-shadow .15s; }
-.plan-pick label:hover { border-color: #aab2bd; }
-.plan-pick label:has(input:checked) { border-color: #d2643c; box-shadow: inset 0 0 0 1px #d2643c, 0 6px 16px rgba(210, 100, 60, .12); background: #fdf6f2; }
+.plan-pick label { border: 1px solid rgba(14, 26, 43, .25); border-radius: 6px; padding: .8rem .9rem; cursor: pointer; display: block; transition: border-color .15s, background .15s; }
+.plan-pick label:hover { border-color: var(--ink); }
+.plan-pick label:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: #fff; }
 .plan-pick input { position: absolute; opacity: 0; pointer-events: none; }
 .plan-pick b { display: block; }
 .plan-pick span { color: var(--muted); font-size: .82rem; }
 .check { display: flex; gap: .55rem; align-items: flex-start; font-size: .9rem; margin: .5rem 0; }
-.check input { margin-top: .2rem; }
-.trial-note { background: #eef7f1; border: 1px solid #cfe6d7; border-radius: 12px; padding: .7rem .9rem; font-size: .9rem; margin-bottom: 1.1rem; color: #1e5c37; }
+.check input { margin-top: .2rem; accent-color: var(--ink); }
+.trial-note { background: #fff; border: 1px solid rgba(14, 26, 43, .15); border-left: 3px solid #d2643c; padding: .75rem .95rem; font-size: .9rem; margin-bottom: 1.2rem; color: var(--ink); }
 @media (max-width: 520px) { .auth .row2, .plan-pick { grid-template-columns: 1fr; } }
 .table-scroll { overflow-x: auto; }
 
