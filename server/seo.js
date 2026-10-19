@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { PLANS } from './plans.js';
-import { sitePages, pageFor, pairOfPage, updatedOf, allSitePaths, homeFaq, allFaq, renderPage } from './site.js';
+import { sitePages, pageFor, pairOfPage, updatedOf, allSitePaths, homeFaq, allFaq, renderPage, siteFooter } from './site.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // JSON inside <script>: "<" is escaped so the text can never close the tag.
@@ -164,6 +164,12 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       const market = marketOf(req);
       const localFile = market === 'us' && ctx.EN_PAGES.has(file) ? `en/${file}` : file;
       let html = await load(localFile);
+      // The same footer as the main pages, in place of the page's own short line.
+      if (html.includes('<footer class="legal-foot">')) {
+        html = html.replace(/<footer class="legal-foot">[\s\S]*?<\/footer>/, siteFooter(market))
+          .replace('</head>', '  <link rel="stylesheet" href="/css/footer.css">\n</head>')
+          .replace('</body>', '  <script type="module" src="/js/footer.js"></script>\n</body>');
+      }
       const path = SITE_PAGES[file];
       if (!path) return res.type('html').send(html);
       const origin = mainOrigin(req, market);
@@ -174,7 +180,7 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
         !has(html, 'name="description"') && description ? `<meta name="description" content="${esc(description)}">` : '',
         file === 'login.html' ? '<meta name="robots" content="noindex">' : '',
         `<link rel="canonical" href="${esc(url)}">`,
-        ...(bothMarkets() && !has(html, 'hreflang=') ? [
+        ...(bothMarkets() && !has(html, 'rel="alternate" hreflang=') ? [
           `<link rel="alternate" hreflang="el" href="${esc(MAIN_URLS.gr + path)}">`,
           `<link rel="alternate" hreflang="en-us" href="${esc(MAIN_URLS.us + path)}">`,
           `<link rel="alternate" hreflang="x-default" href="${esc(MAIN_URLS.gr + path)}">`,

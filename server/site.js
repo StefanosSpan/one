@@ -368,22 +368,33 @@ function header(market, page) {
   </div></header>`;
 }
 
-function footer(market) {
+const globe = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2.8 12h18.4M12 2.8c2.6 2.6 3.9 5.6 3.9 9.2s-1.3 6.6-3.9 9.2c-2.6-2.6-3.9-5.6-3.9-9.2s1.3-6.6 3.9-9.2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+
+/**
+ * The footer of every page of the websites: the main pages here, and sign-up, login, demo and the legal pages, where
+ * seo.js puts it in place of their own short line. The company details come from /api/site (legal.js).
+ */
+export function siteFooter(market) {
   const t = W[market];
   const [otherUrl, otherLang, otherName] = t.other;
   const nav = (ids) => ids.map((id) => `<a href="${pathOf(market, id)}">${CONTENT[market].pages[id].name}</a>`).join('');
-  return `<footer class="sf"><div class="wrap">
-    <div class="sf-grid">
-      <div class="sf-brand"><p>${t.tag}</p><a class="sf-top" href="#top">${t.top} ↑</a></div>
+  return `<footer class="sf"><div class="sf-in">
+    <div class="sf-top">
+      <div class="sf-brand">
+        <a class="sf-logo" href="/"><img src="/brand/logo-white.svg" alt="Kalimenu" width="140" height="27" loading="lazy"></a>
+        <p>${t.tag}</p>
+        <p class="sf-contact" data-if="email"><a data-company-link="email"></a></p>
+        <p class="sf-contact" data-if="phone"><a data-company-link="phone"></a></p>
+        <a class="sf-lang" href="${otherUrl}" hreflang="${otherLang}" translate="no">${globe}${otherName}</a>
+      </div>
       <nav><b>${t.product}</b>${nav(['features', 'pricing', 'how'])}<a href="/demo">Demo</a></nav>
       <nav><b>${t.solutions}</b>${(LANDING[market] || []).map((p) => `<a href="${p.path}">${esc(p.name)}</a>`).join('')}</nav>
       <nav><b>${t.help}</b>${nav(['faq', 'contact'])}<a href="/login">${t.login}</a><a href="/signup">${t.trial}</a></nav>
       <nav><b>${t.legal}</b><a href="/terms">${t.terms}</a><a href="/privacy">${t.privacy}</a>${market === 'us' ? '' : `<a href="/dpa">${t.dpa}</a>`}<a href="/cookies">${t.cookies}</a><a href="#" data-cookie-settings>${t.cookieSettings}</a></nav>
     </div>
-    <img class="sf-word" src="/brand/logo-white.svg" alt="" width="412" height="80" loading="lazy">
     <div class="sf-bottom">
-      <span>© <span id="year"></span> Kalimenu<span data-if="name"> · <span data-company="name"></span></span>${market === 'us' ? '' : `<span data-if="vat"> · ${t.vat} <span data-company="vat"></span></span><span data-if="gemi"> · ${t.gemi} <span data-company="gemi"></span></span>`}</span>
-      <span><a href="${otherUrl}" hreflang="${otherLang}" translate="no">${otherName}</a> · <a class="walkup" href="https://walkupdigital.com" target="_blank" rel="noopener"><img src="/brand/walkup-mark.png" alt="" width="22" height="15">Designed by walkupdigital.com</a></span>
+      <span>© <span id="year">${new Date().getFullYear()}</span> Kalimenu<span data-if="name"> · <span data-company="name"></span></span>${market === 'us' ? '' : `<span data-if="vat"> · ${t.vat} <span data-company="vat"></span></span><span data-if="gemi"> · ${t.gemi} <span data-company="gemi"></span></span>`}<span data-if="address"> · <span data-company="address"></span></span></span>
+      <span class="sf-credits"><a class="walkup" href="https://walkupdigital.com" target="_blank" rel="noopener"><img src="/brand/walkup-mark.png" alt="" width="22" height="15">Designed by walkupdigital.com</a><a class="sf-up" href="#">${t.top} ↑</a></span>
     </div>
   </div></footer>`;
 }
@@ -409,6 +420,7 @@ export function renderPage(market, page, head) {
   <link rel="preload" href="/fonts/ysabeau-${script}-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/footer.css">
   <script>
     document.documentElement.classList.add('js');
     // Screenshots: the shared copies, else the ones shipped with the site.
@@ -419,7 +431,7 @@ export function renderPage(market, page, head) {
   <a class="skip" href="#main">${t.skip}</a>
   ${header(market, page)}
   <main id="main">${main}</main>
-  ${footer(market)}
+  ${siteFooter(market)}
   <script type="module" src="/js/site-page.js"></script>
 </body>
 </html>

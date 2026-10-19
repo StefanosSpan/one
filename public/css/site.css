@@ -410,20 +410,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 /* Related pages */
 .related h2 { margin-bottom: 2rem; }
 
-/* Footer, on ink, ending with the name across the whole width */
-.sf { background: var(--ink); color: var(--on-ink); font-size: .92rem; padding-top: clamp(56px, 7vw, 90px); border-top: 1px solid rgba(243, 241, 236, .14); }
-.sf a { text-decoration: none; }
-.sf a:hover { color: var(--paper); text-decoration: underline; text-underline-offset: .25em; }
-.sf-grid { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: 2rem; }
-.sf-brand p { max-width: 300px; margin: 0 0 1.4rem; font-family: var(--display); font-weight: 500; font-size: 1.4rem; line-height: 1.3; color: var(--paper); }
-.sf nav { display: flex; flex-direction: column; gap: .5rem; }
-.sf nav b { color: var(--paper); font-size: .8rem; font-weight: 600; letter-spacing: .02em; margin-bottom: .5rem; }
-.sf-word { display: block; width: 100%; height: auto; margin: clamp(3.5rem, 8vw, 7rem) 0 1.6rem; }
-.sf-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem 2rem; border-top: 1px solid rgba(243, 241, 236, .14); padding: 1.3rem 0 1.8rem; font-size: .84rem; }
-.sf a.walkup { display: inline-flex; align-items: center; gap: .35rem; }
-.sf a.walkup img { filter: brightness(0) invert(1); opacity: .8; }
-@media (max-width: 1080px) { .sf-grid { grid-template-columns: repeat(3, 1fr); } .sf-brand { grid-column: 1 / -1; } }
-@media (max-width: 560px) { .sf-grid { grid-template-columns: 1fr 1fr; } }
+/* The footer is in footer.css: the same on every page of the websites. */
 
 /* Motion, only for visitors who have not asked for less of it */
 @media (prefers-reduced-motion: no-preference) {

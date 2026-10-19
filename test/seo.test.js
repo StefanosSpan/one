@@ -189,6 +189,14 @@ test('each website has separate pages with one menu: features, pricing, how it w
   assert.equal(faqData['@graph'].at(-1).mainEntity.length, (faq.match(/<details>/g) || []).length);
   // The contact page has the form.
   assert.match((await get(GR, '/epikoinonia')).text, /<form class="contact-form" id="contactForm"/);
+  // Sign-up, login, demo and the legal pages have the same footer as the main pages, in their website's language.
+  for (const [host, path, link] of [[GR, '/signup', '/times'], [GR, '/terms', '/syxnes-erotiseis'], [US, '/demo', '/pricing'], [US, '/login', '/faq']]) {
+    const html = (await get(host, path)).text;
+    assert.match(html, /<footer class="sf">/, `${host}${path}`);
+    assert.ok(html.includes(`href="${link}"`), `${host}${path} links to ${link}`);
+    assert.doesNotMatch(html, /legal-foot/);
+    assert.match(html, /\/css\/footer\.css/);
+  }
   // The QR code of the home page opens the demo as a guest, at its current first table.
   assert.match((await get(GR, '/')).text, /<img src="\/demo-qr\.svg"/);
   const qr = await get(GR, '/demo-qr.svg');
