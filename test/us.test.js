@@ -151,4 +151,6 @@ test('each domain shows its own website: English on kalimenu.com, Greek on kalim
   assert.match((await g(GR, '/')).text, /walkupdigital\.com/);
   // No analytics or ads unless their ids are set (and then only after consent, in the browser).
   assert.deepEqual((await g(US, '/api/site')).data.tracking, { ga: '', metaPixel: '' });
+  // kalimenu.gr has its own Google Analytics property.
+  assert.deepEqual((await g(GR, '/api/site')).data.tracking, { ga: 'G-DRPPEDDV92', metaPixel: '' });
 });

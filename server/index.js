@@ -2589,9 +2589,11 @@ app.get('/dpa', sitePage('dpa.html'));
 app.get('/cookies', sitePage('cookies.html'));
 // Company details for the footer and the legal pages.
 // Optional analytics and ad measurement of the websites, loaded only after the visitor accepts them in the cookie banner.
-// kalimenu.com can have its own ids (US_GA_MEASUREMENT_ID, US_META_PIXEL_ID).
+// kalimenu.com can have its own ids (US_GA_MEASUREMENT_ID, US_META_PIXEL_ID). Without a setting on the hosting,
+// kalimenu.gr uses its Google Analytics property (the id is public: it is in every page that loads Analytics).
+const TRACKING_DEFAULTS = { gr: { GA_MEASUREMENT_ID: 'G-DRPPEDDV92' }, us: {} };
 const tracking = (market) => {
-  const env = (name) => (market === 'us' && process.env[`US_${name}`]) || process.env[name] || '';
+  const env = (name) => (market === 'us' && process.env[`US_${name}`]) || process.env[name] || TRACKING_DEFAULTS[market]?.[name] || '';
   return { ga: env('GA_MEASUREMENT_ID'), metaPixel: env('META_PIXEL_ID') };
 };
 app.get('/api/site', (req, res) => res.json({ company: COMPANY, termsVersion: TERMS_VERSION, trialDays: TRIAL_DAYS, market: marketOf(req),
