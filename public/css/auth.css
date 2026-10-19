@@ -1,6 +1,6 @@
 /* Sign-up, login, demo, legal and super admin pages, in the look of the websites (see site.css): paper and ink,
-   the display serif for the titles, round buttons. */
-:root { --paper: #f3f1ec; --ink: #0e1a2b; --card-bg: #fbfaf7; --brand: #0e1a2b; --serif: 'Noto Serif Display', 'Times New Roman', Georgia, serif; }
+   Ysabeau for the titles, round buttons. */
+:root { --paper: #f3f1ec; --ink: #0e1a2b; --card-bg: #fbfaf7; --brand: #0e1a2b; --display: Ysabeau, 'Segoe UI', Roboto, sans-serif; }
 body { background: var(--paper); color: var(--ink); min-height: 100vh; }
 .auth-top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(14, 26, 43, .12); background: var(--paper); }
 .auth-top .in { max-width: 1320px; margin: 0 auto; padding: .95rem clamp(20px, 4vw, 56px); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -13,7 +13,7 @@ body { background: var(--paper); color: var(--ink); min-height: 100vh; }
 .auth.wide { max-width: 760px; }
 .auth .card { background: var(--card-bg); border: 1px solid rgba(14, 26, 43, .2); border-radius: 0; padding: 2.4rem 2rem; box-shadow: 0 40px 80px -50px rgba(14, 26, 43, .4); }
 @media (max-width: 520px) { .auth { margin-top: 1.5rem; } .auth .card { padding: 1.6rem 1.2rem; } }
-.auth h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(2rem, 6vw, 2.6rem); margin: 0 0 .5rem; letter-spacing: -.03em; line-height: 1.05; }
+.auth h1 { font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 6vw, 2.6rem); margin: 0 0 .5rem; letter-spacing: -.02em; line-height: 1.05; }
 .auth .lead { color: var(--muted); margin: 0 0 1.6rem; }
 .auth .btn, .demo .btn, .nf .btn { min-height: 50px; border-radius: 999px; box-shadow: none; }
 .auth .btn:not(.secondary), .demo .btn.primary, .nf .btn:not(.secondary) { background: var(--ink); color: var(--paper); border-color: var(--ink); }

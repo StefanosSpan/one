@@ -1,6 +1,6 @@
 /* Demo page: one row per screen of the demo, with the PINs, in the look of the websites. */
 .demo { max-width: 860px; margin: 3.5rem auto 2rem; padding: 0 16px; }
-.demo h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(2.4rem, 7vw, 4.2rem); margin: 0 0 .8rem; letter-spacing: -.035em; line-height: 1; }
+.demo h1 { font-family: var(--display); font-weight: 600; font-size: clamp(2.4rem, 7vw, 4.2rem); margin: 0 0 .8rem; letter-spacing: -.02em; line-height: 1; }
 .demo .lead { color: var(--muted); font-size: 1.1rem; margin: 0 0 1.6rem; max-width: 40rem; }
 .demo .ctas { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 2.4rem; }
 .demo-list { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--ink); }
@@ -9,7 +9,7 @@
 .demo-list a:hover { background: var(--ink); color: var(--paper); padding-left: 1.2rem; }
 .demo-list a:hover span { color: rgba(243, 241, 236, .75); }
 .demo-list .di { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; border: 1px solid currentColor; }
-.demo-list b { display: block; font-family: var(--serif); font-weight: 400; font-size: 1.6rem; line-height: 1.15; margin-bottom: .2rem; }
+.demo-list b { display: block; font-family: var(--display); font-weight: 600; font-size: 1.6rem; line-height: 1.15; margin-bottom: .2rem; }
 .demo-list span { color: var(--muted); font-size: .92rem; line-height: 1.45; }
 .demo-list .pin { display: inline-block; margin-top: .5rem; font-size: .75rem; font-weight: 700; letter-spacing: .06em; color: inherit; border: 1px solid currentColor;
   border-radius: 999px; padding: .15rem .6rem; }

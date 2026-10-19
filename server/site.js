@@ -406,8 +406,7 @@ export function renderPage(market, page, head) {
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#f3f1ec">
   ${head}
-  <link rel="preload" href="/fonts/noto-serif-display-${script}-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/noto-serif-display-${script}-wght-italic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/ysabeau-${script}-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/site.css">
   <script>

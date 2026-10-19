@@ -1,5 +1,5 @@
 /* Pages of kalimenu.gr and kalimenu.com (built by server/site.js). The idea: the website reads like a good printed
-   menu. Paper and ink, a display serif (Noto Serif Display, with Greek) for the titles and Manrope for the text,
+   menu. Paper and ink, Ysabeau (with Greek) for the titles and Manrope for the text,
    numbered sections, dotted leaders, and the orange dot of the logo as the only accent. Motion is small and has a
    job: titles rise word by word, the phone follows the steps of an order, the languages pass by. Everything moves
    only when the visitor has not asked for reduced motion. */
@@ -7,7 +7,7 @@
 :root {
   --paper: #f3f1ec; --paper-2: #e9e6de; --card: #fbfaf7; --ink: #0e1a2b; --navy: #1f3a5f; --dot: #d2643c; --dot-light: #f09a74;
   --muted: #586271; --line: rgba(14, 26, 43, .12); --line-strong: rgba(14, 26, 43, .22); --on-ink: rgba(243, 241, 236, .72);
-  --serif: 'Noto Serif Display', 'Times New Roman', Georgia, serif; --brand: var(--ink);
+  --display: Ysabeau, 'Segoe UI', Roboto, sans-serif; --brand: var(--ink);
   --ease: cubic-bezier(.16, .84, .3, 1); --wrap: 1320px; --gutter: clamp(20px, 4vw, 56px);
 }
 @view-transition { navigation: auto; }
@@ -16,7 +16,7 @@
 html { scroll-padding-top: 90px; }
 body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-height: 1.6; overflow-x: hidden; }
 .site h1, .site h2, .site h3 { color: inherit; letter-spacing: -.01em; }
-.site h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.06; letter-spacing: -.02em; margin: 0 0 1rem; }
+.site h2 { font-family: var(--display); font-weight: 600; font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.06; letter-spacing: -.02em; margin: 0 0 1rem; }
 .site h3 { font-size: 1.08rem; line-height: 1.35; margin: 0 0 .4rem; font-weight: 700; }
 .site p { margin: 0 0 1rem; }
 .site a { color: inherit; }
@@ -30,9 +30,11 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .site :focus-visible { outline: 2px solid var(--dot); outline-offset: 3px; }
 
 /* Big titles. Every word sits in its own box and rises into place (the boxes come from server/site.js). */
-.display { font-family: var(--serif); font-weight: 300; letter-spacing: -.035em; line-height: .98; margin: 0; text-wrap: balance; }
+.display { font-family: var(--display); font-weight: 600; letter-spacing: -.02em; line-height: 1; margin: 0; text-wrap: balance; }
 .sec-head h2, .story-steps h3, .r-h { text-wrap: balance; }
-.display em { font-style: italic; font-weight: 300; color: var(--navy); }
+/* Prices, numbers and steps in lining figures (Ysabeau sets old-style figures by default). */
+.display, .site h2, .price, .mc-total b, .facts-row b, .steps .n, .story-steps .n, .cmp td { font-variant-numeric: lining-nums; }
+.display em { font-style: normal; font-weight: 300; color: var(--navy); }
 .display .w { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 .06em .14em; margin: 0 -.06em -.14em; }
 .display .w > span { display: inline-block; }
 
@@ -82,7 +84,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .sh-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -14px; height: 14px; }
 .sh-menu a { display: block; padding: .7rem .8rem; text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); transition: background .2s; }
 .sh-menu a:hover, .sh-menu a[aria-current] { background: var(--paper); }
-.sh-menu b { display: block; font-family: var(--serif); font-weight: 400; font-size: 1.25rem; line-height: 1.2; }
+.sh-menu b { display: block; font-family: var(--display); font-weight: 600; font-size: 1.25rem; line-height: 1.2; }
 .sh-menu span { display: block; font-size: .82rem; color: var(--muted); line-height: 1.4; margin-top: .2rem; }
 .sh-drop.open .sh-menu { display: grid; }
 @media (hover: hover) and (min-width: 1081px) { .sh-drop:hover .sh-menu { display: grid; } }
@@ -106,7 +108,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
     background: var(--paper); padding: .6rem var(--gutter) 2rem; overflow-y: auto; border-top: 1px solid var(--line); }
   .nav-open { overflow: hidden; }
   .nav-open .sh-nav { display: flex; }
-  .sh-nav > a, .sh-drop-btn { font-family: var(--serif); font-weight: 400; font-size: 2rem; letter-spacing: -.02em; padding: .7rem 0; border-bottom: 1px solid var(--line);
+  .sh-nav > a, .sh-drop-btn { font-family: var(--display); font-weight: 500; font-size: 2rem; letter-spacing: -.01em; padding: .7rem 0; border-bottom: 1px solid var(--line);
     width: 100%; text-align: left; background-image: none; }
   .sh-nav > a.active { font-style: italic; }
   .sh-drop-btn { display: flex; align-items: center; justify-content: space-between; }
@@ -166,7 +168,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .marquee { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); overflow: hidden; padding: clamp(.9rem, 2vw, 1.5rem) 0; }
 .marquee-track { display: flex; width: max-content; }
 .marquee-track > div { display: flex; align-items: center; flex: none; }
-.marquee span { font-family: var(--serif); font-style: italic; font-weight: 300; font-size: clamp(2rem, 4.6vw, 4.4rem); line-height: 1.1; white-space: nowrap; letter-spacing: -.02em; }
+.marquee span { font-family: var(--display); font-style: italic; font-weight: 400; font-size: clamp(2rem, 4.6vw, 4.4rem); line-height: 1.1; white-space: nowrap; letter-spacing: -.02em; }
 .marquee i { flex: none; width: .55rem; height: .55rem; border-radius: 50%; background: var(--dot); margin: 0 clamp(1.2rem, 3vw, 2.6rem); }
 
 /* Home: the steps of an order, with the phone following them */
@@ -183,8 +185,8 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .story-steps li { min-height: 76vh; display: flex; flex-direction: column; justify-content: center; border-top: 1px solid var(--line-strong); padding: 3rem 0; transition: opacity .5s; }
 .js .story-steps li { opacity: .25; }
 .js .story-steps li.on { opacity: 1; }
-.story-steps .n { font-family: var(--serif); font-size: 1.1rem; color: var(--dot); }
-.story-steps h3 { font-family: var(--serif); font-weight: 400; font-size: clamp(2.2rem, 4vw, 3.6rem); line-height: 1.02; letter-spacing: -.025em; margin: .6rem 0 1.1rem; }
+.story-steps .n { font-family: var(--display); font-weight: 600; font-size: 1.1rem; color: var(--dot); }
+.story-steps h3 { font-family: var(--display); font-weight: 600; font-size: clamp(2.2rem, 4vw, 3.6rem); line-height: 1.02; letter-spacing: -.025em; margin: .6rem 0 1.1rem; }
 .story-steps p { font-size: 1.15rem; color: var(--muted); max-width: 30rem; margin: 0; }
 .story-steps .inline { display: none; }
 @media (max-width: 900px) {
@@ -211,18 +213,18 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 /* Home: what is included, as a printed menu with dotted leaders */
 .menu-card { max-width: 780px; margin: 0 auto; background: var(--card); border: 1px solid var(--line-strong); padding: clamp(2.2rem, 6vw, 4.5rem) clamp(1.3rem, 6vw, 5rem);
   box-shadow: 0 40px 80px -50px rgba(14, 26, 43, .4); }
-.mc-title { display: flex; align-items: center; gap: 1.2rem; font-family: var(--serif); font-style: italic; font-weight: 300; font-size: clamp(2.6rem, 6vw, 4.6rem); line-height: 1;
+.mc-title { display: flex; align-items: center; gap: 1.2rem; font-family: var(--display); font-style: italic; font-weight: 500; font-size: clamp(2.6rem, 6vw, 4.6rem); line-height: 1;
   margin: 0 0 1rem; }
 .mc-title::before, .mc-title::after { content: ''; flex: 1; height: 1px; background: var(--ink); }
 .menu-card h3 { font-size: .74rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; text-align: center; color: var(--dot); margin: 2.4rem 0 .8rem; }
 .menu-card ul { list-style: none; margin: 0; padding: 0; }
 .menu-card li, .mc-total { display: flex; align-items: baseline; gap: .7rem; margin: 0; padding: .5rem 0; }
-.menu-card li span { font-family: var(--serif); font-size: clamp(1.08rem, 1.9vw, 1.35rem); line-height: 1.3; }
+.menu-card li span { font-family: var(--display); font-weight: 500; font-size: clamp(1.08rem, 1.9vw, 1.35rem); line-height: 1.3; }
 .menu-card i { flex: 1; min-width: 1.5rem; border-bottom: 1.5px dotted rgba(14, 26, 43, .4); transform: translateY(-.28em); }
-.menu-card li b { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.menu-card li b { font-family: var(--display); font-style: italic; font-weight: 400; color: var(--muted); white-space: nowrap; }
 .mc-total { border-top: 1px solid var(--ink); margin-top: 2rem; padding-top: 1.4rem; }
-.mc-total span { font-family: var(--serif); font-size: 1.7rem; }
-.mc-total b { font-family: var(--serif); font-weight: 400; font-size: clamp(1.9rem, 3.6vw, 2.6rem); white-space: nowrap; }
+.mc-total span { font-family: var(--display); font-weight: 600; font-size: 1.7rem; }
+.mc-total b { font-family: var(--display); font-weight: 600; font-size: clamp(1.9rem, 3.6vw, 2.6rem); white-space: nowrap; }
 .mc-total small { font-family: var(--font); font-size: .95rem; color: var(--muted); font-weight: 500; margin-left: .2rem; }
 .mc-note { text-align: center; color: var(--muted); font-size: .88rem; margin: 1.2rem 0 0; }
 .menu-card .ctas { justify-content: center; }
@@ -241,7 +243,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .rows a:hover { color: var(--paper); padding-left: 1.6rem; padding-right: 1.2rem; }
 .rows a:hover::before { transform: none; }
 .r-n { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; transition: color .4s; }
-.r-h { font-family: var(--serif); font-size: clamp(1.7rem, 3.2vw, 2.9rem); line-height: 1.08; letter-spacing: -.02em; }
+.r-h { font-family: var(--display); font-weight: 500; font-size: clamp(1.7rem, 3.2vw, 2.9rem); line-height: 1.08; letter-spacing: -.02em; }
 .r-p { color: var(--muted); font-size: .98rem; line-height: 1.5; transition: color .4s; }
 .rows .arr { width: 28px; height: 28px; justify-self: end; transition: transform .45s var(--ease); }
 .rows a:hover .r-n, .rows a:hover .r-p { color: var(--on-ink); }
@@ -260,7 +262,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .facts-row > div { padding: clamp(1.8rem, 4vw, 3.2rem) 1.4rem; }
 .facts-row > div:first-child { padding-left: 0; }
 .facts-row > div + div { border-left: 1px solid var(--line-strong); }
-.facts-row b { display: block; font-family: var(--serif); font-weight: 300; font-size: clamp(3.2rem, 7.5vw, 7rem); line-height: .95; letter-spacing: -.04em; }
+.facts-row b { display: block; font-family: var(--display); font-weight: 400; font-size: clamp(3.2rem, 7.5vw, 7rem); line-height: .95; letter-spacing: -.04em; }
 .facts-row span { display: block; color: var(--muted); margin-top: .6rem; font-size: .95rem; }
 @media (max-width: 760px) {
   .facts-row { grid-template-columns: 1fr 1fr; }
@@ -349,7 +351,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .plan-tag { border: 1px solid currentColor; border-radius: 999px; font-size: .74rem; font-weight: 600; padding: .25rem .75rem; white-space: nowrap; }
 .plan .for { color: var(--muted); margin: .5rem 0 0; }
 .plan.best .for, .plan.best .per, .plan.best .price small { color: var(--on-ink); }
-.price { display: flex; align-items: baseline; gap: .5rem; font-family: var(--serif); font-weight: 300; font-size: clamp(3.4rem, 6vw, 5.2rem); line-height: 1; letter-spacing: -.04em;
+.price { display: flex; align-items: baseline; gap: .5rem; font-family: var(--display); font-weight: 500; font-size: clamp(3.4rem, 6vw, 5.2rem); line-height: 1; letter-spacing: -.04em;
   margin: 2rem 0 .5rem; }
 .price small { font-family: var(--font); font-size: 1rem; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .per { color: var(--muted); font-size: .9rem; margin: 0; }
@@ -358,20 +360,20 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .plan.best .checks li { border-color: rgba(243, 241, 236, .14); }
 .plan.best .checks li::before { border-color: var(--dot-light); }
 .extras { max-width: 1040px; margin-top: 3rem; }
-.extras h3 { font-family: var(--serif); font-weight: 400; font-size: 1.6rem; }
+.extras h3 { font-family: var(--display); font-weight: 600; font-size: 1.6rem; }
 @media (max-width: 760px) { .plans { grid-template-columns: minmax(0, 1fr); } }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 1rem; }
 .cmp { width: 100%; border-collapse: collapse; min-width: 640px; font-size: .95rem; }
 .cmp th, .cmp td { text-align: left; padding: .9rem 1rem .9rem 0; border-bottom: 1px solid var(--line-strong); vertical-align: top; }
 .cmp th { font-size: .8rem; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--ink); }
 .cmp tr.ours td { font-weight: 700; }
-.cmp tr.ours td:first-child { font-family: var(--serif); font-size: 1.25rem; font-weight: 400; }
+.cmp tr.ours td:first-child { font-family: var(--display); font-size: 1.25rem; font-weight: 700; }
 
 /* How it works */
 .steps { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--ink); }
 .steps li { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 4fr) minmax(0, 5fr); gap: 1rem 2.4rem; padding: clamp(1.6rem, 3vw, 2.6rem) 0;
   border-bottom: 1px solid var(--line-strong); align-items: baseline; }
-.steps .n { font-family: var(--serif); font-weight: 300; font-size: clamp(2.8rem, 5vw, 4.6rem); line-height: 1; letter-spacing: -.03em; }
+.steps .n { font-family: var(--display); font-weight: 400; font-size: clamp(2.8rem, 5vw, 4.6rem); line-height: 1; letter-spacing: -.03em; }
 .site .steps h2 { font-size: clamp(1.5rem, 2.4vw, 2.1rem); margin: 0; }
 .steps p { margin: 0; color: var(--muted); font-size: 1.05rem; }
 .steps.compact { margin-top: 2rem; }
@@ -413,7 +415,7 @@ body.site { background: var(--paper); color: var(--ink); font-size: 17px; line-h
 .sf a { text-decoration: none; }
 .sf a:hover { color: var(--paper); text-decoration: underline; text-underline-offset: .25em; }
 .sf-grid { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: 2rem; }
-.sf-brand p { max-width: 300px; margin: 0 0 1.4rem; font-family: var(--serif); font-size: 1.35rem; line-height: 1.3; color: var(--paper); }
+.sf-brand p { max-width: 300px; margin: 0 0 1.4rem; font-family: var(--display); font-weight: 500; font-size: 1.4rem; line-height: 1.3; color: var(--paper); }
 .sf nav { display: flex; flex-direction: column; gap: .5rem; }
 .sf nav b { color: var(--paper); font-size: .8rem; font-weight: 600; letter-spacing: .02em; margin-bottom: .5rem; }
 .sf-word { display: block; width: 100%; height: auto; margin: clamp(3.5rem, 8vw, 7rem) 0 1.6rem; }
