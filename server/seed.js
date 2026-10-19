@@ -109,8 +109,12 @@ const OPTIONS = {
   ] }],
 };
 
+// The example venue of the public demo on kalimenu.gr: the same fictional taverna as in the screenshots of the website,
+// with its logo and harbour cover (shared images, see assets.js).
 export const DEFAULT_RESTAURANT = {
-  name: 'Το εστιατόριό σας',
+  name: 'Ταβέρνα στο Λιμάνι',
+  logoUrl: '/assets/demo-logo-gr.jpg',
+  coverUrl: '/assets/demo-cover.jpg',
   description: t(
     'Παραδοσιακή ελληνική κουζίνα δίπλα στη θάλασσα, από το 1985.',
     'Traditional Greek cuisine by the sea, since 1985.',
@@ -136,7 +140,8 @@ export const DEFAULT_RESTAURANT = {
 // The example venue on kalimenu.com (New York).
 export const US_DEMO_RESTAURANT = {
   ...DEFAULT_RESTAURANT,
-  name: 'Your Restaurant',
+  name: 'Harbor Tavern',
+  logoUrl: '/assets/demo-logo-us.jpg',
   hours: t('Κάθε μέρα 11:30 – 23:00', 'Every day 11:30 am – 11:00 pm', 'Täglich 11:30 – 23:00', 'Tous les jours 11h30 – 23h00',
     'Tutti i giorni 11:30 – 23:00', 'Todos los días 11:30 – 23:00', 'Dagelijks 11:30 – 23:00', 'Codziennie 11:30 – 23:00'),
   address: '123 Mulberry St, New York, NY 10013',

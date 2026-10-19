@@ -108,12 +108,16 @@ export async function createVenue(t, { name, plan = 'pro', status = 'active', tr
   return venueId;
 }
 
-// The public demo venues with the example menu and well-known PINs: "demo" (Greece) and "demo-us" (New York).
+// The public demo venues with the example menu and well-known PINs: "demo" (Greece) and "demo-us" (New York), as the
+// fictional taverna of the website screenshots.
 export const DEMO_PINS = { admin: '1234', waiter: '1111', kitchen: '2222' };
+const DEMO_NAMES = { gr: 'Ταβέρνα στο Λιμάνι', us: 'Harbor Tavern' };
+// Names of the demos before they were the taverna of the screenshots.
+const OLD_DEMO_NAMES = ['Το εστιατόριό σας', 'Your Restaurant'];
 export async function createDemoVenue(market = 'gr') {
   const us = market === 'us';
   return db.tx((t) => createVenue(t, {
-    name: us ? 'Your Restaurant' : 'Το εστιατόριό σας', slug: DEMO_SLUGS[market], plan: 'plus', status: 'active', isDemo: true,
+    name: DEMO_NAMES[us ? 'us' : 'gr'], slug: DEMO_SLUGS[market], plan: 'plus', status: 'active', isDemo: true,
     // Paying from the phone is not offered in the United States yet.
     pins: DEMO_PINS, onlinePayments: us ? 'off' : 'demo', sample: true, demoInfo: true, market,
   }));
@@ -147,6 +151,12 @@ export const ready = (async () => {
   // The New York demo is added once the United States market is switched on.
   if (US_ENABLED && process.env.DEMO_VENUE !== 'off' && !(await db.get('SELECT id FROM venues WHERE slug = ?', [DEMO_SLUGS.us]))) {
     await createDemoVenue('us');
+  }
+  // Demos made before they were the taverna of the screenshots are made again as it.
+  for (const market of ['gr', 'us']) {
+    const old = await db.get(`SELECT id FROM venues WHERE is_demo = 1 AND slug = ? AND name IN (${OLD_DEMO_NAMES.map(() => '?').join(', ')})`,
+      [DEMO_SLUGS[market], ...OLD_DEMO_NAMES]);
+    if (old) { await deleteVenue(old.id); await createDemoVenue(market); }
   }
   // A wrong super admin setting never takes the whole service down: the venues keep working and the log says what to fix.
   await ensureSuperAdmin(process.env.SUPERADMIN_EMAIL, process.env.SUPERADMIN_PASSWORD)
