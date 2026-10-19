@@ -429,3 +429,12 @@ html:not([data-market="us"]) [data-us-only] { display: none !important; }
   .push-tip [data-push] { width: 100%; }
 }
 .bar #pushBtn.on { color: var(--brand); }
+
+/* Admin → Look: how the menu link looks when it is shared, as a chat app shows it. */
+.share-card { margin: .9rem 0 .4rem; max-width: 420px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06); }
+.share-card img { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; background: var(--fill); }
+.share-card .sc-text { padding: .65rem .85rem .75rem; display: grid; gap: .15rem; }
+.share-card small { color: var(--muted); font-size: .75rem; text-transform: lowercase; }
+.share-card b { font-size: .95rem; line-height: 1.3; }
+.share-card span { color: var(--muted); font-size: .85rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

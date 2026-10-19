@@ -226,10 +226,14 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
       const url = menuUrl(venue, req);
       const origin = new URL(url).origin;
       const pick = (obj) => (obj && (obj[lang] || obj.en || obj.el || Object.values(obj)[0])) || '';
-      const title = `${r.name} · ${MENU_WORD[lang] || 'Menu'}`;
-      const description = [pick(r.description), r.address].filter(Boolean).join(' · ').slice(0, 300)
+      // The owner's own picture, title and text for shared links (Admin → Look), else made from the venue's details.
+      const share = venue.settings.share || {};
+      const title = share.title || `${r.name} · ${MENU_WORD[lang] || 'Menu'}`;
+      const description = share.description || [pick(r.description), r.address].filter(Boolean).join(' · ').slice(0, 300)
         || `${MENU_WORD[lang] || 'Menu'} ${r.name}`;
-      const image = absolute(origin, r.coverUrl || r.logoUrl) || previewImage(mainOrigin(req, venue.market), venue.market);
+      const image = absolute(origin, share.imageUrl || r.coverUrl || r.logoUrl) || previewImage(mainOrigin(req, venue.market), venue.market);
+      // The picture made in Admin → Look has the size the apps expect.
+      const sized = !!share.imageUrl && share.auto !== false;
       const restaurant = {
         '@context': 'https://schema.org', '@type': 'Restaurant', name: r.name, url, hasMenu: url, image,
         ...(r.address ? { address: r.address } : {}), ...(r.phone ? { telephone: r.phone } : {}),
@@ -244,6 +248,8 @@ ${urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${(u.alt || []).map(([l, h]) =
         `<meta property="og:title" content="${esc(title)}">`,
         `<meta property="og:description" content="${esc(description)}">`,
         `<meta property="og:image" content="${esc(image)}">`,
+        sized ? '<meta property="og:image:width" content="1200">' : '', sized ? '<meta property="og:image:height" content="630">' : '',
+        `<meta name="twitter:image" content="${esc(image)}">`,
         '<meta name="twitter:card" content="summary_large_image">',
         listed(venue) ? ldJson(restaurant) : '',
       ]));

@@ -914,6 +914,7 @@ function renderLook() {
       <h3>Φωτογραφία εξωφύλλου</h3>
       <p class="muted small" style="margin-top:0">Οριζόντια φωτογραφία του χώρου, της θέας ή ενός πιάτου.</p>
       <div id="cover"></div>
+      ${shareSection()}
       <div style="margin-top:1.2rem"><button class="btn" id="save">Αποθήκευση εμφάνισης</button></div>
     </div>
     <div class="look-preview"><div class="pv-label">Έτσι το βλέπουν οι πελάτες</div><div class="phone-pv" id="pv"></div></div>
@@ -922,6 +923,7 @@ function renderLook() {
   const logo = photoField($('#app'), '#logo', r.logoUrl, { contain: true, onChange: () => setTimeout(draw) });
   const cover = photoField($('#app'), '#cover', r.coverUrl, { wide: true, onChange: () => setTimeout(draw) });
   const cleared = { text: !theme.text, cat: !theme.category };
+  const share = bindShare(() => ({ name: r.name, logoUrl: logo?.() ?? r.logoUrl, coverUrl: cover?.() ?? r.coverUrl, brand }));
 
   function current() {
     return {
@@ -947,6 +949,7 @@ function renderLook() {
       <div class="pv-cart"><span>2</span>Καλάθι<span>${euro(L10N.market === 'us' ? 2000 : 1000)}</span></div>`;
     applyTheme(t, pv);
     applyBrand(brand, pv);
+    share?.redraw();
   }
 
   $$('[data-preset]').forEach((b) => b.onclick = () => {
@@ -976,11 +979,165 @@ function renderLook() {
     try {
       await api('/api/admin/settings', { method: 'PUT', body: {
         brandColor: brand, theme: current(), restaurant: { ...settings.restaurant, logoUrl: logo(), coverUrl: cover() },
+        share: await share.value(),
       } });
       toast('Η εμφάνιση αποθηκεύτηκε. Ανανεώστε το μενού στο κινητό για να τη δείτε.', 'ok');
       settings = await api('/api/admin/settings');
     } catch (err) { toast(err.message, 'err'); }
   };
+}
+
+// ---------------------------------------------------------------------------
+// How the menu link looks when it is shared (WhatsApp, Viber, Messenger, Instagram, Facebook): a picture made from
+// the cover, logo and name (or the owner's own), a title and a short text, with a preview of the card.
+// ---------------------------------------------------------------------------
+const SHARE_SUB = { gr: 'Μενού & παραγγελία από το κινητό', us: 'Menu & ordering from your phone' };
+const shareHost = () => { try { return new URL(settings.menuUrl).host; } catch { return ''; } };
+const shareDefaults = (r) => ({
+  title: `${r.name} · ${L10N.market === 'us' ? 'Menu' : 'Μενού'}`,
+  description: [(L10N.market === 'us' ? r.description?.en : r.description?.el) || '', r.address || ''].filter(Boolean).join(' · ').slice(0, 220),
+});
+const shareKey = ({ name, logoUrl, coverUrl, brand }) => [name, logoUrl, coverUrl, brand, shareHost()].join('|');
+
+const loadImg = (src) => new Promise((resolve) => {
+  if (!src) return resolve(null);
+  const img = new Image();
+  img.onload = () => resolve(img);
+  img.onerror = () => resolve(null);
+  img.src = src;
+});
+// Draws the picture of shared links (1200×630) on a canvas: the cover darkened on the left, the logo, the name.
+async function shareCanvas({ name, logoUrl, coverUrl, brand }) {
+  const W = 1200; const H = 630;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const sub = SHARE_SUB[L10N.market === 'us' ? 'us' : 'gr'];
+  await Promise.all([`800 80px Manrope`, `600 34px Manrope`, `700 28px Manrope`].map((f) => document.fonts?.load(f, `${name} ${sub}`).catch(() => {})));
+  const [cover, logo] = await Promise.all([loadImg(coverUrl), loadImg(logoUrl)]);
+  g.fillStyle = brand || '#1f3a5f';
+  g.fillRect(0, 0, W, H);
+  if (cover) {
+    const k = Math.max(W / cover.width, H / cover.height);
+    g.drawImage(cover, (W - cover.width * k) / 2, (H - cover.height * k) / 2, cover.width * k, cover.height * k);
+    const shade = g.createLinearGradient(0, 0, W, 0);
+    shade.addColorStop(0, 'rgba(8,16,26,.82)'); shade.addColorStop(.6, 'rgba(8,16,26,.45)'); shade.addColorStop(1, 'rgba(8,16,26,.1)');
+    g.fillStyle = shade; g.fillRect(0, 0, W, H);
+    const low = g.createLinearGradient(0, H * .4, 0, H);
+    low.addColorStop(0, 'rgba(8,16,26,0)'); low.addColorStop(1, 'rgba(8,16,26,.55)');
+    g.fillStyle = low; g.fillRect(0, 0, W, H);
+  } else {
+    const glow = g.createRadialGradient(W * .85, -60, 40, W * .85, -60, 700);
+    glow.addColorStop(0, 'rgba(255,255,255,.22)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  }
+  const round = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  if (logo) {
+    round(72, 72, 156, 156, 34); g.fillStyle = '#fff'; g.fill();
+    g.save(); round(80, 80, 140, 140, 28); g.clip();
+    const k = Math.min(140 / logo.width, 140 / logo.height);
+    g.drawImage(logo, 80 + (140 - logo.width * k) / 2, 80 + (140 - logo.height * k) / 2, logo.width * k, logo.height * k);
+    g.restore();
+  }
+  // The name, as large as fits on at most two lines.
+  g.fillStyle = '#fff';
+  g.textBaseline = 'alphabetic';
+  let size = 92; let lines = [name];
+  for (; size >= 48; size -= 4) {
+    g.font = `800 ${size}px Manrope, sans-serif`;
+    lines = [];
+    let line = '';
+    for (const word of String(name).split(/\s+/)) {
+      const next = line ? `${line} ${word}` : word;
+      if (g.measureText(next).width > W - 144 && line) { lines.push(line); line = word; } else line = next;
+    }
+    lines.push(line);
+    if (lines.length <= 2 && lines.every((l) => g.measureText(l).width <= W - 144)) break;
+  }
+  const lh = size * 1.06;
+  const bottom = 448;
+  lines.slice(0, 2).forEach((l, i, all) => g.fillText(l, 72, bottom - (all.length - 1 - i) * lh));
+  g.font = '600 34px Manrope, sans-serif';
+  g.fillStyle = 'rgba(255,255,255,.88)';
+  g.fillText(sub, 72, bottom + 58);
+  g.font = '700 28px Manrope, sans-serif';
+  g.fillStyle = 'rgba(255,255,255,.7)';
+  g.fillText(shareHost(), 72, H - 58);
+  return c;
+}
+
+function shareSection() {
+  const sh = settings.share || {};
+  const d = shareDefaults(settings.restaurant);
+  return `<h3>Όταν στέλνετε τον σύνδεσμο του μενού</h3>
+    <p class="muted small" style="margin-top:0">Η εικόνα, ο τίτλος και το κείμενο που βλέπουν στο WhatsApp, Viber, Messenger, Instagram και Facebook.</p>
+    <div class="seg" id="shareMode"><button type="button" data-mode="auto" class="${sh.auto === false ? '' : 'active'}">Αυτόματη εικόνα</button>
+      <button type="button" data-mode="own" class="${sh.auto === false ? 'active' : ''}">Δική μου εικόνα</button></div>
+    <div id="shareOwn" ${sh.auto === false ? '' : 'hidden'}></div>
+    <p class="muted small" id="shareAutoHint" ${sh.auto === false ? 'hidden' : ''}>Φτιάχνεται από το εξώφυλλο, το λογότυπο και το όνομα του καταστήματος.</p>
+    <label class="field"><span>Τίτλος</span><input class="input" id="shareTitle" maxlength="90" value="${esc(sh.title || '')}" placeholder="${esc(d.title)}"></label>
+    <label class="field"><span>Κείμενο</span><textarea class="input" id="shareDesc" maxlength="220" rows="2" placeholder="${esc(d.description || 'Σύντομη περιγραφή')}">${esc(sh.description || '')}</textarea></label>
+    <div class="share-card" id="shareCard"></div>
+    <p class="muted small">Οι εφαρμογές θυμούνται την προεπισκόπηση για μέρες. Μετά από αλλαγή, πατήστε «Scrape Again» στο
+      <a href="https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(settings.menuUrl || '')}" target="_blank" rel="noopener">εργαλείο του Facebook</a>,
+      που ανανεώνει και το Instagram και το Messenger.</p>`;
+}
+
+// Wires the share settings of the Look tab. `look()` gives the current name, logo, cover and brand colour.
+function bindShare(look) {
+  const sh = settings.share || {};
+  const own = photoField($('#app'), '#shareOwn', sh.auto === false ? sh.imageUrl : '', { wide: true, onChange: () => setTimeout(redraw) });
+  let mode = sh.auto === false ? 'own' : 'auto';
+  let timer;
+  $$('#shareMode [data-mode]').forEach((b) => b.onclick = () => {
+    mode = b.dataset.mode;
+    $$('#shareMode [data-mode]').forEach((x) => x.classList.toggle('active', x === b));
+    $('#shareOwn').hidden = mode !== 'own';
+    $('#shareAutoHint').hidden = mode !== 'auto';
+    redraw();
+  });
+  ['#shareTitle', '#shareDesc'].forEach((id) => $(id).addEventListener('input', () => redraw()));
+  async function redraw() {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const card = $('#shareCard');
+      if (!card) return;
+      const d = shareDefaults({ ...settings.restaurant, name: look().name });
+      let img = mode === 'own' ? own() : '';
+      if (mode === 'auto') { try { img = (await shareCanvas(look())).toDataURL('image/jpeg', .8); } catch { img = look().coverUrl || ''; } }
+      card.innerHTML = `${img ? `<img src="${esc(img)}" alt="">` : ''}<div class="sc-text"><small>${esc(shareHost())}</small>
+        <b>${esc($('#shareTitle').value.trim() || d.title)}</b><span>${esc($('#shareDesc').value.trim() || d.description)}</span></div>`;
+    }, 250);
+  }
+  return {
+    redraw,
+    // What is saved: in automatic mode the picture is made again when the cover, logo, name or colour changed.
+    async value() {
+      const out = { title: $('#shareTitle').value.trim(), description: $('#shareDesc').value.trim(), auto: mode === 'auto', imageUrl: '', autoKey: '' };
+      if (mode === 'own') { out.imageUrl = own(); return out; }
+      out.autoKey = shareKey(look());
+      if (sh.auto !== false && sh.imageUrl && sh.autoKey === out.autoKey) { out.imageUrl = sh.imageUrl; return out; }
+      try {
+        const dataUrl = (await shareCanvas(look())).toDataURL('image/jpeg', .88);
+        out.imageUrl = (await api('/api/admin/upload', { method: 'POST', body: { dataUrl } })).url;
+      } catch { out.autoKey = ''; /* the cover is used until the picture can be made */ }
+      return out;
+    },
+  };
+}
+
+// After the name changes in the Store tab, the automatic picture of shared links is made again.
+async function refreshShareImage() {
+  const sh = settings.share || {};
+  if (sh.auto === false) return;
+  const r = settings.restaurant;
+  const look = { name: r.name, logoUrl: r.logoUrl, coverUrl: r.coverUrl, brand: settings.brandColor || '#1f3a5f' };
+  if (sh.imageUrl && sh.autoKey === shareKey(look)) return;
+  try {
+    const dataUrl = (await shareCanvas(look)).toDataURL('image/jpeg', .88);
+    const { url } = await api('/api/admin/upload', { method: 'POST', body: { dataUrl } });
+    await api('/api/admin/settings', { method: 'PUT', body: { share: { ...sh, auto: true, imageUrl: url, autoKey: shareKey(look) } } });
+    settings = await api('/api/admin/settings');
+  } catch { /* the cover is used until the picture can be made */ }
 }
 
 function renderStore() {
@@ -1029,8 +1186,12 @@ function renderStore() {
       'facebook', 'tiktok', 'website', 'bookingUrl', 'deliveryUrl',
       'legalName', 'vatNumber', 'taxOffice', 'receiptFooter', 'responsible'];
     const restaurant = { ...settings.restaurant, ...Object.fromEntries(fields.map((f) => [f, $(`#${f}`).value])), ...read() };
-    try { await api('/api/admin/settings', { method: 'PUT', body: { restaurant } }); toast('Αποθηκεύτηκε', 'ok'); }
-    catch (err) { toast(err.message, 'err'); }
+    try {
+      await api('/api/admin/settings', { method: 'PUT', body: { restaurant } });
+      toast('Αποθηκεύτηκε', 'ok');
+      settings = await api('/api/admin/settings');
+      refreshShareImage(); // a new name goes on the picture of shared links too
+    } catch (err) { toast(err.message, 'err'); }
   };
 }
 

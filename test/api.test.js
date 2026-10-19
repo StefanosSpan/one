@@ -486,3 +486,20 @@ test('start screen after the QR: settings, safe links, pick-up link and rating f
   assert.equal((await call(`/api/public/table/${token}/feedback`, { method: 'POST', body: { rating: 5, guestId: 'start-4' } })).status, 403);
   await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { welcome: { enabled: true }, feedback: true, restaurant: cur.restaurant } });
 });
+
+test('the owner sets how the menu link looks when shared: picture, title and text', async () => {
+  // Only pictures of the venue or https addresses are kept.
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { share: { title: 'x', imageUrl: 'javascript:alert(1)', auto: false } } });
+  assert.equal((await call('/api/admin/settings', { as: 'admin' })).data.share.imageUrl, '');
+  const share = { title: 'Ταβέρνα · Το μενού μας', description: 'Φρέσκο ψάρι κάθε μέρα', imageUrl: '/uploads/123-abc.jpg', auto: true, autoKey: 'k' };
+  assert.equal((await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { share } })).status, 200);
+  assert.equal((await call('/api/admin/settings', { method: 'PUT', as: 'waiter', body: { share } })).status, 403);
+  const page = await (await fetch(`${base}/m/demo`)).text();
+  assert.match(page, /<title>Ταβέρνα · Το μενού μας<\/title>/);
+  assert.match(page, /<meta property="og:description" content="Φρέσκο ψάρι κάθε μέρα">/);
+  assert.match(page, /<meta property="og:image" content="http:\/\/127\.0\.0\.1:\d+\/uploads\/123-abc\.jpg">/);
+  assert.match(page, /<meta property="og:image:width" content="1200">/);
+  // Without them, the venue's own name and cover are used.
+  await call('/api/admin/settings', { method: 'PUT', as: 'admin', body: { share: {} } });
+  assert.match(await (await fetch(`${base}/m/demo`)).text(), /<title>[^<]+ · Μενού<\/title>/);
+});

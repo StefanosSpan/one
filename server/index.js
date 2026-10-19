@@ -1494,6 +1494,13 @@ admin.put('/settings', wrap(async (req, res) => {
   if (b.onlinePayments === 'off' || (b.onlinePayments === 'demo' && canUseDemoPayments(req.venue))) await set('onlinePayments', b.onlinePayments);
   if (typeof b.publicBaseUrl === 'string') await set('publicBaseUrl', cleanText(b.publicBaseUrl, 200));
   if (b.theme && typeof b.theme === 'object') await set('theme', cleanTheme(b.theme));
+  // How the menu link looks when it is shared (WhatsApp, Viber, Messenger, Instagram, Facebook): picture, title, text.
+  if (b.share && typeof b.share === 'object') {
+    const img = String(b.share.imageUrl || '');
+    await set('share', { title: cleanText(b.share.title, 90), description: cleanText(b.share.description, 220),
+      imageUrl: /^\/uploads\/[\w.-]+$/.test(img) || /^https:\/\/[^\s"<>]+$/.test(img) ? img.slice(0, 500) : '',
+      auto: b.share.auto !== false, autoKey: cleanText(b.share.autoKey, 300) });
+  }
   if (b.happyHour && typeof b.happyHour === 'object') {
     const w = cleanWindow(b.happyHour) || { days: [], from: '', to: '' };
     await set('happyHour', { enabled: !!b.happyHour.enabled && !!(w.from && w.to), ...w, label: cleanI18n(b.happyHour.label, 40) });
