@@ -127,6 +127,8 @@ function chooseLanguage() {
   let saved;
   try { saved = localStorage.getItem(LANG_KEY); } catch { /* ignore */ }
   if (saved && available.includes(saved)) return saved;
+  // Some menus open in their own language whatever the phone's (the New York demo opens in English).
+  if (S.data.startLanguage && available.includes(S.data.startLanguage)) return S.data.startLanguage;
   for (const l of navigator.languages || [navigator.language]) {
     const code = String(l).slice(0, 2).toLowerCase();
     if (available.includes(code)) return code;

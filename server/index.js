@@ -561,6 +561,9 @@ const wrap = (fn) => (req, res, next) => {
 // ---------------------------------------------------------------------------
 // Public (customer) API
 // ---------------------------------------------------------------------------
+// The language the menu opens in, whatever the language of the phone (the guest can still change it): the New York
+// demo is shown to restaurants in the United States, so it opens in English. Other menus open in the phone's language.
+const startLanguage = (venue) => (venue.isDemo && venue.market === 'us' ? venue.settings.defaultLanguage || 'en' : '');
 app.get('/api/public/table/:token', wrap(async (req, res) => {
   const table = await tableByToken(req);
   const { venue } = req;
@@ -572,6 +575,7 @@ app.get('/api/public/table/:token', wrap(async (req, res) => {
     restaurant: publicRestaurant(venue),
     languages: s.languages,
     defaultLanguage: s.defaultLanguage,
+    startLanguage: startLanguage(venue),
     onlinePayments: publicPayments(venue, table).provider,
     payments: publicPayments(venue, table),
     loyalty: s.loyalty?.enabled ? { visits: Math.max(2, Number(s.loyalty.visits) || 5), reward: s.loyalty.reward || {} } : null,
@@ -697,7 +701,7 @@ app.get('/api/public/menu/:slug', wrap(async (req, res) => {
   const ann = s.announcement;
   res.json({
     mode: 'menu', restaurant: publicRestaurant(venue), languages: s.languages, defaultLanguage: s.defaultLanguage,
-    requireApproval: s.requireApproval, currency: s.currency,
+    startLanguage: startLanguage(venue), requireApproval: s.requireApproval, currency: s.currency,
     features: { ordering: takeawayOn(venue), calls: false },
     takeaway: takeawayOn(venue) ? { minMinutes: Number(s.takeaway.minMinutes) || 20 } : null,
     feedback: s.feedback !== false,

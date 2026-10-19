@@ -75,12 +75,15 @@ test('the New York demo: English, dollars, New York time, no phone payments', as
   const token = demo.tables[0].url.split('/').pop();
   const menu = (await g(`demo-us.${US}`, `/api/public/table/${token}`)).data;
   assert.equal(menu.defaultLanguage, 'en');
+  // It opens in English whatever the language of the phone; Greek menus follow the phone.
+  assert.equal(menu.startLanguage, 'en');
   assert.equal(menu.currency, 'USD');
   assert.equal(menu.restaurant.name, 'Harbor Tavern');
   assert.deepEqual([menu.restaurant.logoUrl, menu.restaurant.coverUrl], ['/assets/demo-logo-us.jpg', '/assets/demo-cover.jpg']);
   assert.equal(menu.payments.provider, 'off');
   const gr = (await g(GR, '/api/demo')).data;
   const grMenu = (await g(`demo.${GR}`, `/api/public/table/${gr.tables[0].url.split('/').pop()}`)).data;
+  assert.equal(grMenu.startLanguage, '');
   const salad = (m) => m.items.find((i) => i.name.en === 'Greek salad' || i.name.el === 'Χωριάτικη σαλάτα');
   assert.equal(salad(menu).price_cents, 2 * salad(grMenu).price_cents); // New York prices
   // Staff screens know the venue is in the United States.
