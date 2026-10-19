@@ -91,8 +91,9 @@ test('only the browsers\' push services are accepted as addresses', () => {
   assert.ok(pushEndpointAllowed('https://web.push.apple.com/QAbc'));
   assert.ok(pushEndpointAllowed('https://updates.push.services.mozilla.com/wpush/v2/abc'));
   assert.ok(pushEndpointAllowed('https://wns2-par02p.notify.windows.com/w/?token=abc'));
+  assert.ok(pushEndpointAllowed('https://jmt17.google.com/fcm/send/abc'));
   for (const bad of ['http://fcm.googleapis.com/x', 'https://fcm.googleapis.com.evil.com/x', 'https://evil.com/fcm.googleapis.com', 'https://fcm.googleapis.com:8443/x',
-    'http://127.0.0.1:9/x', 'https://169.254.169.254/latest', 'not a url']) assert.ok(!pushEndpointAllowed(bad), bad);
+    'http://127.0.0.1:9/x', 'https://169.254.169.254/latest', 'https://jmt17.google.com.evil.com/x', 'https://accounts.google.com/x', 'not a url']) assert.ok(!pushEndpointAllowed(bad), bad);
   assert.ok(pushEndpointAllowed('http://127.0.0.1:9/x', { allowLocal: true }));
 });
 

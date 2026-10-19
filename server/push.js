@@ -3,8 +3,8 @@
 // ever sends to the push services of the browsers, never to an address a phone made up.
 import { createECDH, createCipheriv, createPrivateKey, generateKeyPairSync, hkdfSync, randomBytes, sign } from 'node:crypto';
 
-// Push services of the browsers: Chrome/Android, Firefox, Safari/iOS, Edge.
-const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/,
+// Push services of the browsers: Chrome/Android (Firebase, also as jmt17.google.com), Firefox, Safari/iOS, Edge.
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^jmt\d+\.google\.com$/, /^updates\.push\.services\.mozilla\.com$/,
   /(^|\.)push\.apple\.com$/, /(^|\.)notify\.windows\.com$/];
 
 /** Whether the service may send to this address. `allowLocal` lets the tests use a server on 127.0.0.1. */

@@ -36,7 +36,13 @@ export async function enablePush() {
   // A subscription made with another key of the service is replaced.
   if (sub && sub.options?.applicationServerKey && b64(sub.options.applicationServerKey) !== publicKey) { await sub.unsubscribe(); sub = null; }
   sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(publicKey) });
-  await api('/api/staff/push', { method: 'POST', body: sub.toJSON() });
+  try {
+    await api('/api/staff/push', { method: 'POST', body: sub.toJSON() });
+  } catch (e) {
+    // Not kept by the service: the phone does not keep it either, so the screen never shows "on" by mistake.
+    await sub.unsubscribe().catch(() => {});
+    throw e;
+  }
   return 'on';
 }
 
