@@ -91,10 +91,12 @@ export async function sendPush(sub, message, { vapid, subject, ttl = 900 }) {
 const WORDS = {
   el: { table: 'Τραπέζι', room: 'Δωμάτιο', sunbed: 'Ξαπλώστρα', takeaway: 'Παραλαβή', call: 'Κλήση', callBody: 'Ο πελάτης ζητά σερβιτόρο',
     bill: 'Λογαριασμός', billBody: 'Ο πελάτης ζητά τον λογαριασμό', card: 'Θα πληρώσει με κάρτα', cash: 'Θα πληρώσει με μετρητά',
-    order: 'Νέα παραγγελία', approve: 'περιμένει έγκριση', ready: 'Έτοιμη για σερβίρισμα', pickupReady: 'Έτοιμη για παραλαβή', locale: 'el-GR' },
+    order: 'Νέα παραγγελία', approve: 'περιμένει έγκριση', ready: 'Έτοιμη για σερβίρισμα', pickupReady: 'Έτοιμη για παραλαβή', locale: 'el-GR',
+    welcome: 'Οι ειδοποιήσεις είναι ενεργές σε αυτό το κινητό' },
   en: { table: 'Table', room: 'Room', sunbed: 'Sunbed', takeaway: 'Pick-up', call: 'Call', callBody: 'The guest is asking for a server',
     bill: 'Check', billBody: 'The guest is asking for the check', card: 'Paying by card', cash: 'Paying cash',
-    order: 'New order', approve: 'waiting for approval', ready: 'Ready to serve', pickupReady: 'Ready for pick-up', locale: 'en-US' },
+    order: 'New order', approve: 'waiting for approval', ready: 'Ready to serve', pickupReady: 'Ready for pick-up', locale: 'en-US',
+    welcome: 'Notifications are on for this phone' },
 };
 
 /** The notification for a staff event (a new call, an order to approve, an order ready), or null for other events. */
@@ -103,6 +105,7 @@ export function staffMessage(venue, event, data) {
   const lang = venue.market === 'us' ? 'en' : 'el';
   const spot = data.tableKind === 'takeaway' ? `${w.takeaway}${data.customer?.name ? ` · ${data.customer.name}` : ''}`
     : `${w[data.tableKind] || w.table} ${data.tableLabel}`;
+  if (event === 'welcome') return { title: data.restaurant || 'Kalimenu', body: w.welcome, tag: 'welcome' };
   if (event === 'call') {
     const bill = data.type === 'bill';
     return { title: `${bill ? w.bill : w.call} · ${spot}`, body: bill ? w[data.paymentMethod] || w.billBody : w.callBody, tag: `call-${data.id}` };

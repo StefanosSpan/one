@@ -512,6 +512,7 @@ const staffChannel = (venue) => `staff:${venue.id}`;
 let vapid = null;
 const pushKeys = async () => (vapid ||= await loadVapidKeys(db));
 const pushed = new Map(); // what was already sent, so an event repeated by the screens is not sent twice
+const pushSubject = (venue) => APP_URL || MAIN_URLS[venue.market] || 'https://kalimenu.gr';
 function pushStaff(venue, event, data) {
   const message = staffMessage(venue, event, data);
   const key = `${venue.id}:${message?.tag}:${event}:${data.paymentMethod || ''}`;
@@ -524,7 +525,7 @@ function pushStaff(venue, event, data) {
     const subs = await db.all('SELECT * FROM push_subscriptions WHERE venue_id = ? AND updated_at > ?', [venue.id, since]);
     if (!subs.length) return;
     const staff = venue.settings.staff || [];
-    const subject = APP_URL || MAIN_URLS[venue.market] || 'https://kalimenu.gr';
+    const subject = pushSubject(venue);
     const body = { ...message, url: '/staff/waiter', at: Date.now() };
     await Promise.all(subs.map(async (sub) => {
       const member = sub.member_id ? staff.find((m) => m.id === sub.member_id && m.role === sub.role) : null;
@@ -1003,6 +1004,7 @@ app.post('/api/staff/push', requireStaff('waiter'), wrap(async (req, res) => {
   const { endpoint, keys } = req.body || {};
   if (!pushEndpointAllowed(endpoint, { allowLocal: !PRODUCTION }) || !validSubscriptionKeys(keys)) fail(400, 'bad_subscription');
   if (!rateLimit(`push:${req.venue.id}`, 60, 60_000)) fail(429, 'too_many_requests');
+  const isNew = !(await db.get('SELECT id FROM push_subscriptions WHERE endpoint = ?', [endpoint]));
   await db.tx(async (t) => {
     await t.run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
     await t.insert('INSERT INTO push_subscriptions (venue_id, role, member_id, endpoint, p256dh, auth, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -1011,7 +1013,16 @@ app.post('/api/staff/push', requireStaff('waiter'), wrap(async (req, res) => {
     const extra = await t.all('SELECT id FROM push_subscriptions WHERE venue_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1000 OFFSET 100', [req.venue.id]);
     for (const { id } of extra) await t.run('DELETE FROM push_subscriptions WHERE id = ?', [id]);
   });
-  res.status(201).json({ ok: true });
+  // A new phone gets a first notification at once, so the waiter sees that they arrive; the answer of the push
+  // service tells the screen whether it worked.
+  let sent = null;
+  if (isNew) {
+    const message = staffMessage(req.venue, 'welcome', { restaurant: req.venue.settings.restaurant?.name });
+    sent = await sendPush({ endpoint, ...keys }, { ...message, url: '/staff/waiter', at: Date.now() }, { vapid: await pushKeys(), subject: pushSubject(req.venue) })
+      .catch((e) => { console.error('push', e.message); return 0; });
+    if (!(sent >= 200 && sent < 300)) await db.run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
+  }
+  res.status(201).json({ ok: true, sent });
 }));
 app.post('/api/staff/push/off', requireStaff('waiter'), wrap(async (req, res) => {
   await db.run('DELETE FROM push_subscriptions WHERE endpoint = ? AND venue_id = ?', [String(req.body?.endpoint || ''), req.venue.id]);

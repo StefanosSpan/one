@@ -104,9 +104,16 @@ test('a waiter\'s phone subscribes; bad subscriptions and other roles are refuse
   assert.equal((await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/p/1`, keys: { ...keys, auth: 'short' } } })).status, 400);
   assert.equal((await call('/api/staff/push', { method: 'POST', as: 'kitchen', body: { endpoint: `${pushBase}/p/1`, keys } })).status, 403);
   assert.equal((await call('/api/staff/push', { method: 'POST', body: { endpoint: `${pushBase}/p/1`, keys } })).status, 401);
-  assert.equal((await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/p/1`, keys } })).status, 201);
-  // Renewing does not duplicate it.
-  assert.equal((await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/p/1`, keys } })).status, 201);
+  // A new phone gets a first notification at once, and hears whether it got through.
+  const first = await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/p/1`, keys } });
+  assert.deepEqual([first.status, first.data.sent], [201, 201]);
+  const welcome = decrypt(received.at(-1).body);
+  assert.equal(welcome.body, 'Οι ειδοποιήσεις είναι ενεργές σε αυτό το κινητό');
+  // Renewing does not duplicate it, nor send it again.
+  const count = received.length;
+  const again = await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/p/1`, keys } });
+  assert.deepEqual([again.status, again.data.sent], [201, null]);
+  assert.equal(received.length, count);
   assert.equal((await db.get('SELECT COUNT(*) AS n FROM push_subscriptions')).n, 1);
 });
 
@@ -160,13 +167,19 @@ test('an order waiting for approval and an order ready to serve are notified', a
 });
 
 test('phones that unsubscribed are forgotten, and a waiter can turn notifications off', async () => {
-  await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/gone/1`, keys } });
+  // A subscription the push service refuses at once is not kept, and the screen hears it.
+  const refused = await call('/api/staff/push', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/gone/1`, keys } });
+  assert.equal(refused.data.sent, 410);
+  assert.equal(await db.get('SELECT id FROM push_subscriptions WHERE endpoint = ?', [`${pushBase}/gone/1`]), undefined);
+  // One that unsubscribes later is forgotten after the next notification.
+  await db.run("INSERT INTO push_subscriptions (venue_id, role, member_id, endpoint, p256dh, auth, updated_at) SELECT venue_id, role, member_id, ?, p256dh, auth, updated_at FROM push_subscriptions WHERE endpoint = ?",
+    [`${pushBase}/gone/2`, `${pushBase}/p/1`]);
   const arriving = nextPush();
   await call(`/api/public/table/${tokens[2]}/calls`, { method: 'POST', body: { type: 'waiter' } });
   await arriving;
   await settle();
-  assert.ok(received.some((p) => p.url === '/gone/1'));
-  assert.equal(await db.get('SELECT id FROM push_subscriptions WHERE endpoint = ?', [`${pushBase}/gone/1`]), undefined);
+  assert.ok(received.some((p) => p.url === '/gone/2'));
+  assert.equal(await db.get('SELECT id FROM push_subscriptions WHERE endpoint = ?', [`${pushBase}/gone/2`]), undefined);
   assert.equal((await call('/api/staff/push/off', { method: 'POST', as: 'waiter', body: { endpoint: `${pushBase}/p/1` } })).status, 200);
   assert.equal((await db.get('SELECT COUNT(*) AS n FROM push_subscriptions')).n, 0);
   const count = received.length;

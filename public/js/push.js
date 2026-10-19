@@ -37,7 +37,9 @@ export async function enablePush() {
   if (sub && sub.options?.applicationServerKey && b64(sub.options.applicationServerKey) !== publicKey) { await sub.unsubscribe(); sub = null; }
   sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(publicKey) });
   try {
-    await api('/api/staff/push', { method: 'POST', body: sub.toJSON() });
+    const { sent } = await api('/api/staff/push', { method: 'POST', body: sub.toJSON() });
+    // The first notification did not get through the browser's push service.
+    if (sent != null && !(sent >= 200 && sent < 300)) throw new Error(`push service ${sent}`);
   } catch (e) {
     // Not kept by the service: the phone does not keep it either, so the screen never shows "on" by mistake.
     await sub.unsubscribe().catch(() => {});
